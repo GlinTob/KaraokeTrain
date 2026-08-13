@@ -83,10 +83,21 @@ export async function showTab(tabId) {
       if (typeof inicializarEscenarioDesdeMemoria === "function") inicializarEscenarioDesdeMemoria();
       if (typeof loadTrackOptionsInKaraoke === "function") await loadTrackOptionsInKaraoke();
 
+      try
       const track = $("karaokeTrack");
       if (track && track.dataset.karaokeId && typeof loadKaraokeSong === "function") {
         await loadKaraokeSong(track.dataset.karaokeId);
-      }
+      const track = $("karaokeTrack");
+      if (track && track.dataset.karaokeId && typeof loadKaraokeSong === "function") {
+        await loadKaraokeSong(track.dataset.karaokeId);
+    }
+
+    console.log(`✅ [Navegación] Pestaña [${tabId.toUpperCase()}] cargada y visualizada.`);
+
+  } catch (error) {
+    console.error(`❌ [Lazy Load Error] Falló el módulo [${tabId}]:`, error);
+  }
+      
     }
     console.log(`✅ [Navegación] Pestaña [${tabId.toUpperCase()}] cargada y visualizada.`);
 
