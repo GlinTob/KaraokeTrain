@@ -11,7 +11,7 @@ let pitchLoopTimeout = null;
 const pitchBuffer = new Float32Array(2048);
 let audioContext = null;
 let analyser = null;
-let stream = null;import { getAudioController } from './audio-controller.js'; 
+let stream = null;
 
 /** 
  * AgujaViva — Hero-mode tuner needle with particle trail
