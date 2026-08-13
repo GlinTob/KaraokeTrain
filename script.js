@@ -85,19 +85,10 @@ export async function showTab(tabId) {
 
       try {
         const track = $("karaokeTrack");
-        if (track && track.dataset.karaokeId && typeof loadKaraokeSong === "function") {
-          await loadKaraokeSong(track.dataset.karaokeId);
-        }
-        
-        
-
-        console.log(`✅ [Navegación] Pestaña [${tabId.toUpperCase()}] cargada y visualizada.`);
-
-      } catch (error) {
-        console.error(`❌ [Lazy Load Error] Falló el módulo [${tabId}]:`, error);
-      }
-      
+    if (track && track.dataset.karaokeId && typeof loadKaraokeSong === "function") {
+      await loadKaraokeSong(track.dataset.karaokeId);
     }
+
     console.log(`✅ [Navegación] Pestaña [${tabId.toUpperCase()}] cargada y visualizada.`);
 
   } catch (error) {
