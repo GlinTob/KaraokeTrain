@@ -1,6 +1,7 @@
 // ====================================================================
 // 🎨 MONITOR DE RENDERIZADO Y FLUJO DE REPRODUCCIÓN DEL KARAOKE
 // ====================================================================
+import { $, safeAdd } from "../script.js";
 
 // Declaración de historiales locales para evitar errores de referencia en el render
 let pitchHistory = [];
