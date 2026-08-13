@@ -5,15 +5,12 @@ import { getAudioController } from './audio-controller.js';
  * Canvas 2D renderer, 60fps, theme-aware, no dependencies
  */
 
-// Utilidad abreviada para buscar elementos del DOM
 const $ = (id) => document.getElementById(id); 
 
-// Estado de grabación global de la pestaña Afinador
 const state = {
   isRecording: false
 }; 
 
-// Instancias y buffers globales internos
 let agujaVivaInstance = null;
 let pitchLoopTimeout = null;
 const pitchBuffer = new Float32Array(2048);
@@ -28,13 +25,62 @@ function frequencyToCentsOff(freq, targetFreq) {
 
 function noteToFrequency(noteName) {
   const notes = { 'C': 0, 'C#': 1, 'D': 2, 'D#': 3, 'E': 4, 'F': 5, 'F#': 6, 'G': 7, 'G#': 8, 'A': 9, 'A#': 10, 'B': 11 };
-  const match = noteName.match(/^([A-G]#?)(\d)$/);
+  const match = noteName ? noteName.match(/^([A-G]#?)(\d)$/) : null;
   if (!match) return 164.81; // E3 por defecto
   const key = match[1];
   const octave = parseInt(match[2], 10);
   const semitones = notes[key] + (octave - 4) * 12;
   return 440 * Math.pow(2, semitones / 12);
 } 
+
+// Algoritmo rápido de Autocorrelación de respaldo
+function autoCorrelate(buf, sampleRate) {
+  let SIZE = buf.length;
+  let rms = 0;
+
+  for (let i = 0; i < SIZE; i++) {
+    let val = buf[i];
+    rms += val * val;
+  }
+  rms = Math.sqrt(rms / SIZE);
+  if (rms < 0.012) return -1; // Umbral de silencio/ruido
+
+  let r1 = 0, r2 = SIZE - 1, thres = 0.2;
+  for (let i = 0; i < SIZE / 2; i++) {
+    if (Math.abs(buf[i]) < thres) { r1 = i; break; }
+  }
+  for (let i = 1; i < SIZE / 2; i++) {
+    if (Math.abs(buf[SIZE - i]) < thres) { r2 = SIZE - i; break; }
+  }
+
+  buf = buf.slice(r1, r2);
+  SIZE = buf.length;
+
+  let c = new Float32Array(SIZE);
+  for (let i = 0; i < SIZE; i++) {
+    for (let j = 0; j < SIZE - i; j++) {
+      c[i] = c[i] + buf[j] * buf[j + i];
+    }
+  }
+
+  let d = 0;
+  while (c[d] > c[d + 1]) d++;
+  let maxval = -1, maxpos = -1;
+  for (let i = d; i < SIZE; i++) {
+    if (c[i] > maxval) {
+      maxval = c[i];
+      maxpos = i;
+    }
+  }
+  let T0 = maxpos;
+
+  let x1 = c[T0 - 1], x2 = c[T0], x3 = c[T0 + 1];
+  let a = (x1 + x3 - 2 * x2) / 2;
+  let b = (x3 - x1) / 2;
+  if (a) T0 = T0 - b / (2 * a);
+
+  return sampleRate / T0;
+}
 
 export class AgujaViva {
   constructor(canvas, options = {}) {
@@ -603,7 +649,14 @@ async function startAfinador() {
     agujaVivaInstance.start();
   }
 
-  audioContext = new AudioContext();
+  const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
+  audioContext = new AudioCtxClass();
+  
+  // Reactivar el AudioContext en Brave/Chrome si entra suspendido
+  if (audioContext.state === 'suspended') {
+    await audioContext.resume();
+  }
+
   stream = await navigator.mediaDevices.getUserMedia({
     audio: {
       echoCancellation: false,
@@ -617,9 +670,7 @@ async function startAfinador() {
   analyser.fftSize = 2048;
   mic.connect(analyser);
 
-  setTimeout(() => {
-    runPitchDetectionLoop();
-  }, 300);
+  runPitchDetectionLoop();
 }
 
 function stopAfinador() {
@@ -646,21 +697,45 @@ async function runPitchDetectionLoop() {
   if (!state.isRecording || !analyser || !audioContext) return;
   analyser.getFloatTimeDomainData(pitchBuffer);
 
+  let detectedPitch = -1;
+
   try {
-    const audioController = getAudioController();
-    const result = await audioController.detectPitch(pitchBuffer, audioContext.sampleRate);
-    if (agujaVivaInstance) {
-      if (result && result.pitch && result.pitch > 0) {
-        agujaVivaInstance.setPitch(result.pitch);
-      } else {
-        agujaVivaInstance.setPitch(-1);
+    const audioController = typeof getAudioController === 'function' ? getAudioController() : null;
+    if (audioController && typeof audioController.detectPitch === 'function') {
+      const res = await audioController.detectPitch(pitchBuffer, audioContext.sampleRate);
+      if (res && res.pitch && res.pitch > 0) {
+        detectedPitch = res.pitch;
       }
     }
-  } catch (error) {
-    console.error("Fallo en bucle de detección:", error);
+  } catch (err) {
+    // Silencioso: usa autocorrelación si falla el módulo externo
+  }
+
+  // Fallback rápido por autocorrelación si no responde el controlador externo
+  if (detectedPitch <= 0) {
+    detectedPitch = autoCorrelate(pitchBuffer, audioContext.sampleRate);
+  }
+
+  const guideText = $("guideText");
+
+  if (agujaVivaInstance) {
+    if (detectedPitch > 50 && detectedPitch < 2000) {
+      agujaVivaInstance.setPitch(detectedPitch);
+      if (guideText) {
+        const targetNoteName = $("targetNote")?.value || "E3";
+        const targetFreq = noteToFrequency(targetNoteName);
+        const cents = Math.round(frequencyToCentsOff(detectedPitch, targetFreq));
+        guideText.textContent = `Afinando: ${Math.round(detectedPitch)} Hz (${cents > 0 ? '+' : ''}${cents}¢)`;
+      }
+    } else {
+      agujaVivaInstance.setPitch(-1);
+      if (guideText) {
+        guideText.textContent = "🎤 Esperando voz...";
+      }
+    }
   }
 
   if (state.isRecording) {
-    pitchLoopTimeout = setTimeout(runPitchDetectionLoop, 16);
+    pitchLoopTimeout = setTimeout(runPitchDetectionLoop, 20);
   }
 }
