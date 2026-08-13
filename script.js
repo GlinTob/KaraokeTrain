@@ -12,7 +12,7 @@ export function safeAdd(id, event, handler) {
   if (el) {
     el.addEventListener(event, handler);
   } else {
-    console.warn("⚠️ No se encontró el elemento con ID: ${id} para registrar el evento [${event}]");
+    console.warn(`⚠️ No se encontró el elemento con ID: ${id} para registrar el evento [${event}]`);
   }
 }
 
@@ -83,10 +83,10 @@ export async function showTab(tabId) {
       if (typeof inicializarEscenarioDesdeMemoria === "function") inicializarEscenarioDesdeMemoria();
       if (typeof loadTrackOptionsInKaraoke === "function") await loadTrackOptionsInKaraoke();
 
-      try {
-        const track = $("karaokeTrack");
-    if (track && track.dataset.karaokeId && typeof loadKaraokeSong === "function") {
-      await loadKaraokeSong(track.dataset.karaokeId);
+      const track = $("karaokeTrack");
+      if (track && track.dataset.karaokeId && typeof loadKaraokeSong === "function") {
+        await loadKaraokeSong(track.dataset.karaokeId);
+      }
     }
 
     console.log(`✅ [Navegación] Pestaña [${tabId.toUpperCase()}] cargada y visualizada.`);
