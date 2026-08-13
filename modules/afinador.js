@@ -13,7 +13,7 @@ let audioContext = null;
 let analyser = null;
 let stream = null;
 
-// Auxiliares de cálculo de notas y frecuencias
+// Auxiliares matemáticos
 function frequencyToCentsOff(freq, targetFreq) {
   return 1200 * Math.log2(freq / targetFreq);
 }
@@ -26,6 +26,55 @@ function noteToFrequency(noteName) {
   const octave = parseInt(match[2], 10);
   const semitones = notes[key] + (octave - 4) * 12;
   return 440 * Math.pow(2, semitones / 12);
+}
+
+// Algoritmo rápido de Autocorrelación de respaldo
+function autoCorrelate(buf, sampleRate) {
+  let SIZE = buf.length;
+  let rms = 0;
+
+  for (let i = 0; i < SIZE; i++) {
+    let val = buf[i];
+    rms += val * val;
+  }
+  rms = Math.sqrt(rms / SIZE);
+  if (rms < 0.012) return -1; // Umbral de silencio/ruido
+
+  let r1 = 0, r2 = SIZE - 1, thres = 0.2;
+  for (let i = 0; i < SIZE / 2; i++) {
+    if (Math.abs(buf[i]) < thres) { r1 = i; break; }
+  }
+  for (let i = 1; i < SIZE / 2; i++) {
+    if (Math.abs(buf[SIZE - i]) < thres) { r2 = SIZE - i; break; }
+  }
+
+  buf = buf.slice(r1, r2);
+  SIZE = buf.length;
+
+  let c = new Float32Array(SIZE);
+  for (let i = 0; i < SIZE; i++) {
+    for (let j = 0; j < SIZE - i; j++) {
+      c[i] = c[i] + buf[j] * buf[j + i];
+    }
+  }
+
+  let d = 0;
+  while (c[d] > c[d + 1]) d++;
+  let maxval = -1, maxpos = -1;
+  for (let i = d; i < SIZE; i++) {
+    if (c[i] > maxval) {
+      maxval = c[i];
+      maxpos = i;
+    }
+  }
+  let T0 = maxpos;
+
+  let x1 = c[T0 - 1], x2 = c[T0], x3 = c[T0 + 1];
+  let a = (x1 + x3 - 2 * x2) / 2;
+  let b = (x3 - x1) / 2;
+  if (a) T0 = T0 - b / (2 * a);
+
+  return sampleRate / T0;
 }
 
 export class AgujaViva {
@@ -44,7 +93,7 @@ export class AgujaViva {
     this.currentFreq = -1;
     this.targetFreq = 164.81;
     this.cents = 0;
-    this.maxCents = 30;
+    this.maxCents = 50;
 
     this.needleAngle = 0;
     this.targetAngle = 0;
@@ -56,7 +105,9 @@ export class AgujaViva {
     this.popDecay = 0.8;
 
     this.particles = [];
+    this.lastParticleTime = 0;
     this.particleSpawnAccum = 0;
+
     this.ripples = [];
     this.wasInTolerance = false;
     this.rippleCooldown = 0;
@@ -68,11 +119,14 @@ export class AgujaViva {
       center: '#22c55e',
       centerGlow: 'rgba(34, 197, 94, 0.5)',
       flat: '#3b82f6',
+      flatGlow: 'rgba(59, 130, 246, 0.5)',
       sharp: '#f97316',
+      sharpGlow: 'rgba(249, 115, 22, 0.5)',
       ledOn: '#22c55e',
       ledOff: 'rgba(148, 163, 184, 0.15)',
       ledFlat: '#3b82f6',
       ledSharp: '#f97316',
+      text: '#f8fafc',
       textMuted: '#94a3b8',
       grid: 'rgba(148, 163, 184, 0.08)',
     };
@@ -94,23 +148,33 @@ export class AgujaViva {
 
     this.canvas.width = this.width * this.dpr;
     this.canvas.height = this.height * this.dpr;
+    this.canvas.style.width = this.width + 'px';
+    this.canvas.style.height = this.height + 'px';
+
     this.ctx.setTransform(1, 0, 0, 1, 0, 0);
     this.ctx.scale(this.dpr, this.dpr);
   }
 
   setPitch(freq) {
     this.currentFreq = freq;
+
     if (freq > 0 && this.targetFreq > 0) {
       this.cents = frequencyToCentsOff(freq, this.targetFreq);
       const targetAngle = Math.max(-1, Math.min(1, this.cents / this.maxCents));
 
+      const wasInTolerance = Math.abs(this.needleAngle) <= 1;
+      const nowInTolerance = Math.abs(targetAngle) <= 1;
+      if (wasInTolerance !== nowInTolerance) {
+        this.triggerBurst();
+      }
+
       const isNowInTolerance = Math.abs(this.cents) <= this.maxCents;
       if (isNowInTolerance && !this.wasInTolerance && this.rippleCooldown <= 0) {
         this.triggerRipple();
-        this.triggerBurst();
-        this.rippleCooldown = 1.0;
+        this.rippleCooldown = 1.5;
       }
       this.wasInTolerance = isNowInTolerance;
+
       this.targetAngle = targetAngle;
     } else {
       this.cents = 0;
@@ -131,20 +195,39 @@ export class AgujaViva {
   triggerBurst() {
     this.burstRadius = 0;
     this.burstAlpha = 1;
-    this.popScale = 1.3;
   }
 
   triggerRipple() {
     const cx = this.width / 2;
     const cy = this.height * 0.55;
-    this.ripples.push({
-      x: cx,
-      y: cy,
-      radius: 10,
-      maxRadius: Math.max(this.width, this.height) * 0.5,
-      alpha: 1,
-      color: this.colors.center
-    });
+    const color = this.colors.center;
+    const maxR = Math.max(this.width, this.height) * 0.8;
+
+    const crestCount = 4;
+    for (let i = 0; i < crestCount; i++) {
+      const delay = i * 0.06;
+      const initialRadius = i * 12;
+
+      this.ripples.push({
+        x: cx,
+        y: cy,
+        radius: initialRadius,
+        maxRadius: maxR,
+        alpha: 0.9 - i * 0.15,
+        color,
+        lineWidth: Math.max(1, 3 - i * 0.5),
+        delay,
+        age: -delay,
+      });
+    }
+  }
+
+  triggerPop() {
+    this.popScale = 1.4;
+  }
+
+  triggerShake(intensity = 0.3) {
+    this.shakeIntensity = intensity;
   }
 
   start() {
@@ -156,11 +239,15 @@ export class AgujaViva {
 
   stop() {
     this.running = false;
-    if (this.rafId) cancelAnimationFrame(this.rafId);
+    if (this.rafId) {
+      cancelAnimationFrame(this.rafId);
+      this.rafId = null;
+    }
   }
 
   tick(timestamp) {
     if (!this.running) return;
+
     const dt = Math.min((timestamp - this.lastTime) / 1000, 0.1);
     this.lastTime = timestamp;
 
@@ -171,63 +258,132 @@ export class AgujaViva {
   }
 
   update(dt) {
-    this.needleAngle += (this.targetAngle - this.needleAngle) * Math.min(1, dt * 10);
+    const diff = this.targetAngle - this.needleAngle;
+    this.needleAngle += diff * Math.min(1, dt * 8);
+
+    if (this.shakeIntensity > 0.01) {
+      this.shakeIntensity *= this.shakeDecay;
+    } else {
+      this.shakeIntensity = 0;
+    }
 
     if (this.burstAlpha > 0) {
-      this.burstRadius += dt * 250;
-      this.burstAlpha -= dt * 2;
+      this.burstRadius += dt * 300;
+      this.burstAlpha -= dt * 2.5;
     }
 
     if (this.popScale > 1) {
-      this.popScale -= dt * 1.5;
-      if (this.popScale < 1) this.popScale = 1;
+      this.popScale = 1 + (this.popScale - 1) * this.popDecay;
+      if (this.popScale < 1.01) this.popScale = 1;
     }
 
-    if (this.rippleCooldown > 0) this.rippleCooldown -= dt;
+    if (this.rippleCooldown > 0) {
+      this.rippleCooldown -= dt;
+    }
 
-    this.ripples.forEach(r => {
-      r.radius += dt * 200;
+    this.ripples = this.ripples.filter(r => {
+      r.age += dt;
+      if (r.age < 0) return true;
+
+      r.radius += dt * 180;
       r.alpha = Math.max(0, 1 - r.radius / r.maxRadius);
+      r.lineWidth = Math.max(0.5, 3 * (1 - r.radius / r.maxRadius));
+      return r.alpha > 0;
     });
-    this.ripples = this.ripples.filter(r => r.alpha > 0);
 
     this.spawnParticles(dt);
-    this.particles.forEach(p => {
+
+    this.particles = this.particles.filter(p => {
       p.life -= dt;
       p.x += p.vx * dt;
       p.y += p.vy * dt;
+      p.vy += p.gravity * dt;
       p.alpha = Math.max(0, p.life / p.maxLife);
+      p.rotation += p.rotSpeed * dt;
+      return p.life > 0;
     });
-    this.particles = this.particles.filter(p => p.life > 0);
+
+    this.updateThemeColors();
   }
 
   spawnParticles(dt) {
-    if (this.currentFreq <= 0) return;
+    if (this.currentFreq <= 0) {
+      this.particleSpawnAccum += dt;
+      if (this.particleSpawnAccum > 0.5 && this.particles.length < 30) {
+        this.spawnSleepParticle();
+        this.particleSpawnAccum = 0;
+      }
+      return;
+    }
+
+    const stability = 1 - Math.min(1, Math.abs(this.needleAngle));
+    const spawnRate = this.trailFreq * (0.5 + stability * 2);
 
     this.particleSpawnAccum += dt;
-    if (this.particleSpawnAccum > this.trailFreq && this.particles.length < this.maxParticles) {
-      this.particleSpawnAccum = 0;
-      const cx = this.width / 2;
-      const cy = this.height * 0.55;
-      const angle = (this.needleAngle * Math.PI / 6) - Math.PI / 2;
-      const speed = 40 + Math.random() * 60;
-
-      let color = this.colors.sharp;
-      if (Math.abs(this.cents) <= this.maxCents) color = this.colors.center;
-      else if (this.cents < 0) color = this.colors.flat;
-
-      this.particles.push({
-        x: cx,
-        y: cy,
-        vx: Math.cos(angle) * speed + (Math.random() - 0.5) * 20,
-        vy: Math.sin(angle) * speed + (Math.random() - 0.5) * 20,
-        life: this.particleLife,
-        maxLife: this.particleLife,
-        size: 2 + Math.random() * 4,
-        color,
-        alpha: 1
-      });
+    while (this.particleSpawnAccum > spawnRate && this.particles.length < this.maxParticles) {
+      this.spawnActiveParticle();
+      this.particleSpawnAccum -= spawnRate;
     }
+  }
+
+  spawnActiveParticle() {
+    const cx = this.width / 2;
+    const cy = this.height * 0.55;
+
+    const angle = this.needleAngle * Math.PI / 6 + (Math.random() - 0.5) * 0.3;
+    const speed = 80 + Math.random() * 120;
+
+    let color;
+    if (Math.abs(this.cents) <= this.maxCents) {
+      color = this.colors.center;
+    } else if (this.cents < 0) {
+      color = this.colors.flat;
+    } else {
+      color = this.colors.sharp;
+    }
+
+    this.particles.push({
+      x: cx,
+      y: cy,
+      vx: Math.cos(angle) * speed + (Math.random() - 0.5) * 30,
+      vy: Math.sin(angle) * speed + (Math.random() - 0.5) * 30,
+      gravity: 20,
+      life: this.particleLife * (0.6 + Math.random() * 0.4),
+      maxLife: this.particleLife,
+      size: 3 + Math.random() * 4,
+      color,
+      alpha: 1,
+      rotation: Math.random() * Math.PI * 2,
+      rotSpeed: (Math.random() - 0.5) * 4,
+    });
+  }
+
+  spawnSleepParticle() {
+    const cx = this.width / 2;
+    const cy = this.height * 0.55;
+    const angle = Math.random() * Math.PI * 2;
+    const radius = 40 + Math.random() * 80;
+
+    this.particles.push({
+      x: cx + Math.cos(angle) * radius,
+      y: cy + Math.sin(angle) * radius,
+      vx: Math.cos(angle) * 10,
+      vy: Math.sin(angle) * 10,
+      gravity: 0,
+      life: 4 + Math.random() * 3,
+      maxLife: 7,
+      size: 2 + Math.random() * 3,
+      color: this.colors.needle,
+      alpha: 0.3,
+      rotation: Math.random() * Math.PI * 2,
+      rotSpeed: (Math.random() - 0.5) * 1,
+    });
+  }
+
+  updateThemeColors() {
+    const cs = getComputedStyle(document.documentElement);
+    const bg = cs.getPropertyValue('--bg-main').trim() || '#0f172a';
+    this.colors.bg = bg;
   }
 
   render() {
@@ -239,77 +395,110 @@ export class AgujaViva {
 
     ctx.clearRect(0, 0, w, h);
 
-    // Fondo y Rejilla
+    ctx.fillStyle = this.colors.bg;
+    ctx.fillRect(0, 0, w, h);
+
     ctx.strokeStyle = this.colors.grid;
     ctx.lineWidth = 1;
     for (let i = 1; i < 10; i++) {
       const x = (w / 10) * i;
       ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, h);
+      ctx.moveTo(x, h * 0.3);
+      ctx.lineTo(x, h * 0.8);
       ctx.stroke();
     }
 
-    // Centro objetivo (Línea punteada)
     ctx.strokeStyle = 'rgba(250, 204, 21, 0.3)';
     ctx.lineWidth = 2;
-    ctx.setLineDash([8, 8]);
+    ctx.setLineDash([10, 10]);
     ctx.beginPath();
-    ctx.moveTo(cx, h * 0.2);
+    ctx.moveTo(cx, h * 0.3);
     ctx.lineTo(cx, h * 0.8);
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // Ondas Ripple
+    const tolerancePx = (this.maxCents > 0) ? (w * 0.4) * (this.maxCents / 50) : w * 0.4;
+    ctx.strokeStyle = 'rgba(34, 197, 94, 0.25)';
+    ctx.lineWidth = 1;
+    [-1, 1].forEach(side => {
+      const x = cx + side * tolerancePx;
+      ctx.beginPath();
+      ctx.moveTo(x, h * 0.3);
+      ctx.lineTo(x, h * 0.8);
+      ctx.stroke();
+    });
+
+    if (this.burstAlpha > 0) {
+      const burstColor = Math.abs(this.cents) <= this.maxCents ? this.colors.center : 
+        (this.cents < 0 ? this.colors.flat : this.colors.sharp);
+      ctx.strokeStyle = `rgba(${this.hexToRgb(burstColor).join(',')}, ${this.burstAlpha})`;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(cx, cy, this.burstRadius, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
     this.ripples.forEach(r => {
-      ctx.strokeStyle = `rgba(34, 197, 94, ${r.alpha})`;
-      ctx.lineWidth = 2;
+      ctx.strokeStyle = this.hexToRgba(r.color, r.alpha);
+      ctx.lineWidth = r.lineWidth;
       ctx.beginPath();
       ctx.arc(r.x, r.y, r.radius, 0, Math.PI * 2);
       ctx.stroke();
     });
 
-    // Partículas
-    this.particles.forEach(p => {
-      ctx.fillStyle = p.color;
-      ctx.globalAlpha = p.alpha;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-      ctx.fill();
-    });
-    ctx.globalAlpha = 1;
-
-    // Aguja Principal
-    const angle = this.needleAngle * (Math.PI / 6);
-    const length = Math.min(w, h) * 0.35;
-
-    ctx.save();
-    ctx.translate(cx, cy);
-    ctx.rotate(angle);
-
-    ctx.strokeStyle = this.colors.needle;
-    ctx.lineWidth = 4;
-    ctx.shadowColor = this.colors.needleGlow;
-    ctx.shadowBlur = 15;
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.lineTo(0, -length);
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-    ctx.restore();
-
-    // Barra LED inferior
     this.renderLedBar(ctx, w, h);
+    this.renderParticles(ctx);
+    this.renderNeedle(ctx, cx, cy, w, h);
 
-    // Pivot Central
     ctx.fillStyle = this.colors.center;
     ctx.beginPath();
     ctx.arc(cx, cy, 8 * this.popScale, 0, Math.PI * 2);
     ctx.fill();
+    ctx.shadowColor = this.colors.centerGlow;
+    ctx.shadowBlur = 20 * this.popScale;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+
+  renderNeedle(ctx, cx, cy, w, h) {
+    const angle = this.needleAngle * Math.PI / 6;
+    const shake = this.shakeIntensity * (Math.random() - 0.5) * 0.2;
+    const length = Math.min(w, h) * 0.38;
+
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(angle + shake);
+
+    const grad = ctx.createLinearGradient(0, 0, 0, -length);
+    grad.addColorStop(0, this.colors.needleGlow);
+    grad.addColorStop(1, 'rgba(250,204,21,0)');
+    ctx.strokeStyle = grad;
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(0, -length);
+    ctx.stroke();
+
+    ctx.strokeStyle = this.colors.needle;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(0, -length);
+    ctx.stroke();
+
+    ctx.fillStyle = this.colors.needle;
+    ctx.beginPath();
+    ctx.moveTo(-6, -length);
+    ctx.lineTo(6, -length);
+    ctx.lineTo(0, -length - 12);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
   }
 
   renderLedBar(ctx, w, h) {
-    const barY = h * 0.85;
+    const barY = h * 0.88;
     const barW = w * 0.6;
     const barX = (w - barW) / 2;
     const segmentCount = 21;
@@ -319,25 +508,84 @@ export class AgujaViva {
 
     for (let i = 0; i < segmentCount; i++) {
       const x = barX + i * segmentW + 2;
+      const y = barY;
       const wSeg = segmentW - 4;
-      let color = this.colors.ledOff;
+      const hSeg = 14;
+      let color;
+      let alpha = 1;
 
-      if (i === centerIdx && Math.abs(this.cents) <= this.maxCents && this.currentFreq > 0) {
-        color = this.colors.ledOn;
-      } else if (i < centerIdx && i >= litCount) {
+      if (i === centerIdx) {
+        if (Math.abs(this.cents) <= this.maxCents && this.currentFreq > 0) {
+          color = this.colors.ledOn;
+        } else if (this.cents < 0) {
+          color = this.colors.ledFlat;
+        } else {
+          color = this.colors.ledSharp;
+        }
+      } else if (i < litCount) {
         color = this.colors.ledFlat;
-      } else if (i > centerIdx && i <= litCount) {
+        alpha = 0.6 + (i / centerIdx) * 0.4;
+      } else if (i > litCount) {
         color = this.colors.ledSharp;
+        alpha = 0.6 + ((segmentCount - 1 - i) / (segmentCount - 1 - centerIdx)) * 0.4;
+      } else {
+        color = this.colors.ledOff;
+        alpha = 0.3;
       }
 
-      ctx.fillStyle = color;
-      ctx.fillRect(x, barY, wSeg, 12);
+      ctx.fillStyle = this.hexToRgba(color, alpha);
+      ctx.fillRect(x, y, wSeg, hSeg);
+
+      if (i === centerIdx || (i < litCount && i > centerIdx - 3) || (i > litCount && i < centerIdx + 3)) {
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 8;
+        ctx.fillRect(x, y, wSeg, hSeg);
+        ctx.shadowBlur = 0;
+      }
     }
+
+    ctx.fillStyle = this.colors.textMuted;
+    ctx.font = '11px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('GRAVE', barX - 30, barY + 10);
+    ctx.fillText('AGUDO', barX + barW + 30, barY + 10);
+  }
+
+  renderParticles(ctx) {
+    this.particles.forEach(p => {
+      ctx.save();
+      ctx.globalAlpha = p.alpha;
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rotation);
+
+      const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, p.size);
+      grad.addColorStop(0, this.hexToRgba(p.color, p.alpha));
+      grad.addColorStop(1, this.hexToRgba(p.color, 0));
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(0, 0, p.size, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    });
+  }
+
+  hexToRgb(hex) {
+    const h = hex.replace('#', '');
+    const bigint = parseInt(h, 16);
+    return [(bigint >> 16) & 255, (bigint >> 8) & 255, bigint & 255];
+  }
+
+  hexToRgba(hex, alpha) {
+    const rgb = this.hexToRgb(hex);
+    return `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${alpha})`;
   }
 
   destroy() {
     this.stop();
     window.removeEventListener('resize', this.resize);
+    if (this.ctx) {
+      this.ctx.clearRect(0, 0, this.width, this.height);
+    }
   }
 }
 
@@ -388,6 +636,7 @@ async function startAfinador() {
   const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
   audioContext = new AudioCtxClass();
 
+  // Re-activación indispensable para Brave/Chrome
   if (audioContext.state === 'suspended') {
     await audioContext.resume();
   }
@@ -432,38 +681,44 @@ async function runPitchDetectionLoop() {
   if (!state.isRecording || !analyser || !audioContext) return;
   analyser.getFloatTimeDomainData(pitchBuffer);
 
+  let pitch = -1;
+  let note = null;
+  let cents = 0;
+
   try {
     const audioController = typeof getAudioController === 'function' ? getAudioController() : null;
-    let pitch = -1;
-    let note = null;
-    let cents = 0;
 
     if (audioController && typeof audioController.detectPitch === 'function') {
       const res = await audioController.detectPitch(pitchBuffer, audioContext.sampleRate);
-      if (res) {
-        pitch = res.pitch || -1;
-        note = res.note || null;
+      if (res && res.pitch && res.pitch > 0) {
+        pitch = res.pitch;
+        note = res.note;
         cents = res.cents || 0;
       }
     }
-
-    const guideText = $("guideText");
-    const noteDisplay = $("currentNoteDisplay");
-    const centsDisplay = $("centsDisplay");
-
-    if (agujaVivaInstance) {
-      if (pitch > 0) {
-        agujaVivaInstance.setPitch(pitch);
-        if (guideText) guideText.textContent = `🎤 Escuchando (${Math.round(pitch)} Hz)`;
-        if (noteDisplay && note) noteDisplay.textContent = note;
-        if (centsDisplay) centsDisplay.textContent = `${cents > 0 ? '+' : ''}${Math.round(cents)}¢`;
-      } else {
-        agujaVivaInstance.setPitch(-1);
-        if (guideText) guideText.textContent = "🎤 Esperando voz...";
-      }
-    }
   } catch (err) {
-    console.error("Error en bucle de detección:", err);
+    // Silencioso: cae en autocorrelación si falla el módulo externo
+  }
+
+  // Fallback rápido por autocorrelación si el controlador externo no retorna frecuencia
+  if (pitch <= 0) {
+    pitch = autoCorrelate(pitchBuffer, audioContext.sampleRate);
+  }
+
+  const guideText = $("guideText");
+  const noteDisplay = $("currentNoteDisplay");
+  const centsDisplay = $("centsDisplay");
+
+  if (agujaVivaInstance) {
+    if (pitch > 50 && pitch < 2000) {
+      agujaVivaInstance.setPitch(pitch);
+      if (guideText) guideText.textContent = `🎤 Escuchando (${Math.round(pitch)} Hz)`;
+      if (noteDisplay && note) noteDisplay.textContent = note;
+      if (centsDisplay) centsDisplay.textContent = `${cents > 0 ? '+' : ''}${Math.round(cents)}¢`;
+    } else {
+      agujaVivaInstance.setPitch(-1);
+      if (guideText) guideText.textContent = "🎤 Esperando voz...";
+    }
   }
 
   if (state.isRecording) {
