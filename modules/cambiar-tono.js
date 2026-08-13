@@ -1,4 +1,4 @@
-import { $ } from "../ui/dom.js";
+import { $ } from "../script.js";
 import { getLibraryItemsByTypeFromSupabase, getLibraryItemsByIdFromSupabase, renderLibrary } from "./biblioteca.js";
 import { loadKaraokeSong } from "./karaoke.js";
 
