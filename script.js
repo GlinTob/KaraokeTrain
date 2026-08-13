@@ -88,10 +88,8 @@ export async function showTab(tabId) {
         if (track && track.dataset.karaokeId && typeof loadKaraokeSong === "function") {
           await loadKaraokeSong(track.dataset.karaokeId);
         }
-        const track = $("karaokeTrack");
-        if (track && track.dataset.karaokeId && typeof loadKaraokeSong === "function") {
-          await loadKaraokeSong(track.dataset.karaokeId);
-        }
+        
+        
 
         console.log(`✅ [Navegación] Pestaña [${tabId.toUpperCase()}] cargada y visualizada.`);
 
