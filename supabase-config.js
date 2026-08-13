@@ -18,10 +18,10 @@ function getEnv(key, fallback = '') {
 
 function getSupabaseConfig() {
   const url = getEnv('VITE_SUPABASE_URL')
-    || "https://xcsjmehnnwimbyhalleb.supabase.co";
+    || "https://qfvhwbmgeunvgjwmlxjd.supabase.co";
 
   const key = getEnv('VITE_SUPABASE_ANON_KEY')
-    || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhqc2ptZWhubndpbWJ5aGFsbGViIiwicm9sZSI6ImZ1YnViIiwicm9sZSI6ImZ1YnViIiwicm9zZSI6ImZ1YnViIiwicm9zZSI6ImZ1YnViIiwicm9zZSI6ImZ1YnViIiwicm9zZSI6ImZ1YnViIiwicm9zZSI6ImZ1YnViIiwicm9zZSI6ImZ1YnViIiwicm9zZSI6ImZ1YnViIiwicm9zZSI6ImZ1YnViIiwicm9zZSI6ImZ1YnViIiwicm9zZSI6ImZ1YnViIiwicm9zZSI6ImZ1YnViIiwicm9zZSI6ImZ1YnViIiwicm9zZSI6ImZ1YnViIiwicm9zZSI6ImZ1YnViIiwicm9zZSI6ImZ1YnViIiwicm9zZSI6ImZ1YnViIiwicm9zZSI6ImZ1YnViIiwicm9zZSI6ImZ1YnViIiwicm9zZSI6ImZ1YnViIiwicm9zZSI6ImZ1YnViIiwicm9zZSI6ImZ1YnViIiwicm9zZSI6ImZ1YnViIiwicm9zZSI6ImZ1YnViIiwicm9zZSI6ImZ1YnViIiwicm9zZSI6ImZ1YnViIiwicm9zZSI6ImZ1YnViIiwicm9zZSI6ImZ1YnViIiwidmVyIjoyMDI0LTAxLTAxVDAwOjAwOjAwWiJ9.bGVhdmluZw"; // fallback válido JWT
+    || "sb_publishable_IGkquzv5abCY4Ao-8jK_2A_CwpiGA4N"; // fallback válido JWT
 
   if (!url || !key) {
     console.error("❌ Supabase config missing. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY");
