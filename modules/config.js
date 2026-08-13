@@ -1,4 +1,4 @@
-import { $ } from "../ui/dom.js"; 
+import { $ } from "../script.js"; 
 
 /** 
  * MÓDULO CONFIGURACIÓN COMPLETO — Gestor de Preferencias Locales, Diagnóstico de Micrófonos y Selector de Avatares Pop
