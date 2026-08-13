@@ -1,4 +1,4 @@
-import { $, safeAdd } from "./dom.js";
+import { $, safeAdd } from "../script.js";
 import {
   getLibraryItemsByTypeFromSupabase,
   getLibraryItemsByIdFromSupabase,
