@@ -1,22 +1,25 @@
-import { getAudioController } from './audio-controller.js';
-
-const $ = (id) => document.getElementById(id);
-
-const state = {
-  isRecording: false
-};
-
-let agujaVivaInstance = null;
-let pitchLoopTimeout = null;
-const pitchBuffer = new Float32Array(2048);
-let audioContext = null;
-let analyser = null;
-let stream = null;
+import { getAudioController } from './audio-controller.js'; 
 
 /** 
  * AgujaViva — Hero-mode tuner needle with particle trail
  * Canvas 2D renderer, 60fps, theme-aware, no dependencies
  */
+
+// Utilidad abreviada para buscar elementos del DOM
+const $ = (id) => document.getElementById(id); 
+
+// Estado de grabación global de la pestaña Afinador
+const state = {
+  isRecording: false
+}; 
+
+// Instancias y buffers globales internos
+let agujaVivaInstance = null;
+let pitchLoopTimeout = null;
+const pitchBuffer = new Float32Array(2048);
+let audioContext = null;
+let analyser = null;
+let stream = null; 
 
 // Auxiliares matemáticos
 function frequencyToCentsOff(freq, targetFreq) {
@@ -581,55 +584,6 @@ export async function toggleRecording() {
   }
 }
 
-// Algoritmo rápido de Autocorrelación de respaldo
-function autoCorrelate(buf, sampleRate) {
-  let SIZE = buf.length;
-  let rms = 0;
-
-  for (let i = 0; i < SIZE; i++) {
-    let val = buf[i];
-    rms += val * val;
-  }
-  rms = Math.sqrt(rms / SIZE);
-  if (rms < 0.012) return -1; // Umbral de silencio/ruido
-
-  let r1 = 0, r2 = SIZE - 1, thres = 0.2;
-  for (let i = 0; i < SIZE / 2; i++) {
-    if (Math.abs(buf[i]) < thres) { r1 = i; break; }
-  }
-  for (let i = 1; i < SIZE / 2; i++) {
-    if (Math.abs(buf[SIZE - i]) < thres) { r2 = SIZE - i; break; }
-  }
-
-  buf = buf.slice(r1, r2);
-  SIZE = buf.length;
-
-  let c = new Float32Array(SIZE);
-  for (let i = 0; i < SIZE; i++) {
-    for (let j = 0; j < SIZE - i; j++) {
-      c[i] = c[i] + buf[j] * buf[j + i];
-    }
-  }
-
-  let d = 0;
-  while (c[d] > c[d + 1]) d++;
-  let maxval = -1, maxpos = -1;
-  for (let i = d; i < SIZE; i++) {
-    if (c[i] > maxval) {
-      maxval = c[i];
-      maxpos = i;
-    }
-  }
-  let T0 = maxpos;
-
-  let x1 = c[T0 - 1], x2 = c[T0], x3 = c[T0 + 1];
-  let a = (x1 + x3 - 2 * x2) / 2;
-  let b = (x3 - x1) / 2;
-  if (a) T0 = T0 - b / (2 * a);
-
-  return sampleRate / T0;
-}
-
 async function startAfinador() {
   const canvas = $("agujaCanvas");
   if (canvas) {
@@ -640,20 +594,16 @@ async function startAfinador() {
     if (targetNoteEl) agujaVivaInstance.setTargetNote(targetNoteEl.value);
     if (difficultyEl) agujaVivaInstance.setDifficulty(difficultyEl.value);
 
-    if (targetNoteEl) targetNoteEl.onchange = () => agujaVivaInstance.setTargetNote(targetNoteEl.value);
-    if (difficultyEl) difficultyEl.onchange = () => agujaVivaInstance.setDifficulty(difficultyEl.value);
-
+    if (targetNoteEl) {
+      targetNoteEl.onchange = () => agujaVivaInstance.setTargetNote(targetNoteEl.value);
+    }
+    if (difficultyEl) {
+      difficultyEl.onchange = () => agujaVivaInstance.setDifficulty(difficultyEl.value);
+    }
     agujaVivaInstance.start();
   }
 
-  const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
-  audioContext = new AudioCtxClass();
-
-  // Re-activación indispensable para Brave/Chrome
-  if (audioContext.state === 'suspended') {
-    await audioContext.resume();
-  }
-
+  audioContext = new AudioContext();
   stream = await navigator.mediaDevices.getUserMedia({
     audio: {
       echoCancellation: false,
@@ -667,7 +617,9 @@ async function startAfinador() {
   analyser.fftSize = 2048;
   mic.connect(analyser);
 
-  runPitchDetectionLoop();
+  setTimeout(() => {
+    runPitchDetectionLoop();
+  }, 300);
 }
 
 function stopAfinador() {
@@ -694,47 +646,21 @@ async function runPitchDetectionLoop() {
   if (!state.isRecording || !analyser || !audioContext) return;
   analyser.getFloatTimeDomainData(pitchBuffer);
 
-  let pitch = -1;
-  let note = null;
-  let cents = 0;
-
   try {
-    const audioController = typeof getAudioController === 'function' ? getAudioController() : null;
-
-    if (audioController && typeof audioController.detectPitch === 'function') {
-      const res = await audioController.detectPitch(pitchBuffer, audioContext.sampleRate);
-      if (res && res.pitch && res.pitch > 0) {
-        pitch = res.pitch;
-        note = res.note;
-        cents = res.cents || 0;
+    const audioController = getAudioController();
+    const result = await audioController.detectPitch(pitchBuffer, audioContext.sampleRate);
+    if (agujaVivaInstance) {
+      if (result && result.pitch && result.pitch > 0) {
+        agujaVivaInstance.setPitch(result.pitch);
+      } else {
+        agujaVivaInstance.setPitch(-1);
       }
     }
-  } catch (err) {
-    // Silencioso: cae en autocorrelación si falla el módulo externo
-  }
-
-  // Fallback rápido por autocorrelación si el controlador externo no retorna frecuencia
-  if (pitch <= 0) {
-    pitch = autoCorrelate(pitchBuffer, audioContext.sampleRate);
-  }
-
-  const guideText = $("guideText");
-  const noteDisplay = $("currentNoteDisplay");
-  const centsDisplay = $("centsDisplay");
-
-  if (agujaVivaInstance) {
-    if (pitch > 50 && pitch < 2000) {
-      agujaVivaInstance.setPitch(pitch);
-      if (guideText) guideText.textContent = `🎤 Escuchando (${Math.round(pitch)} Hz)`;
-      if (noteDisplay && note) noteDisplay.textContent = note;
-      if (centsDisplay) centsDisplay.textContent = `${cents > 0 ? '+' : ''}${Math.round(cents)}¢`;
-    } else {
-      agujaVivaInstance.setPitch(-1);
-      if (guideText) guideText.textContent = "🎤 Esperando voz...";
-    }
+  } catch (error) {
+    console.error("Fallo en bucle de detección:", error);
   }
 
   if (state.isRecording) {
-    pitchLoopTimeout = setTimeout(runPitchDetectionLoop, 20);
+    pitchLoopTimeout = setTimeout(runPitchDetectionLoop, 16);
   }
 }
