@@ -1,7 +1,7 @@
 import { getAudioController } from './audio-controller.js';
 
 /**
- * AFINADOR VOCAL — indicador vertical con punto neón, partículas y ondas
+ * AFINADOR VOCAL — eje vertical fijo, punto neón, chispas, explosión y ondas
  */
 
 const $ = (id) => document.getElementById(id);
@@ -28,7 +28,7 @@ function frequencyToCentsOff(freq, targetFreq) {
 function noteToFrequency(noteName) {
   const notes = { C: 0, 'C#': 1, D: 2, 'D#': 3, E: 4, F: 5, 'F#': 6, G: 7, 'G#': 8, A: 9, 'A#': 10, B: 11 };
   const match = noteName.match(/^([A-G]#?)(\d)$/);
-  if (!match) return 164.81; // E3 por defecto
+  if (!match) return 82.41;
   const key = match[1];
   const octave = parseInt(match[2], 10);
   const semitonesFromA4 = (notes[key] - 9) + (octave - 4) * 12;
@@ -52,11 +52,11 @@ function frequencyToNoteName(freq) {
 }
 
 // ==========================================================
-// VISUAL PRINCIPAL DEL AFINADOR
+// VISUAL PRINCIPAL
 // ==========================================================
 
 export class AfinadorVisual {
-  constructor(canvas, options = {}) {
+  constructor(canvas) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d', { alpha: true, desynchronized: true });
 
@@ -65,41 +65,44 @@ export class AfinadorVisual {
     this.dpr = window.devicePixelRatio || 1;
 
     this.currentFreq = -1;
-    this.targetFreq = 82.41; // E2 aprox
     this.currentNote = '--';
+    this.targetFreq = 82.41;
     this.cents = 0;
     this.maxCents = 30;
 
     this.markerOffset = 0;
     this.targetMarkerOffset = 0;
 
-    this.glowPulse = 0;
-    this.particles = [];
-    this.maxParticles = 100;
+    this.running = false;
+    this.rafId = null;
+    this.lastTime = 0;
+
+    this.axisSparks = [];
+    this.maxAxisSparks = 220;
+
+    this.burstParticles = [];
     this.ripples = [];
+
+    this.particleAccum = 0;
+    this.glowPulse = 0;
     this.wasTuned = false;
     this.rippleCooldown = 0;
-    this.particleAccum = 0;
 
     this.colors = {
       bg: '#081226',
       axis: '#facc15',
-      axisGlow: 'rgba(250, 204, 21, 0.35)',
+      axisGlow: 'rgba(250, 204, 21, 0.28)',
       marker: '#22c55e',
-      markerGlow: 'rgba(34, 197, 94, 0.8)',
+      markerGlow: 'rgba(34, 197, 94, 0.95)',
       flat: '#3b82f6',
       sharp: '#f97316',
       text: '#f8fafc',
       textMuted: '#94a3b8',
-      decoBlue: 'rgba(59, 130, 246, 0.22)',
-      decoOrange: 'rgba(249, 115, 22, 0.22)',
+      decoBlue: 'rgba(59, 130, 246, 0.18)',
+      decoOrange: 'rgba(249, 115, 22, 0.18)',
       ripple: '#22c55e',
-      grid: 'rgba(148, 163, 184, 0.08)'
+      grid: 'rgba(148, 163, 184, 0.07)'
     };
-
-    this.running = false;
-    this.rafId = null;
-    this.lastTime = 0;
 
     this.resize = this.resize.bind(this);
     window.addEventListener('resize', this.resize);
@@ -149,20 +152,44 @@ export class AfinadorVisual {
     this.currentNote = frequencyToNoteName(freq);
     this.cents = frequencyToCentsOff(freq, this.targetFreq);
 
-    const limited = Math.max(-1, Math.min(1, this.cents / this.maxCents));
-    const maxTravel = this.height * 0.23;
+    const normalized = Math.max(-1, Math.min(1, this.cents / this.maxCents));
+    const maxTravel = this.height * 0.22;
 
-    // Grave = abajo / Agudo = arriba
-    this.targetMarkerOffset = -limited * maxTravel;
+    // Grave: abajo / Agudo: arriba
+    this.targetMarkerOffset = -normalized * maxTravel;
 
-    const inTune = Math.abs(this.cents) <= this.maxCents * 0.25;
+    const tuned = Math.abs(this.cents) <= Math.max(6, this.maxCents * 0.35);
 
-    if (inTune && !this.wasTuned && this.rippleCooldown <= 0) {
+    if (tuned && !this.wasTuned && this.rippleCooldown <= 0) {
+      this.triggerTunedExplosion();
       this.triggerRipple();
-      this.rippleCooldown = 1.0;
+      this.rippleCooldown = 0.8;
     }
 
-    this.wasTuned = inTune;
+    this.wasTuned = tuned;
+  }
+
+  triggerTunedExplosion() {
+    const cx = this.width / 2;
+    const cy = this.height * 0.55;
+
+    for (let i = 0; i < 36; i++) {
+      const angle = (Math.PI * 2 * i) / 36 + Math.random() * 0.12;
+      const speed = 60 + Math.random() * 180;
+      const color = Math.random() > 0.35 ? this.colors.marker : this.colors.axis;
+
+      this.burstParticles.push({
+        x: cx,
+        y: cy,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        life: 0.5 + Math.random() * 0.5,
+        maxLife: 1,
+        size: 2 + Math.random() * 5,
+        alpha: 1,
+        color
+      });
+    }
   }
 
   triggerRipple() {
@@ -173,42 +200,53 @@ export class AfinadorVisual {
       this.ripples.push({
         x: cx,
         y: cy,
-        radius: i * 10,
-        alpha: 0.8 - i * 0.12,
-        lineWidth: 3 - i * 0.4,
-        maxRadius: Math.max(this.width, this.height) * 0.5
+        radius: i * 8,
+        alpha: 0.9 - i * 0.14,
+        lineWidth: 3.5 - i * 0.45,
+        maxRadius: Math.max(this.width, this.height) * 0.58
       });
     }
   }
 
-  spawnParticle() {
+  spawnAxisSpark() {
     const cx = this.width / 2;
-    const cy = this.height * 0.55 + this.markerOffset;
+    const centerY = this.height * 0.55;
 
-    const closeness = 1 - Math.min(1, Math.abs(this.cents) / Math.max(this.maxCents, 1));
-    const angle = Math.random() * Math.PI * 2;
-    const speed = 20 + Math.random() * 80 * (0.5 + closeness);
+    const spreadY = this.height * 0.27;
+    const y = centerY + (Math.random() - 0.5) * spreadY * 2;
 
-    let color = this.colors.marker;
-    if (this.cents < -this.maxCents * 0.25) color = this.colors.flat;
-    if (this.cents > this.maxCents * 0.25) color = this.colors.sharp;
+    const direction = Math.random() > 0.5 ? 1 : -1;
+    const angle = (direction === 1 ? 0 : Math.PI) + (Math.random() - 0.5) * 0.9;
 
-    this.particles.push({
-      x: cx,
-      y: cy,
+    const closeness = this.currentFreq > 0
+      ? 1 - Math.min(1, Math.abs(this.cents) / Math.max(this.maxCents, 1))
+      : 0;
+
+    const speed = 25 + Math.random() * (60 + closeness * 80);
+
+    let color = this.colors.axis;
+    if (this.currentFreq > 0) {
+      if (this.cents < -this.maxCents * 0.25) color = this.colors.flat;
+      else if (this.cents > this.maxCents * 0.25) color = this.colors.sharp;
+      else color = this.colors.marker;
+    }
+
+    this.axisSparks.push({
+      x: cx + (Math.random() - 0.5) * 3,
+      y,
       vx: Math.cos(angle) * speed,
-      vy: Math.sin(angle) * speed,
-      life: 0.4 + Math.random() * 0.6,
+      vy: Math.sin(angle) * speed * 0.35,
+      life: 0.45 + Math.random() * 0.75,
       maxLife: 1,
       alpha: 1,
-      size: 2 + Math.random() * 4,
+      size: 1.5 + Math.random() * 3.5,
       color
     });
   }
 
   update(dt) {
     const diff = this.targetMarkerOffset - this.markerOffset;
-    this.markerOffset += diff * Math.min(1, dt * 10);
+    this.markerOffset += diff * Math.min(1, dt * 9);
 
     this.glowPulse += dt * 5;
 
@@ -221,16 +259,26 @@ export class AfinadorVisual {
       : 0;
 
     if (this.currentFreq > 0) {
-      this.particleAccum += dt * (3 + closeness * 20);
-      while (this.particleAccum >= 1 && this.particles.length < this.maxParticles) {
-        this.spawnParticle();
+      const sparkRate = 10 + closeness * 38;
+      this.particleAccum += dt * sparkRate;
+
+      while (this.particleAccum >= 1 && this.axisSparks.length < this.maxAxisSparks) {
+        this.spawnAxisSpark();
         this.particleAccum -= 1;
       }
     } else {
       this.particleAccum = 0;
     }
 
-    this.particles = this.particles.filter(p => {
+    this.axisSparks = this.axisSparks.filter(p => {
+      p.life -= dt;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.alpha = Math.max(0, p.life / p.maxLife);
+      return p.life > 0;
+    });
+
+    this.burstParticles = this.burstParticles.filter(p => {
       p.life -= dt;
       p.x += p.vx * dt;
       p.y += p.vy * dt;
@@ -239,7 +287,7 @@ export class AfinadorVisual {
     });
 
     this.ripples = this.ripples.filter(r => {
-      r.radius += dt * 140;
+      r.radius += dt * 150;
       r.alpha -= dt * 0.9;
       return r.alpha > 0 && r.radius < r.maxRadius;
     });
@@ -265,7 +313,7 @@ export class AfinadorVisual {
     ctx.fillStyle = this.colors.bg;
     ctx.fillRect(0, 0, w, h);
 
-    // Decoración vertical sutil
+    // Rejilla decorativa
     for (let i = 1; i < 10; i++) {
       const x = (w / 10) * i;
       ctx.strokeStyle = this.colors.grid;
@@ -290,42 +338,57 @@ export class AfinadorVisual {
     ctx.lineTo(cx + w * 0.22, h * 0.82);
     ctx.stroke();
 
-    // Línea central fija
-    ctx.strokeStyle = this.colors.axisGlow;
-    ctx.lineWidth = 8;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(cx, h * 0.18);
-    ctx.lineTo(cx, h * 0.82);
-    ctx.stroke();
-
+    // Eje/aguja fija
+    ctx.save();
+    ctx.shadowColor = this.colors.axisGlow;
+    ctx.shadowBlur = 16;
     ctx.strokeStyle = this.colors.axis;
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(cx, h * 0.18);
     ctx.lineTo(cx, h * 0.82);
     ctx.stroke();
+    ctx.restore();
 
-    // Marca objetivo central
+    // Marca objetivo
     ctx.fillStyle = 'rgba(148, 163, 184, 0.45)';
     ctx.fillRect(cx - 38, cy - 10, 76, 20);
 
-    // Ripples al afinar
+    // Ondas tipo agua
     this.ripples.forEach(r => {
+      ctx.save();
       ctx.strokeStyle = `rgba(34, 197, 94, ${r.alpha})`;
       ctx.lineWidth = r.lineWidth;
+      ctx.shadowColor = 'rgba(34, 197, 94, 0.55)';
+      ctx.shadowBlur = 14;
       ctx.beginPath();
       ctx.arc(r.x, r.y, r.radius, 0, Math.PI * 2);
       ctx.stroke();
+      ctx.restore();
     });
 
-    // Partículas
-    this.particles.forEach(p => {
+    // Chispas del eje
+    this.axisSparks.forEach(p => {
       ctx.save();
       ctx.globalAlpha = p.alpha;
-      const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size * 3);
       const rgb = this.hexToRgb(p.color);
-      g.addColorStop(0, `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, 0.9)`);
+      const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size * 4);
+      g.addColorStop(0, `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, 0.95)`);
+      g.addColorStop(1, `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, 0)`);
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    });
+
+    // Explosión al afinar
+    this.burstParticles.forEach(p => {
+      ctx.save();
+      ctx.globalAlpha = p.alpha;
+      const rgb = this.hexToRgb(p.color);
+      const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size * 5);
+      g.addColorStop(0, `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, 1)`);
       g.addColorStop(1, `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, 0)`);
       ctx.fillStyle = g;
       ctx.beginPath();
@@ -336,36 +399,35 @@ export class AfinadorVisual {
 
     // Punto móvil
     const markerY = cy + this.markerOffset;
-    const tuned = this.currentFreq > 0 && Math.abs(this.cents) <= this.maxCents * 0.25;
+    const tuned = this.currentFreq > 0 && Math.abs(this.cents) <= Math.max(6, this.maxCents * 0.35);
 
     const markerColor = tuned
       ? this.colors.marker
       : (this.cents < 0 ? this.colors.flat : this.cents > 0 ? this.colors.sharp : this.colors.marker);
 
-    const pulse = 1 + Math.sin(this.glowPulse * 3) * 0.08;
+    const pulse = 1 + Math.sin(this.glowPulse * 3.5) * 0.08;
 
     ctx.save();
     ctx.shadowColor = tuned ? this.colors.markerGlow : markerColor;
-    ctx.shadowBlur = tuned ? 28 : 18;
-
+    ctx.shadowBlur = tuned ? 32 : 18;
     ctx.fillStyle = markerColor;
     ctx.beginPath();
     ctx.arc(cx, markerY, 7 * pulse, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
 
-    // Puntitos decorativos
+    // Decoración inferior
+    this.renderDecorativeBar(ctx, w, h);
+
+    // Puntitos tenues en reposo
     if (this.currentFreq <= 0) {
-      ctx.fillStyle = 'rgba(250, 204, 21, 0.5)';
+      ctx.fillStyle = 'rgba(250, 204, 21, 0.45)';
       ctx.beginPath();
-      ctx.arc(cx - 18, cy + 70, 2, 0, Math.PI * 2);
-      ctx.arc(cx + 12, cy + 80, 2, 0, Math.PI * 2);
+      ctx.arc(cx - 16, cy + 72, 2, 0, Math.PI * 2);
+      ctx.arc(cx + 10, cy + 82, 2, 0, Math.PI * 2);
       ctx.arc(cx + 34, cy + 68, 1.5, 0, Math.PI * 2);
       ctx.fill();
     }
-
-    // Barra decorativa inferior
-    this.renderDecorativeBar(ctx, w, h);
   }
 
   renderDecorativeBar(ctx, w, h) {
@@ -382,7 +444,7 @@ export class AfinadorVisual {
       const width = segW - 4;
       const height = 10;
 
-      let color = 'rgba(148,163,184,0.16)';
+      let color = 'rgba(148,163,184,0.15)';
       if (i < center) color = this.colors.decoBlue;
       if (i > center) color = this.colors.decoOrange;
       if (i === center) color = 'rgba(96, 165, 250, 0.45)';
@@ -494,7 +556,7 @@ function resetAfinadorUI() {
   }
 
   if (guideText) {
-    guideText.textContent = '🎤 Esperando voz...';
+    guideText.textContent = 'Esperando voz...';
     guideText.className = 'guide-text';
   }
 }
@@ -545,9 +607,7 @@ async function startAfinador() {
   mic.connect(analyser);
 
   setTimeout(() => {
-    if (state.isRecording) {
-      runPitchDetectionLoop();
-    }
+    if (state.isRecording) runPitchDetectionLoop();
   }, 200);
 }
 
@@ -620,7 +680,7 @@ async function runPitchDetectionLoop() {
         const tolerances = { facil: 50, medio: 30, dificil: 15, experto: 5 };
         const tolerance = tolerances[level] || 30;
 
-        if (Math.abs(cents) <= tolerance * 0.25) {
+        if (Math.abs(cents) <= Math.max(6, tolerance * 0.35)) {
           guideText.textContent = '✅ Afinado';
           guideText.className = 'guide-text state-good';
         } else if (cents < 0) {
@@ -647,7 +707,7 @@ async function runPitchDetectionLoop() {
       }
 
       if (guideText) {
-        guideText.textContent = '🎤 Esperando voz...';
+        guideText.textContent = 'Esperando voz...';
         guideText.className = 'guide-text';
       }
     }
