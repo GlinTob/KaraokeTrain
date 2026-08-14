@@ -1,4 +1,4 @@
-export class VocalProcessor extends AudioWorkletProcessor {
+class VocalProcessor extends AudioWorkletProcessor {
   static get parameterDescriptors() {
     return [
       {
@@ -55,7 +55,6 @@ export class VocalProcessor extends AudioWorkletProcessor {
 
   constructor() {
     super();
-    // Simple biquad filter states for each channel
     this.hpState = [];
     this.lowState = [];
     this.midState = [];
@@ -68,12 +67,12 @@ export class VocalProcessor extends AudioWorkletProcessor {
     const input = inputs[0];
     const output = outputs[0];
 
-    if (!output || output.length === 0 || !input || input.length === 0) return true;
+    if (!output || output.length === 0 || !input || input.length === 0) {
+      return true;
+    }
 
     const outChannels = output.length;
-    const inChannels = input.length;
 
-    // Read parameter values (k-rate = first value of each array)
     const highpass = parameters.highpass?.[0] ?? 120;
     const lowGain = parameters.lowGain?.[0] ?? -2;
     const midGain = parameters.midGain?.[0] ?? 5;
@@ -82,7 +81,6 @@ export class VocalProcessor extends AudioWorkletProcessor {
     const compThreshold = parameters.compThreshold?.[0] ?? -18;
     const outputGain = parameters.outputGain?.[0] ?? 3;
 
-    // Convert dB to linear
     const lowGainLin = Math.pow(10, lowGain / 20);
     const midGainLin = Math.pow(10, midGain / 20);
     const highGainLin = Math.pow(10, highGain / 20);
@@ -90,7 +88,19 @@ export class VocalProcessor extends AudioWorkletProcessor {
     const gateThreshLin = Math.pow(10, gateThreshold / 20);
     const compThreshLin = Math.pow(10, compThreshold / 20);
 
-    const sampleRate = sampleRate; // AudioWorklet global
+    const sr = sampleRate;
+
+    const hpCoeff = Math.exp(-2 * Math.PI * highpass / sr);
+    const hpGain = 1 + hpCoeff;
+
+    const lowFreq = 100;
+    const lowCoeff = Math.exp(-2 * Math.PI * lowFreq / sr);
+
+    const midFreq = 3000;
+    const midCoeff = Math.exp(-2 * Math.PI * midFreq / sr);
+
+    const highFreq = 8000;
+    const highCoeff = Math.exp(-2 * Math.PI * highFreq / sr);
 
     for (let ch = 0; ch < outChannels; ch++) {
       const out = output[ch];
@@ -101,7 +111,6 @@ export class VocalProcessor extends AudioWorkletProcessor {
         continue;
       }
 
-      // Initialize filter states for this channel if needed
       if (!this.hpState[ch]) {
         this.hpState[ch] = { x1: 0, y1: 0 };
       }
@@ -114,10 +123,10 @@ export class VocalProcessor extends AudioWorkletProcessor {
       if (!this.highState[ch]) {
         this.highState[ch] = { x1: 0, x2: 0, y1: 0, y2: 0 };
       }
-      if (!this.gateEnv[ch]) {
+      if (this.gateEnv[ch] === undefined) {
         this.gateEnv[ch] = 0;
       }
-      if (!this.compEnv[ch]) {
+      if (this.compEnv[ch] === undefined) {
         this.compEnv[ch] = 0;
       }
 
@@ -128,77 +137,57 @@ export class VocalProcessor extends AudioWorkletProcessor {
       let gateEnv = this.gateEnv[ch];
       let compEnv = this.compEnv[ch];
 
-      // High-pass filter coefficients (1-pole)
-      const hpCoeff = Math.exp(-2 * Math.PI * highpass / sampleRate);
-      const hpGain = 1 + hpCoeff;
+      const frames = Math.min(inp.length, out.length);
 
-      // Low shelf (simple 1-pole)
-      const lowFreq = 100;
-      const lowCoeff = Math.exp(-2 * Math.PI * lowFreq / sampleRate);
-      const lowGainFactor = lowGainLin;
-
-      // Mid peaking (simplified)
-      const midFreq = 3000;
-      const midCoeff = Math.exp(-2 * Math.PI * midFreq / sampleRate);
-      const midGainFactor = midGainLin;
-
-      // High shelf
-      const highFreq = 8000;
-      const highCoeff = Math.exp(-2 * Math.PI * highFreq / sampleRate);
-      const highGainFactor = highGainLin;
-
-      for (let i = 0; i < inp.length; i++) {
+      for (let i = 0; i < frames; i++) {
         let sample = inp[i];
 
-        // High-pass filter (1-pole)
         const hpOut = sample - hp.x1 + hpCoeff * hp.y1;
         hp.x1 = sample;
         hp.y1 = hpOut;
         sample = hpOut * hpGain;
 
-        // Simple EQ: three bands
-        // Low shelf
         low.x2 = low.x1;
         low.x1 = sample;
         low.y2 = low.y1;
-        const lowIn = sample * 0.5 + low.x1 * 0.25 + low.x2 * 0.25; // rough low emphasis
+        const lowIn = sample * 0.5 + low.x1 * 0.25 + low.x2 * 0.25;
         low.y1 = lowIn * lowCoeff + low.y2 * (1 - lowCoeff);
-        sample = sample + (low.y1 - sample) * (lowGainFactor - 1) * 0.5;
+        sample = sample + (low.y1 - sample) * (lowGainLin - 1) * 0.5;
 
-        // Mid peaking
         mid.x2 = mid.x1;
         mid.x1 = sample;
         mid.y2 = mid.y1;
-        const midIn = (sample - mid.x2) * 0.5; // bandpass-ish
+        const midIn = (sample - mid.x2) * 0.5;
         mid.y1 = midIn * midCoeff + mid.y2 * (1 - midCoeff);
-        sample = sample + mid.y1 * (midGainFactor - 1);
+        sample = sample + mid.y1 * (midGainLin - 1);
 
-        // High shelf
         high.x2 = high.x1;
         high.x1 = sample;
         high.y2 = high.y1;
         const highIn = (sample - high.x2) * 0.5;
         high.y1 = highIn * highCoeff + high.y2 * (1 - highCoeff);
-        sample = sample + high.y1 * (highGainFactor - 1);
+        sample = sample + high.y1 * (highGainLin - 1);
 
-        // Noise gate
         const absSample = Math.abs(sample);
-        gateEnv = gateEnv * 0.999 + absSample * 0.001; // slow envelope
+        gateEnv = gateEnv * 0.999 + absSample * 0.001;
         if (gateEnv < gateThreshLin) {
-          sample *= 0.001; // heavy attenuation
+          sample *= 0.001;
         }
 
-        // Compressor (simple)
         compEnv = compEnv * 0.999 + absSample * 0.001;
         if (compEnv > compThreshLin) {
-          const ratio = 4; // 4:1
+          const ratio = 4;
           const over = compEnv / compThreshLin;
           const gainReduction = Math.pow(over, 1 - 1 / ratio) / over;
           sample *= gainReduction;
         }
 
-        // Output gain
-        out[i] = sample * outputGainLin;
+        const finalSample = sample * outputGainLin;
+        out[i] = Math.max(-1, Math.min(1, finalSample));
+      }
+
+      if (out.length > frames) {
+        out.fill(0, frames);
       }
 
       this.hpState[ch] = hp;
