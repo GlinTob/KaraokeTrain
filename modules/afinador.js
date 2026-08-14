@@ -446,10 +446,12 @@ export async function toggleRecording() {
   const btn = $('recordBtn');
   if (!btn) return;
 
+  const btnText = btn.querySelector('.btn-text');
+
   if (!state.isRecording) {
     try {
       state.isRecording = true;
-      btn.innerHTML = '🎤 Detener';
+      if (btnText) btnText.textContent = 'Detener';
       btn.classList.add('recording');
       btn.setAttribute('aria-pressed', 'true');
 
@@ -458,7 +460,7 @@ export async function toggleRecording() {
       console.error('No se pudo iniciar el afinador:', error);
 
       state.isRecording = false;
-      btn.innerHTML = '🎤 Iniciar';
+      if (btnText) btnText.textContent = 'Iniciar';
       btn.classList.remove('recording');
       btn.setAttribute('aria-pressed', 'false');
 
@@ -467,7 +469,7 @@ export async function toggleRecording() {
     }
   } else {
     state.isRecording = false;
-    btn.innerHTML = '🎤 Iniciar';
+    if (btnText) btnText.textContent = 'Iniciar';
     btn.classList.remove('recording');
     btn.setAttribute('aria-pressed', 'false');
 
