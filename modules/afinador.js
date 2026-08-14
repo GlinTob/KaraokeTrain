@@ -1,45 +1,41 @@
-import { getAudioController } from './audio-controller.js'; 
+import { getAudioController } from './audio-controller.js';
 
-/** 
+/**
  * AgujaViva — Hero-mode tuner needle with particle trail
  * Canvas 2D renderer, 60fps, theme-aware, no dependencies
  */
 
-// Utilidad abreviada para buscar elementos del DOM
-const $ = (id) => document.getElementById(id); 
+const $ = (id) => document.getElementById(id);
 
-// Estado de grabación global de la pestaña Afinador
 const state = {
   isRecording: false
-}; 
+};
 
-// Instancias y buffers globales internos
 let agujaVivaInstance = null;
 let pitchLoopTimeout = null;
 const pitchBuffer = new Float32Array(2048);
 let audioContext = null;
 let analyser = null;
-let stream = null; 
+let stream = null;
 
-// Auxiliares matemáticos
 function frequencyToCentsOff(freq, targetFreq) {
   return 1200 * Math.log2(freq / targetFreq);
-} 
+}
 
 function noteToFrequency(noteName) {
-  const notes = { 'C': 0, 'C#': 1, 'D': 2, 'D#': 3, 'E': 4, 'F': 5, 'F#': 6, 'G': 7, 'G#': 8, 'A': 9, 'A#': 10, 'B': 11 };
+  const notes = { C: 0, "C#": 1, D: 2, "D#": 3, E: 4, F: 5, "F#": 6, G: 7, "G#": 8, A: 9, "A#": 10, B: 11 };
   const match = noteName.match(/^([A-G]#?)(\d)$/);
-  if (!match) return 164.81; // E3 por defecto
+  if (!match) return 164.81;
   const key = match[1];
   const octave = parseInt(match[2], 10);
   const semitones = notes[key] + (octave - 4) * 12;
   return 440 * Math.pow(2, semitones / 12);
-} 
+}
 
 export class AgujaViva {
   constructor(canvas, options = {}) {
     this.canvas = canvas;
-    this.ctx = canvas.getContext('2d', { alpha: true, desynchronized: true }); 
+    this.ctx = canvas.getContext('2d', { alpha: true, desynchronized: true });
 
     this.maxParticles = options.maxParticles || 120;
     this.particleLife = options.particleLife || 2.5;
@@ -97,13 +93,13 @@ export class AgujaViva {
     this.resize = this.resize.bind(this);
     window.addEventListener('resize', this.resize);
     this.resize();
-  } 
+  }
 
   resize() {
     const rect = this.canvas.getBoundingClientRect();
     this.width = rect.width;
     this.height = rect.height;
-    this.dpr = window.devicePixelRatio || 1; 
+    this.dpr = window.devicePixelRatio || 1;
 
     this.canvas.width = this.width * this.dpr;
     this.canvas.height = this.height * this.dpr;
@@ -112,10 +108,10 @@ export class AgujaViva {
 
     this.ctx.setTransform(1, 0, 0, 1, 0, 0);
     this.ctx.scale(this.dpr, this.dpr);
-  } 
+  }
 
   setPitch(freq) {
-    this.currentFreq = freq; 
+    this.currentFreq = freq;
 
     if (freq > 0 && this.targetFreq > 0) {
       this.cents = frequencyToCentsOff(freq, this.targetFreq);
@@ -140,27 +136,27 @@ export class AgujaViva {
       this.targetAngle = 0;
       this.wasInTolerance = false;
     }
-  } 
+  }
 
   setTargetNote(noteName) {
     this.targetFreq = noteToFrequency(noteName);
-  } 
+  }
 
   setDifficulty(level) {
     const tolerances = { facil: 50, medio: 30, dificil: 15, experto: 5 };
     this.maxCents = tolerances[level] || 30;
-  } 
+  }
 
   triggerBurst() {
     this.burstRadius = 0;
     this.burstAlpha = 1;
-  } 
+  }
 
   triggerRipple() {
     const cx = this.width / 2;
     const cy = this.height * 0.55;
     const color = this.colors.center;
-    const maxR = Math.max(this.width, this.height) * 0.8; 
+    const maxR = Math.max(this.width, this.height) * 0.8;
 
     const crestCount = 4;
     for (let i = 0; i < crestCount; i++) {
@@ -179,22 +175,22 @@ export class AgujaViva {
         age: -delay,
       });
     }
-  } 
+  }
 
   triggerPop() {
     this.popScale = 1.4;
-  } 
+  }
 
   triggerShake(intensity = 0.3) {
     this.shakeIntensity = intensity;
-  } 
+  }
 
   start() {
     if (this.running) return;
     this.running = true;
     this.lastTime = performance.now();
     this.tick(this.lastTime);
-  } 
+  }
 
   stop() {
     this.running = false;
@@ -202,10 +198,10 @@ export class AgujaViva {
       cancelAnimationFrame(this.rafId);
       this.rafId = null;
     }
-  } 
+  }
 
   tick(timestamp) {
-    if (!this.running) return; 
+    if (!this.running) return;
 
     const dt = Math.min((timestamp - this.lastTime) / 1000, 0.1);
     this.lastTime = timestamp;
@@ -214,11 +210,11 @@ export class AgujaViva {
     this.render();
 
     this.rafId = requestAnimationFrame((t) => this.tick(t));
-  } 
+  }
 
   update(dt) {
     const diff = this.targetAngle - this.needleAngle;
-    this.needleAngle += diff * Math.min(1, dt * 8); 
+    this.needleAngle += diff * Math.min(1, dt * 8);
 
     if (this.shakeIntensity > 0.01) {
       this.shakeIntensity *= this.shakeDecay;
@@ -263,7 +259,7 @@ export class AgujaViva {
     });
 
     this.updateThemeColors();
-  } 
+  }
 
   spawnParticles(dt) {
     if (this.currentFreq <= 0) {
@@ -273,7 +269,7 @@ export class AgujaViva {
         this.particleSpawnAccum = 0;
       }
       return;
-    } 
+    }
 
     const stability = 1 - Math.min(1, Math.abs(this.needleAngle));
     const spawnRate = this.trailFreq * (0.5 + stability * 2);
@@ -283,11 +279,11 @@ export class AgujaViva {
       this.spawnActiveParticle();
       this.particleSpawnAccum -= spawnRate;
     }
-  } 
+  }
 
   spawnActiveParticle() {
     const cx = this.width / 2;
-    const cy = this.height * 0.55; 
+    const cy = this.height * 0.55;
 
     const angle = this.needleAngle * Math.PI / 6 + (Math.random() - 0.5) * 0.3;
     const speed = 80 + Math.random() * 120;
@@ -315,13 +311,13 @@ export class AgujaViva {
       rotation: Math.random() * Math.PI * 2,
       rotSpeed: (Math.random() - 0.5) * 4,
     });
-  } 
+  }
 
   spawnSleepParticle() {
     const cx = this.width / 2;
     const cy = this.height * 0.55;
     const angle = Math.random() * Math.PI * 2;
-    const radius = 40 + Math.random() * 80; 
+    const radius = 40 + Math.random() * 80;
 
     this.particles.push({
       x: cx + Math.cos(angle) * radius,
@@ -337,20 +333,20 @@ export class AgujaViva {
       rotation: Math.random() * Math.PI * 2,
       rotSpeed: (Math.random() - 0.5) * 1,
     });
-  } 
+  }
 
   updateThemeColors() {
     const cs = getComputedStyle(document.documentElement);
     const bg = cs.getPropertyValue('--bg-main').trim() || '#0f172a';
     this.colors.bg = bg;
-  } 
+  }
 
   render() {
     const ctx = this.ctx;
     const w = this.width;
     const h = this.height;
     const cx = w / 2;
-    const cy = h * 0.55; 
+    const cy = h * 0.55;
 
     ctx.clearRect(0, 0, w, h);
 
@@ -388,8 +384,9 @@ export class AgujaViva {
     });
 
     if (this.burstAlpha > 0) {
-      const burstColor = Math.abs(this.cents) <= this.maxCents ? this.colors.center : 
-        (this.cents < 0 ? this.colors.flat : this.colors.sharp);
+      const burstColor = Math.abs(this.cents) <= this.maxCents
+        ? this.colors.center
+        : (this.cents < 0 ? this.colors.flat : this.colors.sharp);
       ctx.strokeStyle = `rgba(${this.hexToRgb(burstColor).join(',')}, ${this.burstAlpha})`;
       ctx.lineWidth = 3;
       ctx.beginPath();
@@ -553,11 +550,24 @@ export async function toggleRecording() {
   if (!btn) return;
 
   if (!state.isRecording) {
-    state.isRecording = true;
-    btn.innerHTML = '🎤 Detener';
-    btn.classList.add("recording");
-    btn.setAttribute("aria-pressed", "true");
-    await startAfinador();
+    try {
+      state.isRecording = true;
+      btn.innerHTML = '🎤 Detener';
+      btn.classList.add("recording");
+      btn.setAttribute("aria-pressed", "true");
+
+      await startAfinador();
+    } catch (error) {
+      console.error("No se pudo iniciar el afinador:", error);
+
+      state.isRecording = false;
+      btn.innerHTML = '🎤 Iniciar';
+      btn.classList.remove("recording");
+      btn.setAttribute("aria-pressed", "false");
+
+      alert("❌ No se pudo iniciar el micrófono del afinador: " + error.message);
+      stopAfinador();
+    }
   } else {
     state.isRecording = false;
     btn.innerHTML = '🎤 Iniciar';
@@ -585,6 +595,11 @@ export async function toggleRecording() {
 }
 
 async function startAfinador() {
+  if (agujaVivaInstance) {
+    agujaVivaInstance.destroy();
+    agujaVivaInstance = null;
+  }
+
   const canvas = $("agujaCanvas");
   if (canvas) {
     agujaVivaInstance = new AgujaViva(canvas);
@@ -595,15 +610,21 @@ async function startAfinador() {
     if (difficultyEl) agujaVivaInstance.setDifficulty(difficultyEl.value);
 
     if (targetNoteEl) {
-      targetNoteEl.onchange = () => agujaVivaInstance.setTargetNote(targetNoteEl.value);
+      targetNoteEl.onchange = () => agujaVivaInstance?.setTargetNote(targetNoteEl.value);
     }
     if (difficultyEl) {
-      difficultyEl.onchange = () => agujaVivaInstance.setDifficulty(difficultyEl.value);
+      difficultyEl.onchange = () => agujaVivaInstance?.setDifficulty(difficultyEl.value);
     }
+
     agujaVivaInstance.start();
   }
 
-  audioContext = new AudioContext();
+  audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+  if (audioContext.state === "suspended") {
+    await audioContext.resume();
+  }
+
   stream = await navigator.mediaDevices.getUserMedia({
     audio: {
       echoCancellation: false,
@@ -618,7 +639,9 @@ async function startAfinador() {
   mic.connect(analyser);
 
   setTimeout(() => {
-    runPitchDetectionLoop();
+    if (state.isRecording) {
+      runPitchDetectionLoop();
+    }
   }, 300);
 }
 
@@ -627,15 +650,19 @@ function stopAfinador() {
     clearTimeout(pitchLoopTimeout);
     pitchLoopTimeout = null;
   }
+
   if (stream) {
     stream.getTracks().forEach(t => t.stop());
     stream = null;
   }
+
   if (audioContext) {
-    audioContext.close();
+    audioContext.close().catch(() => {});
     audioContext = null;
   }
+
   analyser = null;
+
   if (agujaVivaInstance) {
     agujaVivaInstance.destroy();
     agujaVivaInstance = null;
@@ -644,14 +671,16 @@ function stopAfinador() {
 
 async function runPitchDetectionLoop() {
   if (!state.isRecording || !analyser || !audioContext) return;
+
   analyser.getFloatTimeDomainData(pitchBuffer);
 
   try {
     const audioController = getAudioController();
     const result = await audioController.detectPitch(pitchBuffer, audioContext.sampleRate);
+
     if (agujaVivaInstance) {
-      if (result && result.pitch && result.pitch > 0) {
-        agujaVivaInstance.setPitch(result.pitch);
+      if (typeof result === "number" && result > 0) {
+        agujaVivaInstance.setPitch(result);
       } else {
         agujaVivaInstance.setPitch(-1);
       }
