@@ -8,11 +8,14 @@ import { loadKaraokeSong } from "./karaoke.js";
 
 export function initCambiarTono() {
   console.log("🎼 [cambiar-tono.js] Inicializado con éxito");
-  
+
   const upSelect = $("pitchUpSelect");
   const downSelect = $("pitchDownSelect");
+
   if (upSelect) upSelect.onchange = onPitchSelectsChange;
   if (downSelect) downSelect.onchange = onPitchSelectsChange;
+
+  onPitchSelectsChange();
 }
 
 // Variables de Control de Estado de Audio
@@ -23,14 +26,13 @@ let pitchWorkletNode = null;
 let pitchSourceNode = null;
 let pitchGainNode = null;
 let pitchIsPlaying = false;
-let pitchIsPaused = false;
 let pitchLastSavedId = null;
 
 // Cache de promesas addModule por contexto
 const _pitchWorkletLoaded = new WeakMap();
 
 function _getWorkletUrl() {
-  return window.__PITCH_WORKLET_URL__ || "./pitch-shifter-processor.js";
+  return window.__PITCH_WORKLET_URL__ || new URL("./pitch-shifter-processor.js", import.meta.url).href;
 }
 
 async function ensurePitchWorklet(ctx) {
@@ -77,25 +79,33 @@ function getPitchRatio() {
 function onPitchSelectsChange() {
   const net = getNetSemitones();
   const display = $("pitchCurrentDisplay");
+
   if (display) {
     const signo = net > 0 ? "+" : "";
     display.textContent = `Cambio actual: ${signo}${net} semitono${Math.abs(net) === 1 ? "" : "s"}`;
   }
 
-  if (pitchWorkletNode) {
+  if (pitchWorkletNode && pitchAudioContext) {
     try {
       const pitchParam = pitchWorkletNode.parameters.get("pitchRatio");
-      if (pitchParam) pitchParam.value = getPitchRatio();
-    } catch (e) {}
+      if (pitchParam) {
+        pitchParam.setValueAtTime(getPitchRatio(), pitchAudioContext.currentTime);
+      }
+    } catch (e) {
+      console.warn("No se pudo actualizar pitchRatio en tiempo real:", e);
+    }
   }
 }
 
 export async function loadPitchKaraokeOptions() {
   const select = $("pitchKaraokeSelect");
   if (!select) return;
+
   select.innerHTML = `<option value="">Selecciona un archivo karaoke</option>`;
+
   try {
     const items = await getLibraryItemsByTypeFromSupabase("karaoke");
+
     if (!items.length) {
       const opt = document.createElement("option");
       opt.value = "";
@@ -103,9 +113,10 @@ export async function loadPitchKaraokeOptions() {
       select.appendChild(opt);
       return;
     }
+
     items.forEach(item => {
       const opt = document.createElement("option");
-      opt.value = item.id; 
+      opt.value = item.id;
       opt.textContent = item.name;
       select.appendChild(opt);
     });
@@ -120,12 +131,13 @@ export async function loadPitchKaraokeOptions() {
 export async function loadSelectedPitchKaraoke() {
   const select = $("pitchKaraokeSelect");
   const status = $("pitchLoadStatus");
-  
+
   const id = select?.value;
   if (!id) {
     alert("⚠️ Selecciona un archivo karaoke de la lista.");
     return;
   }
+
   try {
     if (status) status.textContent = "Estado: cargando y decodificando audio…";
 
@@ -137,29 +149,37 @@ export async function loadSelectedPitchKaraoke() {
       alert("⚠️ Este archivo karaoke no contiene audio en la nube.");
       return;
     }
-    
+
     stopPitchShifted();
 
-    if (!pitchAudioContext) {
+    if (!pitchAudioContext || pitchAudioContext.state === "closed") {
       pitchAudioContext = new (window.AudioContext || window.webkitAudioContext)();
     }
-    
+
     const response = await fetch(audioUrlCloud);
+    if (!response.ok) {
+      throw new Error(`No se pudo descargar el audio (${response.status})`);
+    }
+
     const cloudBlob = await response.blob();
     const arrayBuffer = await cloudBlob.arrayBuffer();
-    
+
     pitchAudioBuffer = await pitchAudioContext.decodeAudioData(arrayBuffer.slice(0));
     pitchSelectedItem = item;
 
     pitchLastSavedId = null;
+
     const sendBtn = $("pitchSendToKaraokeBtn");
     if (sendBtn) sendBtn.disabled = true;
 
-    ensurePitchWorklet(pitchAudioContext).catch();
+    ensurePitchWorklet(pitchAudioContext).catch(err => {
+      console.warn("No se pudo precargar el pitch worklet:", err);
+    });
 
     if (status) {
       status.textContent = `Estado: "${item.name}" cargado (${pitchAudioBuffer.duration.toFixed(1)} s, ${pitchAudioBuffer.numberOfChannels} canal${pitchAudioBuffer.numberOfChannels === 1 ? "" : "es"}). Listo para reproducir.`;
     }
+
     const saveName = $("pitchSaveName");
     if (saveName && !saveName.value) {
       saveName.value = item.name + " (tono modificado)";
@@ -179,21 +199,13 @@ export async function playPitchShifted() {
     alert("⚠️ Primero carga un archivo karaoke desde Biblioteca.");
     return;
   }
-  if (!pitchAudioContext) {
+
+  if (!pitchAudioContext || pitchAudioContext.state === "closed") {
     pitchAudioContext = new (window.AudioContext || window.webkitAudioContext)();
   }
+
   if (pitchAudioContext.state === "suspended") {
     await pitchAudioContext.resume();
-  }
-  if (pitchIsPaused && pitchWorkletNode && pitchSourceNode) {
-    try {
-      await pitchAudioContext.resume();
-      pitchIsPaused = false;
-      pitchIsPlaying = true;
-      const st = $("pitchPlayStatus");
-      if (st) st.textContent = "Estado: ▶️ reproduciendo con tono modificado…";
-      return;
-    } catch (e) {}
   }
 
   stopPitchShifted();
@@ -213,7 +225,9 @@ export async function playPitchShifted() {
     pitchWorkletNode = new AudioWorkletNode(pitchAudioContext, "pitch-shifter-processor");
 
     const pitchParam = pitchWorkletNode.parameters.get("pitchRatio");
-    if (pitchParam) pitchParam.value = getPitchRatio();
+    if (pitchParam) {
+      pitchParam.setValueAtTime(getPitchRatio(), pitchAudioContext.currentTime);
+    }
 
     pitchGainNode = pitchAudioContext.createGain();
     pitchGainNode.gain.value = 1.0;
@@ -228,7 +242,6 @@ export async function playPitchShifted() {
 
     pitchSourceNode.start();
     pitchIsPlaying = true;
-    pitchIsPaused = false;
 
     const st = $("pitchPlayStatus");
     if (st) st.textContent = "Estado: ▶️ reproduciendo con tono modificado…";
@@ -246,21 +259,23 @@ export function stopPitchShifted() {
     try { pitchSourceNode.disconnect(); } catch (e) {}
     pitchSourceNode = null;
   }
+
   if (pitchWorkletNode) {
     try { pitchWorkletNode.disconnect(); } catch (e) {}
     pitchWorkletNode = null;
   }
+
   if (pitchGainNode) {
     try { pitchGainNode.disconnect(); } catch (e) {}
     pitchGainNode = null;
   }
-  
-  if (pitchAudioContext && pitchAudioContext.state === 'running') {
+
+  if (pitchAudioContext && pitchAudioContext.state === "running") {
     try { pitchAudioContext.suspend(); } catch (e) {}
   }
-  
+
   pitchIsPlaying = false;
-  pitchIsPaused = false;
+
   const st = $("pitchPlayStatus");
   if (st) st.textContent = "Estado: ⏹️ detenido.";
 }
@@ -279,7 +294,9 @@ export function audioBufferToWavBlob(buffer) {
   const view = new DataView(ab);
 
   function writeString(offset, str) {
-    for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+    for (let i = 0; i < str.length; i++) {
+      view.setUint8(offset + i, str.charCodeAt(i));
+    }
   }
 
   writeString(0, "RIFF");
@@ -297,7 +314,9 @@ export function audioBufferToWavBlob(buffer) {
   view.setUint32(40, dataSize, true);
 
   const channels = [];
-  for (let c = 0; c < numChannels; c++) channels.push(buffer.getChannelData(c));
+  for (let c = 0; c < numChannels; c++) {
+    channels.push(buffer.getChannelData(c));
+  }
 
   let offset = 44;
   for (let i = 0; i < numSamples; i++) {
@@ -307,6 +326,7 @@ export function audioBufferToWavBlob(buffer) {
       offset += 2;
     }
   }
+
   return new Blob([ab], { type: "audio/wav" });
 }
 
@@ -315,17 +335,25 @@ export async function savePitchShiftedToLibrary() {
     alert("⚠️ Primero carga un archivo karaoke desde Biblioteca.");
     return;
   }
+
   const semitones = getNetSemitones();
   if (semitones === 0) {
-    if (!confirm("El cambio actual es 0 semitonos (sin modificación). ¿Guardar de todas formas?")) return;
+    if (!confirm("El cambio actual es 0 semitonos (sin modificación). ¿Guardar de todas formas?")) {
+      return;
+    }
   }
 
   const status = $("pitchSaveStatus");
   const btn = $("pitchSaveBtn");
+
   if (btn) btn.disabled = true;
   if (status) status.textContent = "Estado: 🔄 procesando audio con el nuevo tono…";
 
   try {
+    if (!window.CloudflareStorage?.saveLibraryItemToCloudflare) {
+      throw new Error("CloudflareStorage no está disponible.");
+    }
+
     stopPitchShifted();
 
     const renderedBuffer = await renderPitchShiftOffline(pitchAudioBuffer, semitones);
@@ -341,8 +369,8 @@ export async function savePitchShiftedToLibrary() {
     const resultadoSubida = await window.CloudflareStorage.saveLibraryItemToCloudflare({
       name: finalName,
       type: "karaoke",
-      blob: wavBlob, 
-      transcription: pitchSelectedItem?.transcription || [], 
+      blob: wavBlob,
+      transcription: pitchSelectedItem?.transcription || [],
       metadata: {
         ...(pitchSelectedItem?.metadata || {}),
         pitchShiftedSemitones: semitones,
@@ -360,7 +388,9 @@ export async function savePitchShiftedToLibrary() {
     alert(`🎯 "${finalName}" guardado correctamente en tu biblioteca.`);
 
     await renderLibrary("todos");
-    if (typeof window.loadMyKaraokeSongs === "function") await window.loadMyKaraokeSongs();
+    if (typeof window.loadMyKaraokeSongs === "function") {
+      await window.loadMyKaraokeSongs();
+    }
     await loadPitchKaraokeOptions();
   } catch (e) {
     console.error("Error guardando audio modificado:", e);
@@ -376,15 +406,16 @@ export async function sendPitchShiftedToKaraokeMonitor() {
     alert("⚠️ Primero guarda el archivo con tono cambiado para poder enviarlo al monitor.");
     return;
   }
+
   try {
     stopPitchShifted();
-    
     await loadKaraokeSong(pitchLastSavedId);
-    
+
     const status = $("pitchSaveStatus");
     if (status) {
       status.textContent = "Estado: ✅ archivo cargado en el monitor karaoke.";
     }
+
     alert("✅ Enviado al monitor karaoke.\n\nCuando estés listo, ve a la pestaña Karaoke y presiona '🎙️ Iniciar Grabación' para empezar a cantar.");
   } catch (e) {
     console.error("Error enviando al monitor karaoke desde Cambiar tono:", e);
@@ -412,11 +443,18 @@ export async function renderPitchShiftOffline(audioBuffer, semitones) {
   );
 
   const pitchParam = worklet.parameters.get("pitchRatio");
-  if (pitchParam) pitchParam.value = ratio;
+  if (pitchParam) {
+    pitchParam.setValueAtTime(ratio, offlineCtx.currentTime);
+  }
 
   source.connect(worklet);
   worklet.connect(offlineCtx.destination);
   source.start();
 
-  return await offlineCtx.startRendering();
+  const rendered = await offlineCtx.startRendering();
+
+  try { source.disconnect(); } catch (e) {}
+  try { worklet.disconnect(); } catch (e) {}
+
+  return rendered;
 }
