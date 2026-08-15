@@ -1,0 +1,10 @@
+name = "vocal-app-storage-worker"
+main = "cloudflare-worker.js"   # El nombre exacto de tu archivo del Worker
+compatibility_date = "2026-08-14"
+
+[[r2_buckets]]
+binding = "VOCAL_APP_STORAGE"   # El nombre exacto en tu código (¡No lo cambies!)
+bucket_name = "vocal-app-storage" # El nombre real del bucket en Cloudflare
+
+[vars]
+R2_PUBLIC_URL = "https://pub-009d57f0ff314e0b95d55e0c4df4ab6e.r2.dev"
