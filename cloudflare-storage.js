@@ -36,17 +36,12 @@ async function uploadFileToCloudflare(fileOrBlob, fileName, mimeType = "applicat
   }
 
   // 1. Limpiar nombre
-  let cleanName = fileName
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-zA-Z0-9._]/g, "_")
-    .replace(/__+/g, "_");
-
-  // Generar nombre único con tipo para evitar colisiones
+  let originalName = fileName
+  
   uploadCounter++;
   const timestamp = Date.now();
   const counter = uploadCounter.toString(36).padStart(4, '0');
-  const safePath = `${timestamp}_${counter}_${tipo}_${cleanName}`;
+  const safePath = `${timestamp}_${counter}_${tipo}_${originalName}`;
 
   console.log(`☁️ Subiendo a Cloudflare R2: ${safePath}`);
 
@@ -136,7 +131,7 @@ async function saveLibraryItemToCloudflare({ name, type, blob, transcription = [
     ? "ogg"
     : "bin";
 
-  let cleanName = name
+  let originalName = name
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-zA-Z0-9._]/g, "_")
