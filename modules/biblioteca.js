@@ -324,6 +324,7 @@ export async function saveManualFileToLibrary() {
   try {
     let uploadedCount = 0;
     const totalFiles = files.length;
+    // Usamos el nombre personalizado si existe, si no, será null para usar el original
     const customBaseName = nameInput?.value?.trim();
 
     for (let i = 0; i < files.length; i++) {
@@ -335,23 +336,34 @@ export async function saveManualFileToLibrary() {
       try {
         const isTextType = type === "texto" || type === "ultrastar_txt";
 
-        let finalName = file.name;
-        const finalName = originalName
-        if (finalName) {
+        // --- CORRECCIÓN AQUÍ: Lógica de nombre segura ---
+        let finalName = "";
+        const originalExt = file.name.includes(".") ? "." + file.name.split(".").pop() : "";
+        const nameWithoutExt = file.name.includes(".") ? file.name.split(".").slice(0, -1).join(".") : file.name;
+
+        if (customBaseName) {
+          // Si el usuario escribió un nombre, lo usamos como base
           if (files.length === 1) {
-            finalName = originalName;
+            finalName = customBaseName + originalExt;
           } else {
-            const ext = file.name.includes(".") ? "." + file.name.split(".").pop() : "";
-            finalName = `${originalName}_${i + 1}${ext}`;
+            finalName = `${customBaseName}_${i + 1}${originalExt}`;
+          }
+        } else {
+          // Si no escribió nada, usamos el nombre original del archivo
+          if (files.length === 1) {
+            finalName = file.name; // Mantiene "cancion.mp3" o "nota.txt" intacto
+          } else {
+            finalName = `${nameWithoutExt}_${i + 1}${originalExt}`;
           }
         }
+        // -----------------------------------------------
 
         if (isTextType) {
           const text = await file.text();
           console.log(`📝 Guardando archivo de texto: ${finalName}`);
 
           await window.CloudflareStorage.saveLibraryItemToCloudflare({
-            name: finalName,
+            name: finalName, // Ahora usa la variable definida correctamente
             type,
             blob: file,
             textoPlano: text,
@@ -362,7 +374,7 @@ export async function saveManualFileToLibrary() {
           console.log(`🎵 Subiendo audio: ${finalName} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
 
           await window.CloudflareStorage.saveLibraryItemToCloudflare({
-            name: finalName,
+            name: finalName, // Ahora usa la variable definida correctamente
             type,
             blob: file,
             transcription: [],
@@ -402,7 +414,8 @@ export async function saveManualFileToLibrary() {
       if (uploadFilesList) uploadFilesList.innerHTML = "";
     }, 3000);
   }
-}
+}   
+
 function validateFilesForUpload(files, type) {
   const isTextType = ["texto", "ultrastar_txt"].includes(type);
   const maxSize = 500 * 1024 * 1024; // 500 MB
