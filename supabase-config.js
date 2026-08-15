@@ -21,7 +21,7 @@ function getSupabaseConfig() {
     || "https://qfvhwbmgeunvgjwmlxjd.supabase.co";
 
   const key = getEnv('VITE_SUPABASE_ANON_KEY')
-    || "sb_publishable_IGkquzv5abCY4Ao-8jK_2A_CwpiGA4N"; // fallback válido JWT
+    || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmdmh3Ym1nZXVudmdqd21seGpkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY2MzI5NTksImV4cCI6MjEwMjIwODk1OX0.VHm0pxBrhSg3q5E1KfU8EhBmNKdwBFiRTEmoO4Om3Os"; // fallback válido JWT
 
   if (!url || !key) {
     console.error("❌ Supabase config missing. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY");
