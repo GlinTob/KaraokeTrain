@@ -210,7 +210,7 @@ export async function saveToLibrary(blob, options = {}) {
 
     console.log("✅ Guardado en biblioteca correctamente (Cloudflare R2)");
 
-    const filtroActual = options.type || 'todos';
+    const filtroActual = options.type || 'karaoke';
     await renderLibrary(filtroActual);
 
   } catch (error) {
@@ -239,8 +239,8 @@ export async function renderLibrary(filter = "todos") {
   container.innerHTML = "Cargando archivos...";
 
   try {
-    const library = await getAllLibraryItemsFromSupabase();
-    const filteredItems = filter === "todos" ? library : library.filter(item => item.type === filter);
+    let library = await getAllLibraryItemsFromSupabase();
+    let filteredItems = filter === "todos" ? library : library.filter(item => item.type === filter);
     container.innerHTML = "";
 
     if (!filteredItems || filteredItems.length === 0) {
