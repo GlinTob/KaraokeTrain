@@ -54,7 +54,7 @@ function getMediaErrorDesc(code) {
 // 🎵 PROCESAMIENTO Y CARGA DE PISTAS BASE
 // ========================================== 
 
-async function loadTrackOptionsInStudio() {
+export async function loadTrackOptionsInStudio() {
   const select = $("studioTrackSelect");
   if (!select) return; 
 
@@ -129,7 +129,7 @@ export async function loadSelectedTrackFromLibraryStudio() {
     studioTrackFileName = item.name;
     studioTrackId = item.id;
     studioTrackBlob = item.file_url || item.audioBlob;
-    player.src = item.file_url;
+    player.src = item.file_url || item.audioBlob || "";
     status.innerHTML = `🎵 <strong>Estado:</strong> pista cargada desde Biblioteca (<span style="color:#22c55e;">${item.name}</span>)`;
   } catch (error) {
     console.error(error);
@@ -223,7 +223,7 @@ export async function loadSelectedVoiceFromLibrary() {
 
     selectedVoiceBlob = item.file_url || item.audioBlob;
     selectedVoiceId = item.id;
-    player.src = item.file_url;
+    player.src = item.file_url || item.audioBlob || "";
     status.textContent = `Estado: voz seleccionada -> ${item.name}`;
 
     if (Array.isArray(item.transcription) && item.transcription.length > 0) {
@@ -384,7 +384,7 @@ export async function applyCorrectedLyrics() {
       if (typeof window.buildSegmentsFromMultilineLyrics === "function") {
         finalSegments = window.buildSegmentsFromMultilineLyrics(correctedText, baseTranscriptionSegments);
       } else {
-        finalSegments = baseTranscriptionSegments;
+        throw new Error("No está disponible la función buildSegmentsFromMultilineLyrics para reconstruir la letra corregida.");
       }
 
       baseTranscriptionSegments = finalSegments;
@@ -605,29 +605,34 @@ export async function finishTapSync() {
   if (tapSyncTimestamps.length !== tapSyncLines.length) {
     const remaining = tapSyncLines.length - tapSyncTimestamps.length;
     const tipoUnidad = (window.currentTapSyncModeType === "palabra") ? "palabras" : "líneas";
-    if (!confirm(`⚠️ Sincronización incompleta: faltan ${remaining} ${tipoUnidad} por tocar.\n\n` +
+
+    if (!confirm(
+      `⚠️ Sincronización incompleta: faltan ${remaining} ${tipoUnidad} por tocar.\n\n` +
       `Actualmente: ${tapSyncTimestamps.length} / ${tapSyncLines.length} ${tipoUnidad}\n\n` +
-      `¿Deseas aplicar de todos modos?`)) {
+      `¿Deseas aplicar de todos modos?`
+    )) {
       cancelTapSync();
       return;
     }
   }
 
-  const voicePlayer = $("selectedVoicePlayer") || $("player");
-  if (voicePlayer) {
-    try { voicePlayer.pause(); } catch(e) {}
+  const activePlayer = window.activeTapPlayer || $("selectedVoicePlayer") || $("player");
+  if (activePlayer) {
+    try { activePlayer.pause(); } catch (e) {}
   }
+
   document.removeEventListener("keydown", handleTapSyncKeypress, { capture: true });
 
   if ($("tapSyncActive")) $("tapSyncActive").style.display = "none";
   if ($("tapSyncResult")) $("tapSyncResult").style.display = "block";
   if ($("cancelTapSyncBtn")) $("cancelTapSyncBtn").style.display = "none";
+  if ($("startTapSyncBtn")) $("startTapSyncBtn").style.display = "inline-block";
 
   const statusId = selectedVoiceId ? "selectedVoiceStatus" : "selectedTextStatus";
   const status = $(statusId);
   if (status) status.textContent = "Estado: Aplicando tiempos y analizando notas...";
 
-  const audioDuration = voicePlayer ? voicePlayer.duration : 0;
+  const audioDuration = activePlayer ? activePlayer.duration : 0;
   const avgInterval = tapSyncTimestamps.length >= 2
     ? (tapSyncTimestamps[tapSyncTimestamps.length - 1] - tapSyncTimestamps[0]) / (tapSyncTimestamps.length - 1)
     : (audioDuration || 3.0);
@@ -640,6 +645,7 @@ export async function finishTapSync() {
     if (!item) throw new Error("No se pudo obtener el elemento de la biblioteca remota");
 
     let finalSegments = [];
+
     if (item.type === "texto") {
       const esPalabraPorPalabra = (window.currentTapSyncModeType === "palabra");
 
@@ -647,11 +653,12 @@ export async function finishTapSync() {
         finalSegments = item.lyrics.map((word, index) => {
           const startTime = tapSyncTimestamps[index] || 0;
           const nextTime = tapSyncTimestamps[index + 1] || (startTime + avgInterval);
+
           return {
             id: word.id,
             text: word.text,
             renglon: word.renglon || 1,
-            startTime: startTime,
+            startTime,
             duration: Math.max(0.1, nextTime - startTime),
             pitch: word.pitch || 0,
             parte: tapSyncParts[index] || "P1"
@@ -659,6 +666,7 @@ export async function finishTapSync() {
         });
       } else {
         let globalWordId = 1;
+
         tapSyncLines.forEach((lineText, lineIndex) => {
           const startTimeFrase = tapSyncTimestamps[lineIndex] || 0;
           const endTimeFrase = tapSyncTimestamps[lineIndex + 1] || (startTimeFrase + avgInterval);
@@ -670,8 +678,10 @@ export async function finishTapSync() {
           if (totalPalabras === 0) return;
 
           const duracionPorPalabra = duracionTotalFrase / totalPalabras;
+
           palabrasDeLaLinea.forEach((palabraText, wordIndex) => {
             const wordStart = startTimeFrase + (wordIndex * duracionPorPalabra);
+
             finalSegments.push({
               id: globalWordId++,
               text: palabraText,
@@ -680,23 +690,94 @@ export async function finishTapSync() {
               duration: duracionPorPalabra,
               pitch: null,
               parte: parteLinea,
-              words: [{ start: wordStart, end: wordStart + duracionPorPalabra, word: palabraText }]
+              words: [{
+                start: wordStart,
+                end: wordStart + duracionPorPalabra,
+                word: palabraText
+              }]
             });
           });
         });
       }
+
+      textSegments = finalSegments;
+      baseTextSegments = finalSegments;
 
       await updateLibraryItemsFromSupabase(currentId, {
         lyrics: finalSegments,
         isSincronizada: true,
         tapModeStyle: window.currentTapSyncModeType
       });
+    } else {
+      const esPalabraPorPalabra = (window.currentTapSyncModeType === "palabra");
 
-      alert("✅ ¡Sincronización por taps guardada con éxito en tu biblioteca!");
-      await renderLibrary("todos");
+      if (esPalabraPorPalabra && Array.isArray(baseTranscriptionSegments) && baseTranscriptionSegments.length) {
+        finalSegments = baseTranscriptionSegments.map((seg, index) => {
+          const startTime = tapSyncTimestamps[index] || seg.startTime || seg.start || 0;
+          const nextTime = tapSyncTimestamps[index + 1] || (startTime + avgInterval);
+
+          return {
+            ...seg,
+            startTime,
+            start: startTime,
+            duration: Math.max(0.1, nextTime - startTime),
+            end: nextTime,
+            parte: tapSyncParts[index] || seg.parte || "P1"
+          };
+        });
+      } else {
+        let globalWordId = 1;
+
+        tapSyncLines.forEach((lineText, lineIndex) => {
+          const startTimeFrase = tapSyncTimestamps[lineIndex] || 0;
+          const endTimeFrase = tapSyncTimestamps[lineIndex + 1] || (startTimeFrase + avgInterval);
+          const duracionTotalFrase = endTimeFrase - startTimeFrase;
+          const parteLinea = tapSyncParts[lineIndex] || "P1";
+
+          const palabrasDeLaLinea = lineText.split(/\s+/).filter(w => w.trim().length > 0);
+          const totalPalabras = palabrasDeLaLinea.length;
+          if (totalPalabras === 0) return;
+
+          const duracionPorPalabra = duracionTotalFrase / totalPalabras;
+
+          palabrasDeLaLinea.forEach((palabraText, wordIndex) => {
+            const wordStart = startTimeFrase + (wordIndex * duracionPorPalabra);
+
+            finalSegments.push({
+              id: globalWordId++,
+              text: palabraText,
+              startTime: wordStart,
+              start: wordStart,
+              duration: duracionPorPalabra,
+              end: wordStart + duracionPorPalabra,
+              pitch: null,
+              parte: parteLinea,
+              words: [{
+                start: wordStart,
+                end: wordStart + duracionPorPalabra,
+                word: palabraText
+              }]
+            });
+          });
+        });
+      }
+
+      transcriptionSegments = finalSegments;
+      baseTranscriptionSegments = finalSegments;
+
+      await updateLibraryItemsFromSupabase(currentId, {
+        transcription: finalSegments,
+        isSincronizada: true,
+        tapModeStyle: window.currentTapSyncModeType
+      });
     }
+
+    if (status) status.textContent = "Estado: Sincronización guardada ✅";
+    await renderLibrary("todos");
+    alert("✅ ¡Sincronización por taps guardada con éxito!");
   } catch (error) {
     console.error("Error al finalizar sincronización:", error);
+    if (status) status.textContent = "Estado: Error al guardar la sincronización";
     alert("❌ Error al guardar la línea final de taps en la base de datos.");
   }
 }
