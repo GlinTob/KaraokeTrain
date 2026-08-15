@@ -92,7 +92,7 @@ async function saveLibraryItemToCloudflare({ name, type, blob, transcription = [
 
   if (!db) throw new Error("❌ Supabase no inicializado");
 
-  // TIPO TEXTO: Guardar SOLO en Supabase (sin R2)
+  // --- TIPO TEXTO: Guardar SOLO en Supabase ---
   if (isTextType) {
     const lyrics = typeof segmentarTextoPlano === "function" && textoPlano
       ? segmentarTextoPlano(textoPlano)
@@ -119,28 +119,37 @@ async function saveLibraryItemToCloudflare({ name, type, blob, transcription = [
     return { filePath: null, fileUrl: null };
   }
 
-  // TIPO AUDIO: Subir a R2 + metadata en Supabase
+  // --- TIPO AUDIO: Subir a R2 + metadata en Supabase ---
+  
+  // 1. Determinar extensión desde el MIME type o el nombre
   const mimeType = blob.type || "application/octet-stream";
-  const extension = mimeType.includes("wav")
-    ? "wav"
-    : mimeType.includes("mpeg")
-    ? "mp3"
-    : mimeType.includes("webm")
-    ? "webm"
-    : mimeType.includes("ogg")
-    ? "ogg"
-    : "bin";
+  let extension = "bin";
+  if (mimeType.includes("wav")) extension = "wav";
+  else if (mimeType.includes("mpeg") || name.endsWith(".mp3")) extension = "mp3";
+  else if (mimeType.includes("webm")) extension = "webm";
+  else if (mimeType.includes("ogg")) extension = "ogg";
+  else if (name.endsWith(".txt")) extension = "txt"; // Fallback por seguridad
 
-  const originalName = file.name;
-  const key = `${timestamp}_${originalName}`;
-  await bucket.put(key, file);
+  // 2. Generar nombre de archivo seguro (USANDO LOS PARÁMETROS DE ENTRADA)
+  // Usamos 'name' que viene de la función anterior (ya corregida con el nombre correcto)
+  const timestamp = Date.now();
+  const key = `${timestamp}_${name}`; 
 
-  console.log(`☁️ Nombre original: "${name}" -> Archivo R2: "${fileName}"`);
+  // 3. Subir directamente a R2 usando el bucket configurado
+  // Asumiendo que 'config.bucket' es tu objeto bucket de R2 inicializado en getCloudflareConfig()
+  const bucket = config.bucket; 
+  
+  if (!bucket) throw new Error("Bucket de R2 no encontrado en la configuración");
 
-  // 1. Subir binario a Cloudflare R2
-  const { filePath, fileUrl } = await uploadFileToCloudflare(blob, fileName, mimeType, type);
+  console.log(`☁️ Subiendo a R2: ${key}`);
+  
+  await bucket.put(key, blob);
 
-  // 2. Insertar metadata en Supabase
+  // 4. Construir URL pública (Ajusta 'account_id' y 'bucket_name' según tu config)
+  const fileUrl = `https://${config.accountId}.r2.cloudflarestorage.com/${config.bucketName}/${key}`;
+  const filePath = key;
+
+  // 5. Insertar metadata en Supabase
   const insertData = {
     name,
     type,
@@ -155,14 +164,14 @@ async function saveLibraryItemToCloudflare({ name, type, blob, transcription = [
 
   if (error) {
     console.error("❌ Error guardando en Supabase:", error);
-    try { await deleteFileFromCloudflare(filePath); } catch (e) {}
+    // Intento de limpieza en caso de error
+    try { await bucket.delete(filePath); } catch (e) {}
     throw error;
   }
+  
   console.log("✅ Item guardado en Supabase con URL de Cloudflare");
-
   return { filePath, fileUrl };
-}
-
+}   
 /**
  * Elimina archivo de Cloudflare R2
  */
