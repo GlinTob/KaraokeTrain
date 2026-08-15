@@ -336,6 +336,7 @@ export async function saveManualFileToLibrary() {
         const isTextType = type === "texto" || type === "ultrastar_txt";
 
         let finalName = file.name;
+        const finalName = originalName
         if (finalName) {
           if (files.length === 1) {
             finalName = originalName;
