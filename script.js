@@ -264,17 +264,30 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
   safeAdd("libraryFileInput", "change", (e) => {
     const files = e.target.files;
-    const file = files.length > 0 ? files[0] : null;
-    console.log("Archivo detectado:", file ? file.name : "Ninguno");
+    if (files.length === 0) return;
 
-    if (file) {
-      const nameInput = $("libraryFileName");
-      if (nameInput && !nameInput.value.trim()) {
-        nameInput.value = file.name.replace(/\.[^.]+$/, "");
-      }
-      addFileToUploadList(file);
+    const progressContainer = $("uploadProgressContainer");
+    if (progressContainer) progressContainer.style.display = "block";
+
+    const uploadList = $("uploadFilesList");
+
+    for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        console.log("Archivo detectado:", file.name);
+
+        if (i === 0) {
+            const nameInput = $("libraryFileName");
+            if (nameInput && !nameInput.value.trim()) {
+                nameInput.value = file.name.replace(/\.[^.]+$/, "");
+            }
+        }
+
+        if (uploadList) {
+            addFileToUploadList(uploadList, file.name, "pending");
+        }
     }
   });
+  
   safeAdd("libraryFileType", "change", () => {
     const typeSelect = $("libraryFileType");
     const fileInput = $("libraryFileInput");
