@@ -142,7 +142,9 @@ async function saveLibraryItemToCloudflare({ name, type, blob, transcription = [
     .replace(/[^a-zA-Z0-9._]/g, "_")
     .replace(/__+/g, "_");
 
-  const fileName = `${cleanName}.${extension}`;
+  const originalName = file.name;
+  const key = `${timestamp}_${originalName}`;
+  await bucket.put(key, file);
 
   console.log(`☁️ Nombre original: "${name}" -> Archivo R2: "${fileName}"`);
 
