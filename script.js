@@ -117,9 +117,10 @@ function iniciarAplicacion() {
 // ============================================
 document.addEventListener("DOMContentLoaded", async () => {
   try {
-    if (typeof window.initSupabase === "function") {
-      await window.initSupabase();
-    }
+  const { initSupabase } = await import("./modules/biblioteca.js");
+  if (typeof initSupabase === "function") {
+    await initSupabase();
+  }
   } catch (err) {
     console.warn("⚠️ Advertencia inicializando Supabase:", err);
   }
@@ -238,8 +239,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (typeof finishTapSync === "function") finishTapSync();
   });
   safeAdd("redoTapSyncBtn", "click", async () => {
-    const { redoTapSync } = await import("./modules/estudio.js");
-    if (typeof redoTapSync === "function") redoTapSync();
+    const { cancelTapSync, startTapSync } = await import("./modules/estudio.js");
+    if (typeof cancelTapSync === "function") cancelTapSync();
+    if (typeof startTapSync === "function") startTapSync();
   });
 
   safeAdd("tapPartP1Btn", "click", async () => {
@@ -315,8 +317,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (typeof playPitchShifted === "function") playPitchShifted();
   });
   safeAdd("pitchPauseBtn", "click", async () => {
-    const { pausePitchShifted } = await import("./modules/cambiar-tono.js");
-    if (typeof pausePitchShifted === "function") pausePitchShifted();
+    console.warn("⏸️ pausePitchShifted no está implementado en cambiar-tono.js");
   });
   safeAdd("pitchStopBtn", "click", async () => {
     const { stopPitchShifted } = await import("./modules/cambiar-tono.js");
