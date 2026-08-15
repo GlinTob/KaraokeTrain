@@ -233,12 +233,12 @@
           </div>
 
           <div class="folder-controls">
-            <button class="folder-btn" onclick="renderLibrary('pista')" data-filter="pista">🎵 Pistas</button>
-            <button class="folder-btn" onclick="renderLibrary('voz')" data-filter="voz">🎙️ Voces</button>
-            <button class="folder-btn" onclick="renderLibrary('grabacion')" data-filter="grabacion">💾 Grabaciones</button>
-            <button class="folder-btn" onclick="renderLibrary('karaoke')" data-filter="karaoke">🎤 Karaoke</button>
-            <button class="folder-btn" onclick="renderLibrary('texto')" data-filter="texto">📝 Letras</button>
-            <button class="folder-btn" onclick="renderLibrary('todos')" data-filter="todos">📁 Todos</button>
+            <button class="folder-btn" type="button" onclick="import('./modules/biblioteca.js').then(m => m.renderLibrary('todos'))">📂 Todos</button>
+            <button class="folder-btn" type="button" onclick="import('./modules/biblioteca.js').then(m => m.renderLibrary('pista'))">🎵 Pistas</button>
+            <button class="folder-btn" type="button" onclick="import('./modules/biblioteca.js').then(m => m.renderLibrary('voz'))">🎙️ Voces</button>
+            <button class="folder-btn" type="button" onclick="import('./modules/biblioteca.js').then(m => m.renderLibrary('grabacion'))">💾 Grabaciones</button>
+            <button class="folder-btn" type="button" onclick="import('./modules/biblioteca.js').then(m => m.renderLibrary('karaoke'))">🎤 Karaoke</button>
+            <button class="folder-btn" type="button" onclick="import('./modules/biblioteca.js').then(m => m.renderLibrary('ultrastar_txt'))">📝 Letras .TXT</button>
           </div>
 
           <div class="card upload-card">
