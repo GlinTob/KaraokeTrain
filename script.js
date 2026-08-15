@@ -262,14 +262,18 @@ document.addEventListener("DOMContentLoaded", async () => {
     const { saveManualFileToLibrary } = await import("./modules/biblioteca.js");
     await saveManualFileToLibrary();
   });
-  safeAdd("libraryFileInput", "change", (e) => {
+  
+  safeAdd("libraryFileInput", "change", async (e) => {
+    // 1. Importar la función desde el módulo
+    const { addFileToUploadList } = await import("./modules/biblioteca.js");
+
     const files = e.target.files;
     if (files.length === 0) return;
 
-    const progressContainer = $("uploadProgressContainer");
-    if (progressContainer) progressContainer.style.display = "block";
-
     const uploadList = $("uploadFilesList");
+    const progressContainer = $("uploadProgressContainer");
+    
+    if (progressContainer) progressContainer.style.display = "block";
 
     for (let i = 0; i < files.length; i++) {
         const file = files[i];
@@ -282,6 +286,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             }
         }
 
+        // 2. Ahora sí funcionará porque está importada
         if (uploadList) {
             addFileToUploadList(uploadList, file.name, "pending");
         }
