@@ -259,26 +259,43 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // --- EVENTOS BIBLIOTECA ---
   safeAdd("saveLibraryFileBtn", "click", async () => {
-    console.log("🔵 Botón Guardar presionado");
-    
-    // Verificar estado del input antes de importar
+    console.log("🔵 [DEBUG] Botón Guardar presionado");
+
     const fileInput = $("libraryFileInput");
-    console.log("📁 Archivos en input:", fileInput?.files?.length || 0);
-    
+    const typeSelect = $("libraryFileType");
+    const nameInput = $("libraryFileName");
+
+    // Verificación 1: ¿Hay archivos?
     if (!fileInput || fileInput.files.length === 0) {
-        alert("⚠️ No hay archivos seleccionados. El input está vacío.");
+        console.error("❌ [ERROR] El input de archivos está vacío.");
+        alert("Error: No hay archivos seleccionados.");
         return;
     }
 
-    try {
-        const { saveManualFileToLibrary } = await import("./modules/biblioteca.js");
-        console.log("🟢 Módulo importado, ejecutando subida...");
-        await saveManualFileToLibrary();
-    } catch (error) {
-        console.error("🔴 Error crítico al importar o ejecutar:", error);
-        alert("Error al cargar el módulo: " + error.message);
+    // Verificación 2: ¿Hay tipo seleccionado?
+    const type = typeSelect ? typeSelect.value : null;
+    console.log("📋 [DEBUG] Tipo seleccionado:", type);
+    if (!type) {
+        console.error("❌ [ERROR] No se ha seleccionado un tipo de archivo.");
+        alert("Error: Selecciona un tipo (Pista, Voz, Texto, etc.) antes de guardar.");
+        return;
     }
-  });
+
+    console.log("📂 [DEBUG] Archivos listos:", fileInput.files.length);
+    
+    try {
+        console.log("⏳ [DEBUG] Importando módulo...");
+        const { saveManualFileToLibrary } = await import("./modules/biblioteca.js");
+        
+        console.log("🚀 [DEBUG] Ejecutando saveManualFileToLibrary...");
+        await saveManualFileToLibrary();
+        
+        console.log("✅ [DEBUG] Función finalizada.");
+    } catch (error) {
+        console.error("🔴 [ERROR CRÍTICO] Excepción en el botón:", error);
+        alert("Error fatal: " + error.message);
+    }
+  });   
   
   safeAdd("libraryFileInput", "change", async (e) => {
     const files = e.target.files;
