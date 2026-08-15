@@ -633,7 +633,7 @@ export function loop() {
   karaokePitchLoopRafId = requestAnimationFrame(loop);
 }
 
-function stopKaraokeRecording() {
+export function stopKaraokeRecording() {
   if (karaokePitchLoopRafId) {
     cancelAnimationFrame(karaokePitchLoopRafId);
     karaokePitchLoopRafId = null;
@@ -706,7 +706,7 @@ function stopKaraokeRecording() {
   }
 }
 
-function restartKaraokeRecording() {
+export function restartKaraokeRecording() {
   const track = $("karaokeTrack") || $("karaokeAudio") || $("audioKaraoke") || $("trackPlayer");
 
   if (track) {
@@ -721,7 +721,7 @@ function restartKaraokeRecording() {
   $("karaokeStartBtn").disabled = false;
 }
 
-function syncKaraokeMonitor(currentTime) {
+export function syncKaraokeMonitor(currentTime) {
   const lines = document.querySelectorAll(".karaoke-live-line");
   if (!lines.length) return;
 
@@ -1119,7 +1119,7 @@ async function confirmUltrastarImport() {
 
 let currentKaraokeAudioURL = null; // Mantenemos tu variable de control local
   
-async function loadKaraokeSong(id) {
+export async function loadKaraokeSong(id) {
   try {
     if (typeof limpiarVariablesMonitor === "function") {
       limpiarVariablesMonitor();
@@ -1228,7 +1228,7 @@ function dataUrlToBlob(dataUrl) {
   return new Blob([arr], { type: mime });
 }
 
-async function mixKaraoke() {
+export async function mixKaraoke() {
   if (!karaokeSelectedTrackBlob || !karaokeRecordedBlob) {
     alert("⚠️ Primero presiona 'Cantar' en un karaoke y luego graba tu voz.");
     return;
