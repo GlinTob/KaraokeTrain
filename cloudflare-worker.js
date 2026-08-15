@@ -27,6 +27,31 @@ export default {
         return await handleDelete(key, env, corsHeaders);
       }
 
+      // --- AGREGA ESTE BLOQUE NUEVO ---
+      if (request.method === 'GET' && path.startsWith('/api/file/')) {
+        const key = path.replace('/api/file/', '');
+        
+        // Obtener el objeto del bucket (asegúrate de que el nombre de la variable env sea correcto)
+        const object = await env.VOCAL_APP_STORAGE.get(key);
+
+        if (!object) {
+          return new Response('Archivo no encontrado', { 
+            status: 404, 
+            headers: corsHeaders 
+          });
+        }
+
+        // Preparar headers para streaming
+        const headers = new Headers();
+        object.writeHttpMetadata(headers);
+        headers.set('etag', object.httpEtag);
+        // Asegurar CORS para que el frontend pueda leer el blob
+        headers.set('Access-Control-Allow-Origin', '*');
+
+        return new Response(object.body, { headers });
+      }
+      // --------------------------------
+
       return new Response(JSON.stringify({ error: 'Not found' }), {
         status: 404,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -40,7 +65,7 @@ export default {
       });
     }
   }
-};
+};   
 
 async function handleUpload(request, env, corsHeaders) {
   const contentType = request.headers.get('content-type') || '';
