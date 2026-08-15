@@ -1,9 +1,6 @@
 // Cloudflare R2 Storage Client
 // Reemplaza uploadFileToSupabase / saveLibraryItemToSupabase
 
-window.VITE_CLOUDFLARE_R2_UPLOAD_URL = import.meta.env.VITE_CLOUDFLARE_R2_UPLOAD_URL;
-window.VITE_CLOUDFLARE_R2_PUBLIC_URL = import.meta.env.VITE_CLOUDFLARE_R2_PUBLIC_URL;
-
 function getCloudflareConfig() {
   const config = window.CLOUDFLARE_R2_CONFIG || {
     uploadUrl: window.VITE_CLOUDFLARE_R2_UPLOAD_URL,
