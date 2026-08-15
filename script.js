@@ -263,10 +263,16 @@ document.addEventListener("DOMContentLoaded", async () => {
     await saveManualFileToLibrary();
   });
   safeAdd("libraryFileInput", "change", (e) => {
-    const file = e.target.files.item ? e.target.files.item(0) : e.target.files;
-    const nameInput = $("libraryFileName");
-    if (file && nameInput && !nameInput.value.trim()) {
-      nameInput.value = file.name.replace(/\.[^.]+$/, "");
+    const files = e.target.files;
+    const file = files.length > 0 ? files[0] : null;
+    console.log("Archivo detectado:", file ? file.name : "Ninguno");
+
+    if (file) {
+      const nameInput = $("libraryFileName");
+      if (nameInput && !nameInput.value.trim()) {
+        nameInput.value = file.name.replace(/\.[^.]+$/, "");
+      }
+      uploadFileToLibrary
     }
   });
   safeAdd("libraryFileType", "change", () => {
