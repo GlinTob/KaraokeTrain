@@ -145,7 +145,7 @@ export async function loadSelectedTrackFromLibraryStudio() {
       
       
       // OPCIÓN B: Si solo necesitas reproducir, deja studioTrackBlob como null o undefined
-      studioTrackBlob = null; 
+      //studioTrackBlob = null; 
       
     } else if (urlOrBlob instanceof Blob) {
       // Ya es un Blob (ej. caché local)
