@@ -42,6 +42,13 @@ function getSupabaseClient() {
   return _supabaseApp;
 }
 
+// Para compatibilidad con código existente
+const supabaseApp = new Proxy({}, {
+  get(_, prop) {
+    return getSupabaseClient()[prop];
+  }
+});
+
 // Exponer globalmente
 window.supabaseApp = supabaseApp;
 window.getSupabaseClient = getSupabaseClient;
