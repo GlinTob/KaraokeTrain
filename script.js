@@ -281,34 +281,37 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
   
   safeAdd("libraryFileInput", "change", async (e) => {
-    // 1. Importar la función desde el módulo
-    const { addFileToUploadList } = await import("./modules/biblioteca.js");
-
     const files = e.target.files;
     if (files.length === 0) return;
 
+    // 1. MOSTRAR EL MENÚ DE TIPO (Esto faltaba)
+    const uploadOptions = $("uploadOptions");
+    if (uploadOptions) {
+        uploadOptions.style.display = "block"; 
+    }
+
+    // 2. Resto de tu lógica (nombre y lista)
     const uploadList = $("uploadFilesList");
     const progressContainer = $("uploadProgressContainer");
     
     if (progressContainer) progressContainer.style.display = "block";
 
+    // Importar función si la necesitas aquí
+    const { addFileToUploadList } = await import("./modules/biblioteca.js");
+
     for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        console.log("Archivo detectado:", file.name);
-
         if (i === 0) {
             const nameInput = $("libraryFileName");
             if (nameInput && !nameInput.value.trim()) {
                 nameInput.value = file.name.replace(/\.[^.]+$/, "");
             }
         }
-
-        // 2. Ahora sí funcionará porque está importada
         if (uploadList) {
             addFileToUploadList(uploadList, file.name, "pending");
         }
     }
-  });
+  });   
   
   safeAdd("libraryFileType", "change", () => {
     const typeSelect = $("libraryFileType");
