@@ -129,7 +129,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   document.documentElement.setAttribute("data-theme", temaGuardado);
   document.body.setAttribute("data-theme", temaGuardado);
 
-  function applyKaraokeTheme() {
+  export function applyKaraokeTheme() {
     const theme = localStorage.getItem("vocalApp_stage") || "theme-clasico";
     const monitor = $("karaokeLiveLyrics");
     if (monitor) {
