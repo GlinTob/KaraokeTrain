@@ -131,12 +131,6 @@ async function saveLibraryItemToCloudflare({ name, type, blob, transcription = [
     ? "ogg"
     : "bin";
 
-  let originalName = name
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-zA-Z0-9._]/g, "_")
-    .replace(/__+/g, "_");
-
   const originalName = file.name;
   const key = `${timestamp}_${originalName}`;
   await bucket.put(key, file);
