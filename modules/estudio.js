@@ -544,7 +544,7 @@ export function cancelTapSync() {
   console.log("⏹️ Sesión de marcación de taps cancelada.");
 }
 
-function setCurrentTapPart(part) {
+export function setCurrentTapPart(part) {
   if (part !== "P1" && part !== "P2" && part !== "DUO") return;
   currentTapPart = part;
   updateTapPartButtonsUI();
@@ -559,7 +559,7 @@ function updateTapPartButtonsUI() {
   if (btnDuo) btnDuo.classList.toggle("active", currentTapPart === "DUO");
 }
 
-function recordTap() {
+export function recordTap() {
   if (!tapSyncMode) return;
   const player = window.activeTapPlayer || $("selectedVoicePlayer");
   if (!player || player.paused || player.ended || player.readyState < 2) return;
