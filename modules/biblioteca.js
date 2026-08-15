@@ -10,10 +10,28 @@ export function initBiblioteca() {
   console.log("📚 [biblioteca.js] Inicializado con éxito"); 
 
   const dropZone = $("uploadDropZone");
+  const fileInput = $("libraryFileInput");
+
   if (dropZone) {
-    dropZone.addEventListener("dragover", handleDragOver);
-    dropZone.addEventListener("dragleave", handleDragLeave);
-    dropZone.addEventListener("drop", handleFileDrop);
+    // Replacement for onclick="$('libraryFileInput').click()"
+    dropZone.addEventListener("click", () => {
+      if (fileInput) fileInput.click();
+    });
+
+    // Replacements for inline drag/drop handlers
+    dropZone.addEventListener("dragover", (event) => {
+      event.preventDefault(); // Necessary to allow drop
+      handleDragOver(event);
+    });
+
+    dropZone.addEventListener("dragleave", (event) => {
+      handleDragLeave(event);
+    });
+
+    dropZone.addEventListener("drop", (event) => {
+      event.preventDefault();
+      handleFileDrop(event);
+    });
   }
 }
 
