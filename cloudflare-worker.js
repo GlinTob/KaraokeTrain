@@ -83,7 +83,7 @@ async function handleUpload(request, env, corsHeaders) {
     },
   });
 
-  const publicUrl = `${env.https://pub-009d57f0ff314e0b95d55e0c4df4ab6e.r2.dev}/${safePath}`;
+  const publicUrl = `${env.R2_PUBLIC_URL}/${safePath}`;
 
   return new Response(JSON.stringify({
     success: true,
