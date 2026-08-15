@@ -272,7 +272,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (nameInput && !nameInput.value.trim()) {
         nameInput.value = file.name.replace(/\.[^.]+$/, "");
       }
-      uploadFileToLibrary
+      addFileToUploadList();
     }
   });
   safeAdd("libraryFileType", "change", () => {
