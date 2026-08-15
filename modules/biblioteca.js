@@ -12,11 +12,9 @@ export function initBiblioteca() {
   const dropZone = $("uploadDropZone");
   const fileInput = $("libraryFileInput");
 
-  if (dropZone) {
+  if (dropZone && fileInput) {
     // Replacement for onclick="$('libraryFileInput').click()"
-    dropZone.addEventListener("click", () => {
-      if (fileInput) fileInput.click();
-    });
+    dropZone.addEventListener("click", () => fileInput.click());
 
     // Replacements for inline drag/drop handlers
     dropZone.addEventListener("dragover", (event) => {
@@ -32,6 +30,8 @@ export function initBiblioteca() {
       event.preventDefault();
       handleFileDrop(event);
     });
+  } else {
+    console.warn("⚠️ Elementos de carga no encontrados en el DOM.");
   }
 }
 
