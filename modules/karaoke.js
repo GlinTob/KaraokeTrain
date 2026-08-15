@@ -300,6 +300,7 @@ export function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2) {
         }
       }
     }
+  }
 }
 
 export async function startKaraokeRecording() {
