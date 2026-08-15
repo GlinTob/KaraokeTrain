@@ -259,8 +259,25 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // --- EVENTOS BIBLIOTECA ---
   safeAdd("saveLibraryFileBtn", "click", async () => {
-    const { saveManualFileToLibrary } = await import("./modules/biblioteca.js");
-    await saveManualFileToLibrary();
+    console.log("🔵 Botón Guardar presionado");
+    
+    // Verificar estado del input antes de importar
+    const fileInput = $("libraryFileInput");
+    console.log("📁 Archivos en input:", fileInput?.files?.length || 0);
+    
+    if (!fileInput || fileInput.files.length === 0) {
+        alert("⚠️ No hay archivos seleccionados. El input está vacío.");
+        return;
+    }
+
+    try {
+        const { saveManualFileToLibrary } = await import("./modules/biblioteca.js");
+        console.log("🟢 Módulo importado, ejecutando subida...");
+        await saveManualFileToLibrary();
+    } catch (error) {
+        console.error("🔴 Error crítico al importar o ejecutar:", error);
+        alert("Error al cargar el módulo: " + error.message);
+    }
   });
   
   safeAdd("libraryFileInput", "change", async (e) => {
