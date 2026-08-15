@@ -34,9 +34,15 @@ export async function initSupabase() {
 
 export async function getAllLibraryItemsFromSupabase() {
   if (!db) await initSupabase();
+
   try {
-    const { data, error } = await db.from('library').select('*');
+    const { data, error } = await db
+      .from('library')
+      .select('*')
+      .order('date', { ascending: false });
+
     if (error) throw new Error(`❌ Error al leer la Biblioteca: ${error.message}`);
+
     console.log(`✅ Se recuperaron ${data.length} elementos desde Supabase.`);
     return data;
   } catch (error) {
@@ -118,23 +124,40 @@ export async function getLibraryItemsByIdFromSupabase(id) {
 }
 
 export async function saveLibraryItemToSupabase({ name, type, blob, transcription = [], metadata = {} }) {
-  if (!db) await initSupabase(); 
+  if (!db) await initSupabase();
+
+  if (!window.CloudflareStorage?.uploadFileToCloudflare) {
+    throw new Error("CloudflareStorage no está disponible.");
+  }
 
   const mimeType = blob.type || "application/octet-stream";
-  const extension = mimeType.includes("wav") ? "wav" : mimeType.includes("mpeg") ? "mp3" : mimeType.includes("webm") ? "webm" : mimeType.includes("ogg") ? "ogg" : "bin"; 
+  const extension =
+    mimeType.includes("wav") ? "wav" :
+    mimeType.includes("mpeg") ? "mp3" :
+    mimeType.includes("webm") ? "webm" :
+    mimeType.includes("ogg") ? "ogg" :
+    mimeType.includes("mp4") ? "mp4" :
+    "bin";
 
-  let cleanName = name
+  const baseName = (name || "archivo")
+    .replace(/\.[a-zA-Z0-9]+$/, "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-zA-Z0-9.*]/g, "*")
-    .replace(/__+/g, "_"); 
+    .replace(/[^a-zA-Z0-9._-]/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
 
-  const fileName = `${cleanName}.${extension}`;
+  const fileName = `${baseName}.${extension}`;
   console.log(`📤 Generando archivo seguro: ${fileName}`);
 
-  const { filePath, fileUrl } = await window.CloudflareStorage.uploadFileToCloudflare(blob, fileName, mimeType, type); 
+  const { filePath, fileUrl } = await window.CloudflareStorage.uploadFileToCloudflare(
+    blob,
+    fileName,
+    mimeType,
+    type
+  );
 
-  const { error } = await db
+  const { data, error } = await db
     .from("library")
     .insert([
       {
@@ -146,10 +169,13 @@ export async function saveLibraryItemToSupabase({ name, type, blob, transcriptio
         metadata,
         date: new Date().toISOString()
       }
-    ]); 
+    ])
+    .select();
 
   if (error) throw error;
-} 
+
+  return data?.[0] || null;
+}
 
 export async function saveToLibrary(blob, options = {}) {
   if (!blob) {
@@ -265,6 +291,11 @@ export async function saveManualFileToLibrary() {
     return;
   }
 
+  if (!window.CloudflareStorage?.saveLibraryItemToCloudflare) {
+    alert("❌ CloudflareStorage no está disponible.");
+    return;
+  }
+
   const uploadProgressContainer = $("uploadProgressContainer");
   const uploadFilesList = $("uploadFilesList");
   const saveBtn = $("saveLibraryFileBtn");
@@ -277,19 +308,33 @@ export async function saveManualFileToLibrary() {
   try {
     let uploadedCount = 0;
     const totalFiles = files.length;
+    const customBaseName = nameInput?.value?.trim();
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
+
       updateUploadProgress(uploadedCount, totalFiles, file.name);
       addFileToUploadList(uploadFilesList, file.name, "pending");
 
       try {
         const isTextType = type === "texto" || type === "ultrastar_txt";
+
+        let finalName = file.name;
+        if (customBaseName) {
+          if (files.length === 1) {
+            finalName = customBaseName;
+          } else {
+            const ext = file.name.includes(".") ? "." + file.name.split(".").pop() : "";
+            finalName = `${customBaseName}_${i + 1}${ext}`;
+          }
+        }
+
         if (isTextType) {
           const text = await file.text();
-          console.log(`📝 Guardando archivo de texto: ${file.name}`);
+          console.log(`📝 Guardando archivo de texto: ${finalName}`);
+
           await window.CloudflareStorage.saveLibraryItemToCloudflare({
-            name: file.name,
+            name: finalName,
             type,
             blob: file,
             textoPlano: text,
@@ -297,9 +342,10 @@ export async function saveManualFileToLibrary() {
             metadata: {}
           });
         } else {
-          console.log(`🎵 Subiendo audio: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+          console.log(`🎵 Subiendo audio: ${finalName} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+
           await window.CloudflareStorage.saveLibraryItemToCloudflare({
-            name: file.name,
+            name: finalName,
             type,
             blob: file,
             transcription: [],
@@ -333,17 +379,15 @@ export async function saveManualFileToLibrary() {
     if (clearBtn) clearBtn.style.display = "none";
     if (fileInput) fileInput.value = "";
     if (nameInput) nameInput.value = "";
+
     setTimeout(() => {
       if (uploadProgressContainer) uploadProgressContainer.style.display = "none";
       if (uploadFilesList) uploadFilesList.innerHTML = "";
     }, 3000);
   }
 }
-
 function validateFilesForUpload(files, type) {
   const isTextType = ["texto", "ultrastar_txt"].includes(type);
-  const audioTypes = ["audio/mpeg", "audio/wav", "audio/ogg", "audio/webm", "audio/mp4", "audio/m4a", "audio/mp3", "audio/x-wav"];
-  const textTypes = ["text/plain"];
   const maxSize = 500 * 1024 * 1024; // 500 MB
 
   for (const file of files) {
@@ -353,13 +397,18 @@ function validateFilesForUpload(files, type) {
         error: `${file.name}: excede 500 MB`
       };
     }
-    if (isTextType && !textTypes.includes(file.type) && !file.name.endsWith(".txt")) {
+
+    const isTxt = file.type === "text/plain" || /\.txt$/i.test(file.name);
+    const isAudio = file.type.startsWith("audio/") || /\.(mp3|wav|ogg|webm|m4a|mp4)$/i.test(file.name);
+
+    if (isTextType && !isTxt) {
       return {
         valid: false,
         error: `${file.name}: debe ser .txt`
       };
     }
-    if (!isTextType && !audioTypes.some(t => file.type.startsWith("audio/") || file.name.match(/\.(mp3|wav|ogg|webm|m4a|mp4)$/i))) {
+
+    if (!isTextType && !isAudio) {
       return {
         valid: false,
         error: `${file.name}: formato de audio no soportado`
@@ -368,8 +417,7 @@ function validateFilesForUpload(files, type) {
   }
 
   return { valid: true };
-}  
-
+}
 // ============================================
 // DRAG & DROP HANDLERS PARA UPLOAD DE BIBLIOTECA
 // ============================================ 
