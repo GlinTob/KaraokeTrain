@@ -103,6 +103,7 @@ export async function loadSelectedTrackFromLibraryStudio() {
   const player = $("player");
   let status = $("studioStatus");
 
+  // Crear elemento de estado si no existe
   if (!status && player) {
     status = document.createElement("p");
     status.id = "studioStatus";
@@ -126,16 +127,41 @@ export async function loadSelectedTrackFromLibraryStudio() {
       return;
     }
 
+    // 1. Asignar nombre e ID correctamente
     studioTrackFileName = item.name;
     studioTrackId = item.id;
-    studioTrackBlob = item.file_url || item.audioBlob;
-    player.src = item.file_url || item.audioBlob || "";
+
+    // 2. Lógica para el Blob vs URL
+    const urlOrBlob = item.file_url || item.audioBlob;
+
+    if (typeof urlOrBlob === 'string') {
+      // Es una URL (desde Supabase/R2)
+      player.src = urlOrBlob;
+      
+      // OPCIÓN A: Si necesitas el Blob obligatoriamente (ej. para procesar audio), debes descargarlo:
+      
+      const response = await fetch(urlOrBlob);
+      studioTrackBlob = await response.blob();
+      
+      
+      // OPCIÓN B: Si solo necesitas reproducir, deja studioTrackBlob como null o undefined
+      studioTrackBlob = null; 
+      
+    } else if (urlOrBlob instanceof Blob) {
+      // Ya es un Blob (ej. caché local)
+      studioTrackBlob = urlOrBlob;
+      player.src = URL.createObjectURL(urlOrBlob);
+    } else {
+      throw new Error("Formato de archivo no válido");
+    }
+
     status.innerHTML = `🎵 <strong>Estado:</strong> pista cargada desde Biblioteca (<span style="color:#22c55e;">${item.name}</span>)`;
+
   } catch (error) {
-    console.error(error);
-    alert("❌ No se pudo cargar la pista seleccionada");
+    console.error("Error cargando pista:", error);
+    alert("❌ No se pudo cargar la pista seleccionada: " + error.message);
   }
-}
+}   
 
 // ==========================================
 // 🎙️ GESTIÓN Y DESPLIEGUE DE VOCES / LETRAS
