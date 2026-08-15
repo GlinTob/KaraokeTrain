@@ -7,6 +7,8 @@ export function $(id) {
   return document.getElementById(id);
 }
 
+window.$ = $;
+
 export function safeAdd(id, event, handler) {
   const el = $(id);
   if (el) {
