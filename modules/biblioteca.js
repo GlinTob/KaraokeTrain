@@ -7,8 +7,6 @@ import { $ } from "../script.js";
 let db = null; 
 
 export function initBiblioteca() {
-  console.log("📚 [biblioteca.js] Inicializado con éxito"); 
-
   const dropZone = $("uploadDropZone");
   const fileInput = $("libraryFileInput");
 
