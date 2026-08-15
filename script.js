@@ -260,10 +260,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   // --- EVENTOS BIBLIOTECA ---
   safeAdd("saveLibraryFileBtn", "click", async () => {
     const { saveManualFileToLibrary } = await import("./modules/biblioteca.js");
-    if (typeof saveManualFileToLibrary === "function") saveManualFileToLibrary();
+    await saveManualFileToLibrary();
   });
   safeAdd("libraryFileInput", "change", (e) => {
-    const file = e.target.files[0];
+    const file = e.target.files.item ? e.target.files.item(0) : e.target.files;
     const nameInput = $("libraryFileName");
     if (file && nameInput && !nameInput.value.trim()) {
       nameInput.value = file.name.replace(/\.[^.]+$/, "");
