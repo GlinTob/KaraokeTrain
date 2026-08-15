@@ -336,12 +336,12 @@ export async function saveManualFileToLibrary() {
         const isTextType = type === "texto" || type === "ultrastar_txt";
 
         let finalName = file.name;
-        if (customBaseName) {
+        if (originalName) {
           if (files.length === 1) {
-            finalName = customBaseName;
+            finalName = originalName;
           } else {
             const ext = file.name.includes(".") ? "." + file.name.split(".").pop() : "";
-            finalName = `${customBaseName}_${i + 1}${ext}`;
+            finalName = `${originalName}_${i + 1}${ext}`;
           }
         }
 
