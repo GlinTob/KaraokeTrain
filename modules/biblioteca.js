@@ -229,7 +229,7 @@ export async function renderLibrary(filter = "todos") {
 
   document.querySelectorAll(".folder-btn").forEach(btn => {
     const clickAttr = btn.getAttribute("onclick") || "";
-    if (clickAttr.includes(filter)) {
+    if (clickAttr.includes(`'${filter}'`)) {
       btn.classList.add("active");
     } else {
       btn.classList.remove("active");
@@ -244,7 +244,7 @@ export async function renderLibrary(filter = "todos") {
     container.innerHTML = "";
 
     if (!filteredItems || filteredItems.length === 0) {
-      container.innerHTML = `<p class="empty-message">🗄️ No hay elementos en esta carpeta.</p>`;
+      container.innerHTML = `<p class="empty-message">🗄️ No hay elementos en '${filter}'.</p>`;
       return;
     }
 
