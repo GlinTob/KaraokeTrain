@@ -2,15 +2,14 @@
 // Reemplaza uploadFileToSupabase / saveLibraryItemToSupabase
 
 function getCloudflareConfig() {
-  // Una sola URL base — el Worker maneja upload, read y delete
-  const baseUrl = window.CLOUDFLARE_R2_BASE_URL || window.VITE_CLOUDFLARE_R2_BASE_URL;
+  const baseUrl = window.CLOUDFLARE_R2_BASE_URL || import.meta.env.VITE_CLOUDFLARE_R2_BASE_URL;
 
   if (!baseUrl) {
-    console.warn('⚠️ Cloudflare R2 no configurado. Define window.CLOUDFLARE_R2_BASE_URL o VITE_CLOUDFLARE_R2_BASE_URL.');
+    console.warn('⚠️ Cloudflare R2 no configurado. Define VITE_CLOUDFLARE_R2_BASE_URL en .env');
     return null;
   }
 
-  return { baseUrl: baseUrl.replace(/\/$/, '') }; // quitar trailing slash
+  return { baseUrl: baseUrl.replace(/\/$/, '') };
 }
 
 /**
