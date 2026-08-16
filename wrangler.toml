@@ -3,5 +3,5 @@ main = "worker.js"
 compatibility_date = "2024-01-01"
 
 [[r2_buckets]]
-binding = "vocal-app-storage"
+binding = "MY_BUCKET"
 bucket_name = "VOCAL_APP_STORAGE"
