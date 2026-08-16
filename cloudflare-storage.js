@@ -1,10 +1,10 @@
 // Cloudflare R2 Storage Client
 // Reemplaza uploadFileToSupabase / saveLibraryItemToSupabase
 // Usar las variables de entorno configuradas en Vercel
-const UPLOAD_URL = import.meta.env.VITE_CLOUDFLARE_R2_UPLOAD_URL || 'https://vocal-app-storage-worker.jodatomx.workers.dev/api/upload';
-const PUBLIC_URL_BASE = import.meta.env.VITE_CLOUDFLARE_R2_PUBLIC_URL || 'https://vocal-app-storage-worker.jodatomx.workers.dev';
+//const UPLOAD_URL = import.meta.env.VITE_CLOUDFLARE_R2_UPLOAD_URL || 'https://vocal-app-storage-worker.jodatomx.workers.dev/api/upload';
+//const PUBLIC_URL_BASE = import.meta.env.VITE_CLOUDFLARE_R2_PUBLIC_URL || 'https://vocal-app-storage-worker.jodatomx.workers.dev';
 
-/*
+
 function getCloudflareConfig() {
   const config = window.CLOUDFLARE_R2_CONFIG || {
     uploadUrl: window.VITE_CLOUDFLARE_R2_UPLOAD_URL,
@@ -21,7 +21,7 @@ function getCloudflareConfig() {
     publicUrl: config.publicUrl
   };
 }
-*/
+
 let uploadCounter = 0;
 
 /**
