@@ -1,7 +1,10 @@
 name = "vocal-app-storage"
-main = "worker.js"
-compatibility_date = "2024-01-01"
+main = "cloudflare-worker.js"
+compatibility_date = "2024-09-23"
 
 [[r2_buckets]]
-binding = "MY_BUCKET"
-bucket_name = "VOCAL_APP_STORAGE"
+binding = "VOCAL_APP_STORAGE"
+bucket_name = "vocal-app-storage"
+
+[vars]
+R2_PUBLIC_URL = "https://vocal-app-storage.jodatomx.workers.dev"
