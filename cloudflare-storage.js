@@ -3,8 +3,8 @@
 
 function getCloudflareConfig() {
   const config = window.CLOUDFLARE_R2_CONFIG || {
-    uploadUrl: window.VITE_CLOUDFLARE_R2_UPLOAD_URL,
-    publicUrl: window.VITE_CLOUDFLARE_R2_PUBLIC_URL
+    uploadUrl: import.meta.env.VITE_CLOUDFLARE_R2_UPLOAD_URL,
+    publicUrl: import.meta.env.VITE_CLOUDFLARE_R2_PUBLIC_URL
   };
 
   if (!config || !config.uploadUrl) {
