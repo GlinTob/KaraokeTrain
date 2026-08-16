@@ -12,7 +12,7 @@ export function initBiblioteca() {
 
   if (dropZone && fileInput) {
     // Replacement for onclick="$('libraryFileInput').click()"
-    dropZone.addEventListener("click", () => fileInput.click());
+    dropZone.addEventListener("click", () => libraryFileInput.click());
 
     // Replacements for inline drag/drop handlers
     dropZone.addEventListener("dragover", (event) => {
