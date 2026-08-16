@@ -716,14 +716,15 @@
       window.VITE_SUPABASE_URL = "https://qfvhwbmgeunvgjwmlxjd.supabase.co";
       window.VITE_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmdmh3Ym1nZXVudmdqd21seGpkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY2MzI5NTksImV4cCI6MjEwMjIwODk1OX0.VHm0pxBrhSg3q5E1KfU8EhBmNKdwBFiRTEmoO4Om3Os";
 
-      window.VITE_CLOUDFLARE_R2_UPLOAD_URL = "https://vocal-app-storage-worker.jodatomx.workers.dev/api/upload";
-      window.VITE_CLOUDFLARE_R2_PUBLIC_URL = "https://vocal-app-storage-worker.jodatomx.workers.dev";
+      <script>
+        window.CLOUDFLARE_R2_BASE_URL = "https://vocal-app-storage-worker.jodatomx.workers.dev";
+      </script>
+      <script src="cloudflare-storage.js"></script>
 
-    </script>
     
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script> 
     <script type="module" src="./supabase-config.js"></script>
-    <script src="./cloudflare-storage.js" type="module"></script>
+    
     <script src="./script.js" type="module"></script>
   </body>
 </html>
