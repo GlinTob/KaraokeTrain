@@ -38,15 +38,31 @@ export function initBiblioteca() {
 // ============================================ 
 
 export async function initSupabase() {
-  if (typeof window.supabaseApp !== "undefined" || typeof window.getSupabaseClient === "function") {
-    db = window.getSupabaseClient ? window.getSupabaseClient() : window.supabaseApp;
-    console.log("🚀 Base de datos Supabase conectada en Biblioteca");
+  try {
+    // 1. Buscamos la función constructora global que configuramos
+    const getClient = window.getSupabaseClient;
+    
+    if (typeof getClient === "function") {
+      // Si ya está disponible, la ejecutamos para obtener la conexión
+      db = getClient();
+    } else if (window.supabaseApp) {
+      // Si la variable directa ya existe, la tomamos
+      db = window.supabaseApp;
+    } else {
+      // Si ninguna está lista en este milisegundo, esperamos un instante a que cargue
+      await new Promise(resolve => setTimeout(resolve, 50));
+      return initSupabase(); // Reintenta pacíficamente
+    }
+
+    console.log("🚀 Base de datos Supabase sincronizada con éxito en Biblioteca");
     return db;
-  } else {
-    console.error("❌ Error: No se encontró la configuración de Supabase.");
+
+  } catch (error) {
+    console.error("❌ Error crítico inicializando Supabase en Biblioteca:", error.message);
     throw new Error("Supabase configuration missing");
   }
-} 
+}
+
 
 export async function getAllLibraryItemsFromSupabase() {
   if (!db) await initSupabase();
