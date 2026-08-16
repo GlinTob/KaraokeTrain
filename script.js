@@ -22,7 +22,7 @@ export const state = {
   isRecording: false
 };
 
-window.CLOUDFLARE_R2_BASE_URL = "https://vocal-app-storage-worker.jodatomx.workers.dev";
+//window.CLOUDFLARE_R2_BASE_URL = "https://vocal-app-storage-worker.jodatomx.workers.dev";
 
 
 let autoScrollEnabled = true;
