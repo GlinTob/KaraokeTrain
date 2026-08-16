@@ -2,28 +2,21 @@
 // Reemplaza uploadFileToSupabase / saveLibraryItemToSupabase
 
 function getCloudflareConfig() {
-  const config = window.CLOUDFLARE_R2_CONFIG || {
-    uploadUrl: window.VITE_CLOUDFLARE_R2_UPLOAD_URL,
-    publicUrl: window.VITE_CLOUDFLARE_R2_PUBLIC_URL
-  };
+  // Una sola URL base — el Worker maneja upload, read y delete
+  const baseUrl = window.CLOUDFLARE_R2_BASE_URL || window.VITE_CLOUDFLARE_R2_BASE_URL;
 
-  if (!config || !config.uploadUrl) {
-    console.warn('⚠️ Cloudflare R2 no configurado. Define window.CLOUDFLARE_R2_CONFIG o VITE_CLOUDFLARE_R2_UPLOAD_URL.');
+  if (!baseUrl) {
+    console.warn('⚠️ Cloudflare R2 no configurado. Define window.CLOUDFLARE_R2_BASE_URL o VITE_CLOUDFLARE_R2_BASE_URL.');
     return null;
   }
 
-  return {
-    uploadUrl: config.uploadUrl,
-    publicUrl: config.publicUrl
-  };
+  return { baseUrl: baseUrl.replace(/\/$/, '') }; // quitar trailing slash
 }
-
-let uploadCounter = 0;
 
 /**
  * Sube archivo a Cloudflare R2 via Worker
  * @param {File|Blob} fileOrBlob - Archivo a subir
- * @param {string} fileName - Nombre del archivo
+ * @param {string} fileName - Nombre del archivo (el Worker lo limpia y genera la clave)
  * @param {string} mimeType - Tipo MIME
  * @param {string} tipo - Tipo para incluir en nombre: pista|voz|karaoke|grabacion|audio
  * @returns {Promise<{filePath: string, fileUrl: string, fileName: string}>}
@@ -32,55 +25,40 @@ async function uploadFileToCloudflare(fileOrBlob, fileName, mimeType = "applicat
   const config = getCloudflareConfig();
 
   if (!config) {
-    throw new Error("Cloudflare R2 no configurado. Define CLOUDFLARE_R2_UPLOAD_URL");
+    throw new Error("Cloudflare R2 no configurado. Define CLOUDFLARE_R2_BASE_URL");
   }
 
-  // 1. Limpiar nombre
-  let cleanName = fileName
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-zA-Z0-9._]/g, "_")
-    .replace(/__+/g, "_");
+  // El Worker limpia el nombre y genera la clave con timestamp.
+  // Solo añadimos el tipo como prefijo para organizar.
+  const fullFileName = `${tipo}_${fileName}`;
 
-  // Generar nombre único con tipo para evitar colisiones
-  uploadCounter++;
-  const timestamp = Date.now();
-  const counter = uploadCounter.toString(36).padStart(4, '0');
-  const safePath = `${timestamp}_${counter}_${tipo}_${cleanName}`;
+  console.log(`☁️ Subiendo a Cloudflare R2: ${fullFileName}`);
+  console.log(`📡 Enviando a: ${config.baseUrl}/api/upload`);
 
-  console.log(`☁️ Subiendo a Cloudflare R2: ${safePath}`);
-  console.log(`📡 Enviando a: ${config.uploadUrl}`);
-
-  // 2. Preparar FormData
+  // Preparar FormData
   const formData = new FormData();
-  formData.append('file', fileOrBlob, safePath);
-  formData.append('fileName', safePath);
+  formData.append('file', fileOrBlob, fullFileName);
+  formData.append('fileName', fullFileName);
   formData.append('mimeType', mimeType);
 
-  // 3. Subida al Worker de Cloudflare con TIMEOUT
+  // Subida al Worker con timeout
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 segundos de timeout
+  const timeoutId = setTimeout(() => controller.abort(), 60000);
 
   try {
-    console.log(`⏳ Iniciando fetch...`);
-    const response = await fetch(config.uploadUrl, {
+    const response = await fetch(`${config.baseUrl}/api/upload`, {
       method: 'POST',
       body: formData,
       signal: controller.signal
     });
     clearTimeout(timeoutId);
 
-    console.log(`📥 Respuesta recibida: ${response.status} ${response.statusText}`);
-
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`❌ Error HTTP: ${response.status}`, errorText);
       throw new Error(`Error subiendo a R2 (${response.status}): ${errorText}`);
     }
 
-    console.log(`📦 Leyendo respuesta JSON...`);
     const result = await response.json();
-    console.log(`✅ Resultado:`, result);
 
     if (!result.success) {
       throw new Error(`Error R2: ${result.error || 'Unknown error'}`);
@@ -89,18 +67,16 @@ async function uploadFileToCloudflare(fileOrBlob, fileName, mimeType = "applicat
     console.log(`✅ Subido a R2: ${result.fileUrl}`);
 
     return {
-      filePath: result.filePath,    // clave en R2
+      filePath: result.filePath,    // clave en R2 (generada por el Worker)
       fileUrl: result.fileUrl,      // URL pública completa
-      fileName: result.fileName     // nombre limpio
+      fileName: result.fileName     // nombre limpio (generado por el Worker)
     };
 
   } catch (error) {
     clearTimeout(timeoutId);
     if (error.name === 'AbortError') {
-      console.error(`⏱️ TIMEOUT: La subida tardó más de 60 segundos y fue cancelada.`);
       throw new Error("La subida tardó demasiado y se canceló. Verifica los logs del Worker.");
     }
-    console.error(`❌ Error en fetch:`, error);
     throw error;
   }
 }
@@ -149,7 +125,7 @@ async function saveLibraryItemToCloudflare({ name, type, blob, transcription = [
 
   // TIPO AUDIO: Subir a R2 + metadata en Supabase
   const mimeType = blob.type || "application/octet-stream";
-  
+
   // Determinar extensión correcta
   const extension = mimeType.includes("wav")
     ? "wav"
@@ -163,16 +139,10 @@ async function saveLibraryItemToCloudflare({ name, type, blob, transcription = [
     ? "m4a"
     : "bin";
 
-  let cleanName = name
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-zA-Z0-9._]/g, "_")
-    .replace(/__+/g, "_");
+  const fileName = `${name}.${extension}`;
 
-  const fileName = `${cleanName}.${extension}`;
-
-  console.log(`☁️ Nombre original: "${name}" -> Archivo R2: "${fileName}"`);
-  console.log(`📊 Tipo MIME detectado: ${mimeType} -> Extensión: ${extension}`);
+  console.log(`☁️ Nombre original: "${name}" -> Archivo: "${fileName}"`);
+  console.log(`📊 Tipo MIME: ${mimeType} -> Extensión: ${extension}`);
 
   // 1. Subir binario a Cloudflare R2
   const { filePath, fileUrl } = await uploadFileToCloudflare(blob, fileName, mimeType, type);
@@ -209,10 +179,10 @@ async function deleteFileFromCloudflare(filePath) {
   if (!config || !filePath) return;
 
   try {
-    const deleteUrl = `${config.uploadUrl.replace('/api/upload', '/api/delete/')}${filePath}`;
+    const deleteUrl = `${config.baseUrl}/api/delete/${filePath}`;
     console.log(`🗑️ Eliminando: ${deleteUrl}`);
     const response = await fetch(deleteUrl, { method: 'DELETE' });
-    
+
     if (!response.ok) {
       const errorText = await response.text();
       console.warn(`⚠️ Error al eliminar (pero continuando): ${errorText}`);
