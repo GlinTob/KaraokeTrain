@@ -116,8 +116,6 @@ export async function getLibraryItemsByIdFromSupabase(id) {
   }
 }
 
-javascript
-
 export async function saveLibraryItemToSupabase({ name, type, blob, transcription = [], metadata = {} }) {
   if (!db) await initSupabase(); 
 
