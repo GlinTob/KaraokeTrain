@@ -2,15 +2,20 @@
 // Reemplaza uploadFileToSupabase / saveLibraryItemToSupabase
 
 function getCloudflareConfig() {
-  const baseUrl = window.CLOUDFLARE_R2_BASE_URL || import.meta.env.VITE_CLOUDFLARE_R2_BASE_URL;
+  // Funciona tanto en módulos como en scripts normales
+  const baseUrl =
+    window.CLOUDFLARE_R2_BASE_URL ||
+    window.VITE_CLOUDFLARE_R2_BASE_URL ||
+    (typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_CLOUDFLARE_R2_BASE_URL : undefined);
 
   if (!baseUrl) {
-    console.warn('⚠️ Cloudflare R2 no configurado. Define VITE_CLOUDFLARE_R2_BASE_URL en .env');
+    console.warn('⚠️ Cloudflare R2 no configurado. Define window.CLOUDFLARE_R2_BASE_URL antes de usar CloudflareStorage.');
     return null;
   }
 
   return { baseUrl: baseUrl.replace(/\/$/, '') };
 }
+
 
 /**
  * Sube archivo a Cloudflare R2 via Worker
