@@ -394,7 +394,7 @@ export async function saveManualFileToLibrary() {
   try {
     let uploadedCount = 0;
     const totalFiles = files.length;
-    const customBaseName = nameInput?.value?.trim();
+    const baseName = nameInput?.value?.trim();
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
@@ -409,8 +409,8 @@ export async function saveManualFileToLibrary() {
         const originalExt = file.name.includes(".") ? "." + file.name.split(".").pop() : "";
         const nameWithoutExt = file.name.includes(".") ? file.name.split(".").slice(0, -1).join(".") : file.name;
 
-        if (customBaseName) {
-          finalName = files.length === 1 ? customBaseName + originalExt : `${customBaseName}_${i + 1}${originalExt}`;
+        if (baseName) {
+          finalName = files.length === 1 ? baseName + originalExt : `${baseName}_${i + 1}${originalExt}`;
         } else {
           finalName = files.length === 1 ? file.name : `${nameWithoutExt}_${i + 1}${originalExt}`;
         }
