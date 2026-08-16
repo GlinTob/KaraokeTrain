@@ -17,12 +17,8 @@ function getEnv(key, fallback = '') {
 }
 
 function getSupabaseConfig() {
-  const url = getEnv('VITE_SUPABASE_URL')
-    || "https://qfvhwbmgeunvgjwmlxjd.supabase.co";
-
-  const key = getEnv('VITE_SUPABASE_ANON_KEY')
-    || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmdmh3Ym1nZXVudmdqd21seGpkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY2MzI5NTksImV4cCI6MjEwMjIwODk1OX0.VHm0pxBrhSg3q5E1KfU8EhBmNKdwBFiRTEmoO4Om3Os"; // fallback válido JWT
-
+  const url = getEnv('VITE_SUPABASE_URL') || "";
+  const key = getEnv('VITE_SUPABASE_ANON_KEY') || "";
   if (!url || !key) {
     console.error("❌ Supabase config missing. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY");
     throw new Error("Supabase configuration missing");
