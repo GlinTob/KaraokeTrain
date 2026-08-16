@@ -709,16 +709,17 @@
         </section>
       </main>
     </div>
-    <script>
+        <script>
       window.__PITCH_WORKLET_URL__ = "/pitch-shifter-processor.js";
       window.__VOCAL_PROCESSOR_URL__ = "/vocal-processor.js";
+      // =========================================================================
+      // INYECTAMOS LAS CREDENCIALES DE FORMA DIRECTA EN EL NAVEGADOR
+      // =========================================================================
+      window.VITE_SUPABASE_URL = "https://qfvhwbmgeunvgjwmlxjd.supabase.co";
+      window.VITE_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmdmh3Ym1nZXVudmdqd21seGpkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY2MzI5NTksImV4cCI6MjEwMjIwODk1OX0.VHm0pxBrhSg3q5E1KfU8EhBmNKdwBFiRTEmoO4Om3Os";
+      // =========================================================================
     </script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script type="module" src="supabase-config.js"></script>
-    <script>
-      window.VITE_CLOUDFLARE_R2_UPLOAD_URL = "https://vocal-app-storage-worker.jodatomx.workers.dev/api/upload";  
-    </script>
-    <script type="module" src="cloudflare-storage.js"></script>
-    <script src="script.js" type="module"></script>
+    <script src="https://jsdelivr.net"></script>
+    <script type="module" src="./supabase-config.js"></script>
   </body>
 </html>
