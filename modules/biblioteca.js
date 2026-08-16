@@ -1,4 +1,4 @@
-//import { $ } from "./dom.js"; 
+import { $ } from "./dom.js"; 
 
 /** 
  * MÓDULO BIBLIOTECA — Gestor de Almacenamiento Remoto, Sincronización Supabase y Cargas R2
