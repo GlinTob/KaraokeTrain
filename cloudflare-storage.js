@@ -1,6 +1,3 @@
-// Cloudflare R2 Storage Client
-// Reemplaza uploadFileToSupabase / saveLibraryItemToSupabase
-
 function getCloudflareConfig() {
   // Funciona tanto en módulos como en scripts normales
   const baseUrl =
@@ -95,7 +92,7 @@ async function saveLibraryItemToCloudflare({ name, type, blob, transcription = [
     throw new Error("Cloudflare R2 no configurado");
   }
 
-  const isTextType = type === "texto" || type === "ultrastar_txt";
+  const isTextType = type === "texto" || type === "ultrastar_txt" || type === "texto_plano" || type === "letra";
   const db = typeof getSupabaseClient === "function" ? getSupabaseClient() : window.supabaseClient;
 
   if (!db) throw new Error("❌ Supabase no inicializado");
@@ -106,8 +103,14 @@ async function saveLibraryItemToCloudflare({ name, type, blob, transcription = [
       ? segmentarTextoPlano(textoPlano)
       : [];
 
+    // Limpiamos la extensión también en base de datos para mostrar un nombre estético sin ".txt"
+    let cleanTextName = name;
+    if (cleanTextName.toLowerCase().endsWith(".txt")) {
+      cleanTextName = cleanTextName.substring(0, cleanTextName.length - 4);
+    }
+
     const insertData = {
-      name,
+      name: cleanTextName,
       type,
       textoPlano: textoPlano || (blob instanceof Blob ? await blob.text() : ""),
       lyrics,
@@ -143,17 +146,33 @@ async function saveLibraryItemToCloudflare({ name, type, blob, transcription = [
     ? "m4a"
     : "bin";
 
-  const fileName = `${name}.${extension}`;
+  // ✅ CORRECCIÓN CRÍTICA: Remover de forma segura la extensión previa si ya viene incluida en la variable name
+  let baseName = name;
+  if (baseName.toLowerCase().endsWith(`.${extension}`)) {
+    baseName = baseName.substring(0, baseName.length - (extension.length + 1));
+  } else if (baseName.match(/\.[a-zA-Z0-9]{3,4}$/)) {
+    // Por si trae extensiones variantes de audio parecidas (ej: .mpeg)
+    baseName = baseName.substring(0, baseName.lastIndexOf('.'));
+  }
 
-  console.log(`☁️ Nombre original: "${name}" -> Archivo: "${fileName}"`);
+  // Sanitizar espacios o tildes para generar una URL segura
+  let safeBaseName = baseName
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9_\s-]/g, "")
+    .trim();
+
+  const fileName = `${safeBaseName}.${extension}`;
+
+  console.log(`☁️ Nombre original: "${name}" -> Archivo Seguro: "${fileName}"`);
   console.log(`📊 Tipo MIME: ${mimeType} -> Extensión: ${extension}`);
 
   // 1. Subir binario a Cloudflare R2
   const { filePath, fileUrl } = await uploadFileToCloudflare(blob, fileName, mimeType, type);
 
-  // 2. Insertar metadata en Supabase
+  // 2. Insertar metadata en Supabase (Guardamos el baseName limpio sin extensión para tu diseño)
   const insertData = {
-    name,
+    name: baseName, 
     type,
     file_path: filePath,
     file_url: fileUrl,
