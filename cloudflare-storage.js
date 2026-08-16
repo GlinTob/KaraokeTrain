@@ -1,9 +1,5 @@
 // Cloudflare R2 Storage Client
 // Reemplaza uploadFileToSupabase / saveLibraryItemToSupabase
-// Usar las variables de entorno configuradas en Vercel
-//const UPLOAD_URL = import.meta.env.VITE_CLOUDFLARE_R2_UPLOAD_URL || 'https://vocal-app-storage-worker.jodatomx.workers.dev/api/upload';
-//const PUBLIC_URL_BASE = import.meta.env.VITE_CLOUDFLARE_R2_PUBLIC_URL || 'https://vocal-app-storage-worker.jodatomx.workers.dev';
-
 
 function getCloudflareConfig() {
   const config = window.CLOUDFLARE_R2_CONFIG || {
@@ -53,6 +49,7 @@ async function uploadFileToCloudflare(fileOrBlob, fileName, mimeType = "applicat
   const safePath = `${timestamp}_${counter}_${tipo}_${cleanName}`;
 
   console.log(`☁️ Subiendo a Cloudflare R2: ${safePath}`);
+  console.log(`📡 Enviando a: ${config.uploadUrl}`);
 
   // 2. Preparar FormData
   const formData = new FormData();
@@ -60,30 +57,52 @@ async function uploadFileToCloudflare(fileOrBlob, fileName, mimeType = "applicat
   formData.append('fileName', safePath);
   formData.append('mimeType', mimeType);
 
-  // 3. Subida al Worker de Cloudflare
-  const response = await fetch(config.uploadUrl, {
-    method: 'POST',
-    body: formData
-  });
+  // 3. Subida al Worker de Cloudflare con TIMEOUT
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 segundos de timeout
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Error subiendo a R2 (${response.status}): ${errorText}`);
+  try {
+    console.log(`⏳ Iniciando fetch...`);
+    const response = await fetch(config.uploadUrl, {
+      method: 'POST',
+      body: formData,
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+
+    console.log(`📥 Respuesta recibida: ${response.status} ${response.statusText}`);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`❌ Error HTTP: ${response.status}`, errorText);
+      throw new Error(`Error subiendo a R2 (${response.status}): ${errorText}`);
+    }
+
+    console.log(`📦 Leyendo respuesta JSON...`);
+    const result = await response.json();
+    console.log(`✅ Resultado:`, result);
+
+    if (!result.success) {
+      throw new Error(`Error R2: ${result.error || 'Unknown error'}`);
+    }
+
+    console.log(`✅ Subido a R2: ${result.fileUrl}`);
+
+    return {
+      filePath: result.filePath,    // clave en R2
+      fileUrl: result.fileUrl,      // URL pública completa
+      fileName: result.fileName     // nombre limpio
+    };
+
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      console.error(`⏱️ TIMEOUT: La subida tardó más de 60 segundos y fue cancelada.`);
+      throw new Error("La subida tardó demasiado y se canceló. Verifica los logs del Worker.");
+    }
+    console.error(`❌ Error en fetch:`, error);
+    throw error;
   }
-
-  const result = await response.json();
-
-  if (!result.success) {
-    throw new Error(`Error R2: ${result.error || 'Unknown error'}`);
-  }
-
-  console.log(`✅ Subido a R2: ${result.fileUrl}`);
-
-  return {
-    filePath: result.filePath,    // clave en R2
-    fileUrl: result.fileUrl,      // URL pública completa
-    fileName: result.fileName     // nombre limpio
-  };
 }
 
 /**
@@ -130,14 +149,18 @@ async function saveLibraryItemToCloudflare({ name, type, blob, transcription = [
 
   // TIPO AUDIO: Subir a R2 + metadata en Supabase
   const mimeType = blob.type || "application/octet-stream";
+  
+  // Determinar extensión correcta
   const extension = mimeType.includes("wav")
     ? "wav"
-    : mimeType.includes("mpeg")
+    : mimeType.includes("mpeg") || mimeType.includes("mp3")
     ? "mp3"
     : mimeType.includes("webm")
     ? "webm"
     : mimeType.includes("ogg")
     ? "ogg"
+    : mimeType.includes("mp4") || mimeType.includes("m4a")
+    ? "m4a"
     : "bin";
 
   let cleanName = name
@@ -149,6 +172,7 @@ async function saveLibraryItemToCloudflare({ name, type, blob, transcription = [
   const fileName = `${cleanName}.${extension}`;
 
   console.log(`☁️ Nombre original: "${name}" -> Archivo R2: "${fileName}"`);
+  console.log(`📊 Tipo MIME detectado: ${mimeType} -> Extensión: ${extension}`);
 
   // 1. Subir binario a Cloudflare R2
   const { filePath, fileUrl } = await uploadFileToCloudflare(blob, fileName, mimeType, type);
@@ -186,8 +210,15 @@ async function deleteFileFromCloudflare(filePath) {
 
   try {
     const deleteUrl = `${config.uploadUrl.replace('/api/upload', '/api/delete/')}${filePath}`;
-    await fetch(deleteUrl, { method: 'DELETE' });
-    console.log(`🗑️ Eliminado de R2: ${filePath}`);
+    console.log(`🗑️ Eliminando: ${deleteUrl}`);
+    const response = await fetch(deleteUrl, { method: 'DELETE' });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.warn(`⚠️ Error al eliminar (pero continuando): ${errorText}`);
+    } else {
+      console.log(`🗑️ Eliminado de R2: ${filePath}`);
+    }
   } catch (error) {
     console.warn('No se pudo eliminar de R2:', error);
   }
