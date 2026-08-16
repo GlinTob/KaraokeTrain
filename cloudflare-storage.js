@@ -36,12 +36,17 @@ async function uploadFileToCloudflare(fileOrBlob, fileName, mimeType = "applicat
   }
 
   // 1. Limpiar nombre
-  let baseName = fileName
-  
+  let cleanName = fileName
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9._]/g, "_")
+    .replace(/__+/g, "_");
+
+  // Generar nombre único con tipo para evitar colisiones
   uploadCounter++;
   const timestamp = Date.now();
   const counter = uploadCounter.toString(36).padStart(4, '0');
-  const safePath = `${timestamp}_${counter}_${tipo}_${fileName}`;
+  const safePath = `${timestamp}_${counter}_${tipo}_${cleanName}`;
 
   console.log(`☁️ Subiendo a Cloudflare R2: ${safePath}`);
 
@@ -81,12 +86,18 @@ async function uploadFileToCloudflare(fileOrBlob, fileName, mimeType = "applicat
  * Guarda item en Supabase + Cloudflare R2 (según tipo)
  */
 async function saveLibraryItemToCloudflare({ name, type, blob, transcription = [], metadata = {}, textoPlano = null }) {
-  const isTextType = type === "texto" || type === "texto_plano";
+  const config = getCloudflareConfig();
+
+  if (!config) {
+    throw new Error("Cloudflare R2 no configurado");
+  }
+
+  const isTextType = type === "texto" || type === "ultrastar_txt";
   const db = typeof getSupabaseClient === "function" ? getSupabaseClient() : window.supabaseClient;
 
   if (!db) throw new Error("❌ Supabase no inicializado");
 
-  // --- TIPO TEXTO: Guardar SOLO en Supabase (Igual que antes) ---
+  // TIPO TEXTO: Guardar SOLO en Supabase (sin R2)
   if (isTextType) {
     const lyrics = typeof segmentarTextoPlano === "function" && textoPlano
       ? segmentarTextoPlano(textoPlano)
@@ -104,73 +115,63 @@ async function saveLibraryItemToCloudflare({ name, type, blob, transcription = [
     };
 
     const { error } = await db.from("library").insert([insertData]);
-    if (error) throw error;
-    
-    console.log("✅ Archivo de texto guardado en Supabase");
+
+    if (error) {
+      console.error("❌ Error guardando texto en Supabase:", error);
+      throw error;
+    }
+    console.log("✅ Archivo de texto guardado en Supabase (sin R2)");
     return { filePath: null, fileUrl: null };
   }
 
-  // --- TIPO AUDIO: Enviar al Worker (CORRECCIÓN AQUÍ) ---
-  
-  // URL de tu Worker desplegado
-  const WORKER_URL = "https://vocal-app-storage-worker.jodatomx.workers.dev"; 
-  
-  // Preparar los datos para enviar al Worker
-  const formData = new FormData();
-  formData.append("file", blob, name); // El archivo
-  formData.append("fileName", name);   // El nombre final (ej: "12345_cancion.mp3")
-  formData.append("mimeType", blob.type);
+  // TIPO AUDIO: Subir a R2 + metadata en Supabase
+  const mimeType = blob.type || "application/octet-stream";
+  const extension = mimeType.includes("wav")
+    ? "wav"
+    : mimeType.includes("mpeg")
+    ? "mp3"
+    : mimeType.includes("webm")
+    ? "webm"
+    : mimeType.includes("ogg")
+    ? "ogg"
+    : "bin";
 
-  console.log(`☁️ Enviando audio al Worker: ${name}`);
+  let cleanName = name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9._]/g, "_")
+    .replace(/__+/g, "_");
 
-  try {
-    // 1. Subir archivo al Worker
-    const response = await fetch(`${WORKER_URL}/api/upload`, {
-      method: "POST",
-      body: formData
-      // No establecer 'Content-Type' header manualmente, el navegador lo hace para FormData
-    });
+  const fileName = `${cleanName}.${extension}`;
 
-    if (!response.ok) {
-      const errText = await response.text();
-      throw new Error(`Error en el Worker (${response.status}): ${errText}`);
-    }
+  console.log(`☁️ Nombre original: "${name}" -> Archivo R2: "${fileName}"`);
 
-    const result = await response.json();
-    
-    // El Worker devuelve filePath y fileUrl
-    const filePath = result.filePath;
-    const fileUrl = result.fileUrl;
+  // 1. Subir binario a Cloudflare R2
+  const { filePath, fileUrl } = await uploadFileToCloudflare(blob, fileName, mimeType, type);
 
-    console.log(`✅ Archivo subido a R2. URL: ${fileUrl}`);
+  // 2. Insertar metadata en Supabase
+  const insertData = {
+    name,
+    type,
+    file_path: filePath,
+    file_url: fileUrl,
+    transcription,
+    metadata,
+    date: new Date().toISOString()
+  };
 
-    // 2. Guardar metadata en Supabase
-    const insertData = {
-      name,
-      type,
-      file_path: filePath,
-      file_url: fileUrl,
-      transcription,
-      metadata,
-      date: new Date().toISOString()
-    };
+  const { error } = await db.from("library").insert([insertData]);
 
-    const { error } = await db.from("library").insert([insertData]);
-
-    if (error) {
-      console.error("❌ Error guardando en Supabase:", error);
-      // Opcional: Podrías llamar a un endpoint DELETE en el Worker para limpiar el archivo
-      throw error;
-    }
-
-    console.log("✅ Item guardado correctamente en Supabase");
-    return { filePath, fileUrl };
-
-  } catch (error) {
-    console.error("❌ Error en el proceso de subida:", error);
+  if (error) {
+    console.error("❌ Error guardando en Supabase:", error);
+    try { await deleteFileFromCloudflare(filePath); } catch (e) {}
     throw error;
   }
-}   
+  console.log("✅ Item guardado en Supabase con URL de Cloudflare");
+
+  return { filePath, fileUrl };
+}
+
 /**
  * Elimina archivo de Cloudflare R2
  */
