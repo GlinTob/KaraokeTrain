@@ -211,7 +211,10 @@ export async function renderLibrary(filter = "todos") {
       div.className = "library-item";
       div.innerHTML = `
         <div class="item-info">
-          <span class="item-icon">${item.type === 'texto' ? '📝' : '🎵'}</span>
+          <span class="item-icon">${item.type === 'letra' ? '📝'}</span>
+          <span class="item-icon">${item.type === 'pista' ? '💿'}</span>
+          <span class="item-icon">${item.type === 'voz' ? '💋'}</span>
+          <span class="item-icon">${item.type === 'karaoke' ? '🎤'}</span>
           <span class="item-name">${item.name}</span>
         </div>
         <button class="delete-library-btn" data-id="${item.id}">🗑️</button>
