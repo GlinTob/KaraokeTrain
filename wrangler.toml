@@ -1,25 +1,7 @@
-name = "vocal-app-storage-worker"
-main = "cloudflare-worker.js"   # El nombre exacto de tu archivo del Worker
-compatibility_date = "2026-08-14"
+name = "vocal-app-storage"
+main = "worker.js"
+compatibility_date = "2024-01-01"
 
 [[r2_buckets]]
-binding = "VOCAL_APP_STORAGE"   # El nombre exacto en tu código (¡No lo cambies!)
-bucket_name = "vocal-app-storage" # El nombre real del bucket en Cloudflare
-
-[vars]
-R2_PUBLIC_URL = "https://vocal-app-storage-worker.jodatomx.workers.dev"
-
-[observability]
-enabled = false
-head_sampling_rate = 1
-
-[observability.logs]
-enabled = true
-head_sampling_rate = 1
-persist = true
-invocation_logs = true
-
-[observability.traces]
-enabled = true
-persist = true
-head_sampling_rate = 1
+binding = "vocal-app-storage"
+bucket_name = "VOCAL_APP_STORAGE"
