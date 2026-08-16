@@ -265,6 +265,18 @@ export async function saveManualFileToLibrary() {
     return;
   }
 
+  // ✅ Verificar que CloudflareStorage y la config de R2 estén disponibles
+  if (!window.CloudflareStorage?.getCloudflareConfig) {
+    showStatus("❌ Cloudflare R2 no está configurado. Define VITE_CLOUDFLARE_R2_BASE_URL en .env y reinicia el servidor.", "error");
+    return;
+  }
+
+  const r2Config = window.CloudflareStorage.getCloudflareConfig();
+  if (!r2Config) {
+    showStatus("❌ Cloudflare R2 no configurado. Verifica VITE_CLOUDFLARE_R2_BASE_URL en .env y reinicia el servidor (npm run dev).", "error");
+    return;
+  }
+
   const uploadProgressContainer = $("uploadProgressContainer");
   const uploadFilesList = $("uploadFilesList");
   const saveBtn = $("saveLibraryFileBtn");
@@ -339,6 +351,7 @@ export async function saveManualFileToLibrary() {
     }, 3000);
   }
 }
+
 
 function validateFilesForUpload(files, type) {
   const isTextType = ["texto", "ultrastar_txt"].includes(type);
