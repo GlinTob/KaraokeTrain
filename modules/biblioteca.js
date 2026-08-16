@@ -9,11 +9,10 @@ let db = null;
 export function initBiblioteca() {
   console.log("📚 [biblioteca.js] Inicializado con éxito"); 
 
-  const dropZone = $("uploadDropZone");
-  if (dropZone) {
-    dropZone.addEventListener("dragover", handleDragOver);
-    dropZone.addEventListener("dragleave", handleDragLeave);
-    dropZone.addEventListener("drop", handleFileDrop);
+  // Escuchar el cambio cuando el usuario hace clic y elige archivos mediante el explorador
+  const fileInput = $("libraryFileInput");
+  if (fileInput) {
+    fileInput.addEventListener("change", handleFileSelection);
   }
 }
 
@@ -117,18 +116,33 @@ export async function getLibraryItemsByIdFromSupabase(id) {
   }
 }
 
+javascript
+
 export async function saveLibraryItemToSupabase({ name, type, blob, transcription = [], metadata = {} }) {
   if (!db) await initSupabase(); 
 
   const mimeType = blob.type || "application/octet-stream";
+  
+  // 1. Obtener extensión correcta basada en el MIME Type
   const extension = mimeType.includes("wav") ? "wav" : mimeType.includes("mpeg") ? "mp3" : mimeType.includes("webm") ? "webm" : mimeType.includes("ogg") ? "ogg" : "bin"; 
 
-  let cleanName = name
+  // 2. Quitar la extensión original si el nombre ya la incluye (ej: "pista.mp3" -> "pista")
+  let baseName = name;
+  if (name.toLowerCase().endsWith(`.${extension}`)) {
+    baseName = name.substring(0, name.length - (extension.length + 1));
+  } else if (name.match(/\.[a-zA-Z0-9]{3,4}$/)) {
+    // Por si trae otra extensión diferente (ej: .mpeg o .txt), se la removemos también
+    baseName = name.substring(0, name.lastIndexOf('.'));
+  }
+
+  // 3. Limpiar solo el cuerpo del nombre de forma segura
+  let cleanName = baseName
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-zA-Z0-9.*]/g, "*")
+    .replace(/[^a-zA-Z0-9_]/g, "*") // Cambiado ".*" por "_" para evitar puntos dobles accidentales
     .replace(/__+/g, "_"); 
 
+  // 4. Unir el nombre limpio con la extensión final una sola vez
   const fileName = `${cleanName}.${extension}`;
   console.log(`📤 Generando archivo seguro: ${fileName}`);
 
@@ -138,7 +152,7 @@ export async function saveLibraryItemToSupabase({ name, type, blob, transcriptio
     .from("library")
     .insert([
       {
-        name,
+        name: baseName, // Guardamos el nombre limpio sin extensión en la BD si prefieres la interfaz limpia
         type,
         file_path: filePath,
         file_url: fileUrl,
@@ -149,7 +163,7 @@ export async function saveLibraryItemToSupabase({ name, type, blob, transcriptio
     ]); 
 
   if (error) throw error;
-} 
+}
 
 export async function saveToLibrary(blob, options = {}) {
   if (!blob) {
@@ -185,6 +199,7 @@ export async function renderLibrary(filter = "todos") {
   const container = $("libraryList");
   if (!container) return;
 
+  // 1. Manejo visual de botones de carpeta activos
   document.querySelectorAll(".folder-btn").forEach(btn => {
     const clickAttr = btn.getAttribute("onclick") || "";
     if (clickAttr.includes(filter)) {
@@ -198,7 +213,12 @@ export async function renderLibrary(filter = "todos") {
 
   try {
     const library = await getAllLibraryItemsFromSupabase();
-    const filteredItems = filter === "todos" ? library : library.filter(item => item.type === filter);
+    
+    // Homologamos los filtros con las categorías reales de tu base de datos
+    const filteredItems = filter === "todos" 
+      ? library 
+      : library.filter(item => item.type === filter || (filter === "letras" && item.type === "letra"));
+      
     container.innerHTML = "";
 
     if (!filteredItems || filteredItems.length === 0) {
@@ -208,22 +228,32 @@ export async function renderLibrary(filter = "todos") {
 
     filteredItems.forEach(item => {
       const div = document.createElement("div");
-      div.className = "library-item";
+      div.className = "library-item"; // Hereda tus estilos neón de la cuadrícula inferior
+      
+      // ✅ SELECCIÓN DE ICONO CORRECTO COINCIDIENDO CON TU INTERFAZ
+      let iconoVisual = "🎵"; // Icono por defecto para audios (Pistas, Voces, Grabaciones)
+      if (item.type === "letra" || item.type === "texto" || item.type === "texto_plano") {
+        iconoVisual = "📄"; // Icono de hoja para archivos de texto plano
+      } else if (item.type === "karaoke") {
+        iconoVisual = "🎤"; // Micrófono para karaokes completos
+      }
+
       div.innerHTML = `
         <div class="item-info">
-          <span class="item-icon">${item.type === 'letra' ? '📝'}</span>
-          <span class="item-icon">${item.type === 'pista' ? '💿'}</span>
-          <span class="item-icon">${item.type === 'voz' ? '💋'}</span>
-          <span class="item-icon">${item.type === 'karaoke' ? '🎤'}</span>
+          <span class="item-icon">${iconoVisual}</span>
           <span class="item-name">${item.name}</span>
         </div>
+        <!-- El data-id usa el ID numérico único de Supabase, resolviendo conflictos de nombres iguales -->
         <button class="delete-library-btn" data-id="${item.id}">🗑️</button>
       `;
       container.appendChild(div);
     });
 
+    // Volver a enlazar los eventos de eliminación a los nuevos botones creados
     asignarEventosBiblioteca(filter);
+    
   } catch (err) {
+    console.error("Error al renderizar biblioteca:", err);
     container.innerHTML = "❌ Error al cargar los elementos de la biblioteca.";
   }
 }
@@ -258,17 +288,17 @@ export async function saveManualFileToLibrary() {
   const type = typeSelect?.value || "audio";
 
   if (!files || files.length === 0) {
-    alert(type === "texto" ? "⚠️ Selecciona un .txt" : "⚠️ Selecciona al menos un archivo");
+    alert(type === "texto" || type === "texto_plano" || type === "ultrastar_txt" ? "⚠️ Selecciona un .txt" : "⚠️ Selecciona al menos un archivo");
     return;
   }
 
+  // ✅ CORRECCIÓN 1: Homologar los tipos de texto para que coincidan con la validación
   const validation = validateFilesForUpload(files, type);
   if (!validation.valid) {
     alert("❌ " + validation.error);
     return;
   }
 
-  // ✅ Verificar que CloudflareStorage y la config de R2 estén disponibles
   if (!window.CloudflareStorage?.getCloudflareConfig) {
     showStatus("❌ Cloudflare R2 no está configurado. Define VITE_CLOUDFLARE_R2_BASE_URL en .env y reinicia el servidor.", "error");
     return;
@@ -295,11 +325,12 @@ export async function saveManualFileToLibrary() {
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
+      // ✅ CORRECCIÓN 2: Pasar el índice 'i' para evitar conflictos de ID duplicados
       updateUploadProgress(uploadedCount, totalFiles, file.name);
-      addFileToUploadList(uploadFilesList, file.name, "pending");
+      addFileToUploadList(uploadFilesList, file.name, "pending", i);
 
       try {
-        const isTextType = type === "texto" || type === "ultrastar_txt";
+        const isTextType = ["texto", "texto_plano", "ultrastar_txt"].includes(type);
         if (isTextType) {
           const text = await file.text();
           console.log(`📝 Guardando archivo de texto: ${file.name}`);
@@ -322,12 +353,12 @@ export async function saveManualFileToLibrary() {
           });
         }
 
-        updateFileStatus(file.name, "success");
+        updateFileStatus(file.name, "success", "", i);
         uploadedCount++;
         await new Promise(r => setTimeout(r, 200));
       } catch (err) {
         console.error(`Error subiendo ${file.name}:`, err);
-        updateFileStatus(file.name, "error", err.message);
+        updateFileStatus(file.name, "error", err.message, i);
       }
     }
 
@@ -354,8 +385,7 @@ export async function saveManualFileToLibrary() {
     }, 3000);
   }
 }
-
-
+  
 function validateFilesForUpload(files, type) {
   const isTextType = ["texto", "ultrastar_txt"].includes(type);
   const audioTypes = ["audio/mpeg", "audio/wav", "audio/ogg", "audio/webm", "audio/mp4", "audio/m4a", "audio/mp3", "audio/x-wav"];
@@ -363,90 +393,110 @@ function validateFilesForUpload(files, type) {
   const maxSize = 500 * 1024 * 1024; // 500 MB
 
   for (const file of files) {
+    // 1. Validar tamaño máximo
     if (file.size > maxSize) {
       return {
         valid: false,
         error: `${file.name}: excede 500 MB`
       };
     }
-    if (isTextType && !textTypes.includes(file.type) && !file.name.endsWith(".txt")) {
-      return {
-        valid: false,
-        error: `${file.name}: debe ser .txt`
-      };
+
+    // 2. Validar archivos de texto
+    if (isTextType) {
+      const isValidText = textTypes.includes(file.type) || file.name.toLowerCase().endsWith(".txt");
+      if (!isValidText) {
+        return {
+          valid: false,
+          error: `${file.name}: debe ser .txt`
+        };
+      }
     }
-    if (!isTextType && !audioTypes.some(t => file.type.startsWith("audio/") || file.name.match(/\.(mp3|wav|ogg|webm|m4a|mp4)$/i))) {
-      return {
-        valid: false,
-        error: `${file.name}: formato de audio no soportado`
-      };
+
+    // 3. Validar archivos de audio
+    if (!isTextType) {
+      const hasValidMime = audioTypes.includes(file.type);
+      const hasValidExtension = file.name.match(/\.(mp3|wav|ogg|webm|m4a|mp4)$/i);
+
+      if (!hasValidMime && !hasValidExtension) {
+        return {
+          valid: false,
+          error: `${file.name}: formato de audio no soportado`
+        };
+      }
     }
   }
 
   return { valid: true };
-}  
+}
+
 
 // ============================================
 // DRAG & DROP HANDLERS PARA UPLOAD DE BIBLIOTECA
 // ============================================ 
 
-export function handleDragOver(e) {
-  e.preventDefault();
-  e.stopPropagation();
-  const dropZone = document.getElementById("uploadDropZone");
-  if (dropZone) dropZone.classList.add("drag-active");
-}
-
-export function handleDragLeave(e) {
-  e.preventDefault();
-  e.stopPropagation();
-  const dropZone = document.getElementById("uploadDropZone");
-  if (dropZone) dropZone.classList.remove("drag-active");
-}
-
-export function handleFileDrop(e) {
-  e.preventDefault();
-  e.stopPropagation();
-
-  const dropZone = document.getElementById("uploadDropZone");
-  if (dropZone) dropZone.classList.remove("drag-active");
-
-  const files = e.dataTransfer?.files;
+function handleFileSelection(e) {
+  const files = e.target.files;
   if (!files || files.length === 0) return;
 
-  const fileInput = document.getElementById("libraryFileInput");
-  if (fileInput) {
-    const dt = new DataTransfer();
-    for (const file of files) {
-      dt.items.add(file);
+  const uploadProgressContainer = $("uploadProgressContainer");
+  const uploadFilesList = $("uploadFilesList");
+  const clearBtn = $("clearUploadBtn");
+
+  if (uploadProgressContainer) uploadProgressContainer.style.display = "block";
+  if (clearBtn) clearBtn.style.display = "inline-block";
+  
+  if (uploadFilesList) {
+    uploadFilesList.innerHTML = ""; // Limpiar archivos previos en pantalla
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const div = document.createElement("div");
+      div.className = "upload-file-item";
+      // Mantenemos el índice único para evitar errores con nombres repetidos
+      div.id = `file-${i}-${file.name.replace(/[^a-zA-Z0-9]/g, "-")}`;
+      div.innerHTML = `
+        <span class="file-name">📄 ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)</span>
+        <span class="file-status status-pending">⏳ Listo para subir</span>
+      `;
+      uploadFilesList.appendChild(div);
     }
-    fileInput.files = dt.files;
-    fileInput.dispatchEvent(new Event('change', { bubbles: true }));
   }
+  
+  // Inicializar la barra visual en 0%
+  const bar = document.getElementById("uploadProgressBar");
+  const text = document.getElementById("uploadProgressText");
+  if (bar) bar.style.width = "0%";
+  if (text) text.textContent = `0/${files.length} archivos seleccionados`;
 }
 
 // ============================================
 // 📊 COMPONENTES DE SEGUIMIENTO DE PROGRESO
 // ============================================ 
 
-export function addFileToUploadList(container, fileName, status) {
+export function addFileToUploadList(container, fileName, status, index = 0) {
+  // Nota: Esta función ya no duplica elementos porque handleFileSelection limpia el contenedor al inicio
   if (!container) return;
-  const div = document.createElement("div");
-  div.className = "upload-file-item";
-  div.id = "file-" + fileName.replace(/[^a-zA-Z0-9]/g, "-");
-  div.innerHTML = `
-    <span class="file-name">${fileName}</span>
-    <span class="file-status status-${status}">${status === "success" ? "✅ Listo" : status === "error" ? "❌ Error" : "⏳ Pendiente"}</span>
-  `;
-  container.appendChild(div);
+  
+  // Si por alguna razón el elemento no existe en la vista previa previa, lo añade de respaldo
+  const existingEl = document.getElementById(`file-${index}-${fileName.replace(/[^a-zA-Z0-9]/g, "-")}`);
+  if (!existingEl) {
+    const div = document.createElement("div");
+    div.className = "upload-file-item";
+    div.id = `file-${index}-${fileName.replace(/[^a-zA-Z0-9]/g, "-")}`;
+    div.innerHTML = `
+      <span class="file-name">${fileName}</span>
+      <span class="file-status status-${status}">⏳ Pendiente</span>
+    `;
+    container.appendChild(div);
+  }
 }
 
-export function updateFileStatus(fileName, status, errorMsg = "") {
-  const el = document.getElementById("file-" + fileName.replace(/[^a-zA-Z0-9]/g, "-"));
+export function updateFileStatus(fileName, status, errorMsg = "", index = 0) {
+  const el = document.getElementById(`file-${index}-${fileName.replace(/[^a-zA-Z0-9]/g, "-")}`);
   if (el) {
     const statusEl = el.querySelector(".file-status");
     if (statusEl) {
-      statusEl.className = "file-status status-" + status;
+      statusEl.className = "upload-status status-" + status;
       statusEl.textContent = status === "success" ? "✅ Listo" : status === "error" ? "❌ " + errorMsg : "⏳ Pendiente";
     }
   }
@@ -469,7 +519,7 @@ export function showStatus(message, type) {
     el.className = "upload-status " + type;
     el.style.display = "block";
   }
-} 
+}
 
 export function clearUploadSelection() {
   const fileInput = document.getElementById("libraryFileInput");
