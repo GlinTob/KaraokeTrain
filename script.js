@@ -192,10 +192,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 
   // --- EVENTOS ESTUDIO ---
-  safeAdd("audioFile", "change", async (e) => {
-    const { cargarAudioEstudio } = await import("./modules/estudio.js");
-    if (typeof cargarAudioEstudio === "function") cargarAudioEstudio(e);
-  });
+  //safeAdd("audioFile", "change", async (e) => 
+    //const { cargarAudioEstudio } = await import("./modules/estudio.js");
+    //if (typeof cargarAudioEstudio === "function") cargarAudioEstudio(e);
+  
   safeAdd("loadStudioTrackBtn", "click", async () => {
     const { loadSelectedTrackFromLibraryStudio } = await import("./modules/estudio.js");
     if (typeof loadSelectedTrackFromLibraryStudio === "function") loadSelectedTrackFromLibraryStudio();
