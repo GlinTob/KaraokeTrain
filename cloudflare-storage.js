@@ -36,12 +36,12 @@ async function uploadFileToCloudflare(fileOrBlob, fileName, mimeType = "applicat
   }
 
   // 1. Limpiar nombre
-  let originalName = fileName
+  let baseName = fileName
   
   uploadCounter++;
   const timestamp = Date.now();
   const counter = uploadCounter.toString(36).padStart(4, '0');
-  const safePath = `${timestamp}_${counter}_${tipo}_${originalName}`;
+  const safePath = `${timestamp}_${counter}_${tipo}_${fileName}`;
 
   console.log(`☁️ Subiendo a Cloudflare R2: ${safePath}`);
 
@@ -81,7 +81,7 @@ async function uploadFileToCloudflare(fileOrBlob, fileName, mimeType = "applicat
  * Guarda item en Supabase + Cloudflare R2 (según tipo)
  */
 async function saveLibraryItemToCloudflare({ name, type, blob, transcription = [], metadata = {}, textoPlano = null }) {
-  const isTextType = type === "texto" || type === "ultrastar_txt";
+  const isTextType = type === "texto" || type === "texto_plano";
   const db = typeof getSupabaseClient === "function" ? getSupabaseClient() : window.supabaseClient;
 
   if (!db) throw new Error("❌ Supabase no inicializado");
