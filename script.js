@@ -22,6 +22,9 @@ export const state = {
   isRecording: false
 };
 
+window.CLOUDFLARE_R2_BASE_URL = "https://vocal-app-storage-worker.jodatomx.workers.dev";
+
+
 let autoScrollEnabled = true;
 const allKaraokeThemes = ["theme-clasico", "theme-moderno", "theme-disco", "theme-acustico", "theme-fiesta", "theme-retrowave"];
 
