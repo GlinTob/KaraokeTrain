@@ -1120,26 +1120,26 @@ async function startAfinador() {
   const canvas = $("agujaCanvas");
   if (canvas) {
     //agujaVivaInstance = new AgujaViva(canvas);
-    afinadorInstance = new Afinador(canvas);
+    afinadorVisual = new Afinador(canvas);
     const targetNoteEl = $("targetNote");
     const difficultyEl = $("afinadorDifficulty");
 
     //if (targetNoteEl) agujaVivaInstance.setTargetNote(targetNoteEl.value);
     //if (difficultyEl) agujaVivaInstance.setDifficulty(difficultyEl.value);
 
-    if (targetNoteEl) afinadorInstance.setTargetNote(targetNoteEl.value);
-    if (difficultyEl) afinadorInstance.setDifficulty(difficultyEl.value);
+    if (targetNoteEl) afinadorVisual.setTargetNote(targetNoteEl.value);
+    if (difficultyEl) afinadorVisual.setDifficulty(difficultyEl.value);
 
     if (targetNoteEl) {
       //targetNoteEl.onchange = () => agujaVivaInstance.setTargetNote(targetNoteEl.value);
-      targetNoteEl.onchange = () => afinadorInstance.setTargetNote(targetNoteEl.value);
+      targetNoteEl.onchange = () => afinadorVisual.setTargetNote(targetNoteEl.value);
     }
     if (difficultyEl) {
       //difficultyEl.onchange = () => agujaVivaInstance.setDifficulty(difficultyEl.value);
-      difficultyEl.onchange = () => afinadorInstance.setDifficulty(difficultyEl.value);
+      difficultyEl.onchange = () => afinadorVisual.setDifficulty(difficultyEl.value);
     }
     //agujaVivaInstance.start();
-    afinadorInstance.start();
+    afinadorVisual.start();
   }
 
   audioContext = new AudioContext();
@@ -1200,9 +1200,9 @@ function stopAfinador() {
     audioContext = null;
   }
   analyser = null;
-  if (afinadorInstance) {
-    afinadorInstance.destroy();
-    afinadorInstance = null;
+  if (afinadorVisual) {
+    afinadorVisual.destroy();
+    afinadorVisual = null;
   }
 }
 /*
@@ -1237,11 +1237,11 @@ async function runPitchDetectionLoop() {
   try {
     const audioController = getAudioController();
     const result = await audioController.detectPitch(pitchBuffer, audioContext.sampleRate);
-    if (afinadorInstance) {
+    if (afinadorVisual) {
       if (result && result.pitch && result.pitch > 0) {
-        afinadorInstance.setPitch(result.pitch);
+        afinadorVisual.setPitch(result.pitch);
       } else {
-        afinadorInstance.setPitch(-1);
+        afinadorVisual.setPitch(-1);
       }
     }
   } catch (error) {
