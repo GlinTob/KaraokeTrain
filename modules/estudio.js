@@ -11,8 +11,6 @@ import {
  */
 
 // Variables de Control de Estado
-let baseTranscriptionSegments = [];
-let transcriptionSegments = [];
 let textSegments = [];
 let baseTextSegments = [];
 let autoScrollEnabled = true;
@@ -103,7 +101,6 @@ export async function loadSelectedTrackFromLibraryStudio() {
   const player = $("player");
   let status = $("studioStatus");
 
-  // Crear elemento de estado si no existe
   if (!status && player) {
     status = document.createElement("p");
     status.id = "studioStatus";
@@ -127,28 +124,16 @@ export async function loadSelectedTrackFromLibraryStudio() {
       return;
     }
 
-    // 1. Asignar nombre e ID correctamente
     studioTrackFileName = item.name;
     studioTrackId = item.id;
 
-    // 2. Lógica para el Blob vs URL
     const urlOrBlob = item.file_url || item.audioBlob;
 
     if (typeof urlOrBlob === 'string') {
-      // Es una URL (desde Supabase/R2)
       player.src = urlOrBlob;
-      
-      // OPCIÓN A: Si necesitas el Blob obligatoriamente (ej. para procesar audio), debes descargarlo:
-      
       const response = await fetch(urlOrBlob);
       studioTrackBlob = await response.blob();
-      
-      
-      // OPCIÓN B: Si solo necesitas reproducir, deja studioTrackBlob como null o undefined
-      //studioTrackBlob = null; 
-      
     } else if (urlOrBlob instanceof Blob) {
-      // Ya es un Blob (ej. caché local)
       studioTrackBlob = urlOrBlob;
       player.src = URL.createObjectURL(urlOrBlob);
     } else {
@@ -161,11 +146,40 @@ export async function loadSelectedTrackFromLibraryStudio() {
     console.error("Error cargando pista:", error);
     alert("❌ No se pudo cargar la pista seleccionada: " + error.message);
   }
-}   
+}
 
 // ==========================================
 // 🎙️ GESTIÓN Y DESPLIEGUE DE VOCES / LETRAS
 // ==========================================
+
+export async function loadVoiceOptionsInStudio() {
+  const select = $("voiceLibrarySelect");
+  if (!select) return;
+
+  select.innerHTML = `<option value="">Selecciona una voz guardada</option>`;
+  try {
+    const voces = await getLibraryItemsByTypeFromSupabase("voz");
+    const grabaciones = await getLibraryItemsByTypeFromSupabase("grabacion");
+    const merged = [...voces, ...grabaciones];
+
+    if (!merged.length) {
+      const option = document.createElement("option");
+      option.value = "";
+      option.textContent = "No hay voces guardadas";
+      select.appendChild(option);
+      return;
+    }
+
+    merged.forEach((item) => {
+      const option = document.createElement("option");
+      option.value = item.id;
+      option.textContent = `${item.name} (${item.date ? new Date(item.date).toLocaleDateString() : "sin fecha"})`;
+      select.appendChild(option);
+    });
+  } catch (error) {
+    console.error(error);
+  }
+}
 
 export async function loadVoiceOptionsInStudio() {
   const select = $("voiceLibrarySelect");
@@ -217,62 +231,50 @@ export async function loadSelectedVoiceFromLibrary() {
       return;
     }
 
-    if (item.type === "texto") {
+    // FLUJO DE TEXTO PLANO MANUAL (Para Sincronizar mediante Tap-Sync)
+    if (item.type === "texto" || item.type === "letra" || item.type === "texto_plano") {
       selectedVoiceBlob = null;
       selectedVoiceId = item.id;
       player.src = "";
       status.textContent = `Estado: Letra manual seleccionada -> ${item.name}`;
 
-      if (Array.isArray(item.lyrics) && item.lyrics.length > 0) {
-        transcriptionSegments = item.lyrics.map(word => ({
-          id: word.id,
-          text: word.text,
-          startTime: word.startTime,
-          duration: word.duration,
-          pitch: word.pitch
-        }));
-
-        if (typeof window.renderKaraokeLyrics === "function") window.renderKaraokeLyrics(transcriptionSegments);
-        if (typeof window.cargarLetrasEnMonitor === "function") window.cargarLetrasEnMonitor();
-
-        if (lyricsText) {
-          lyricsText.value = transcriptionSegments.map(seg => seg.text || "").join(" ").trim();
+      // Si el archivo viene de Supabase con textoPlano directo, lo inyectamos en el monitor
+      if (item.textoPlano) {
+        if (lyricsText) lyricsText.value = item.textoPlano;
+        
+        if (typeof window.cargarLetrasEnMonitor === "function") {
+          window.cargarLetrasEnMonitor();
         }
-        status.textContent = "Estado: Letra manual cargada en el Monitor ⚡";
+        status.textContent = "Estado: Letra limpia cargada en el Monitor para sincronizar ⚡";
+      } else if (Array.isArray(item.lyrics) && item.lyrics.length > 0) {
+        // Respaldo en caso de que las letras se organicen por párrafos simples
+        if (lyricsText) {
+          lyricsText.value = item.lyrics.map(line => line.text || line).join("\n").trim();
+        }
+        if (typeof window.cargarLetrasEnMonitor === "function") window.cargarLetrasEnMonitor();
+        status.textContent = "Estado: Letra cargada en el Monitor ⚡";
       } else {
-        transcriptionSegments = [];
         if (lyricsText) lyricsText.value = "";
-        status.textContent = "Estado: El archivo de texto está vacío";
+        status.textContent = "Estado: El archivo de texto seleccionado está vacío";
       }
       return;
     }
 
+    // FLUJO DE AUDIO (Voz o Grabación de apoyo)
     selectedVoiceBlob = item.file_url || item.audioBlob;
     selectedVoiceId = item.id;
     player.src = item.file_url || item.audioBlob || "";
     status.textContent = `Estado: voz seleccionada -> ${item.name}`;
 
-    if (Array.isArray(item.transcription) && item.transcription.length > 0) {
-      baseTranscriptionSegments = item.transcription.map(seg =>
-        window.AudioUtils && window.AudioUtils.buildWordTimingFromSegment
-          ? window.AudioUtils.buildWordTimingFromSegment(seg)
-          : seg
-      );
-      transcriptionSegments = baseTranscriptionSegments;
-
-      if (typeof window.renderKaraokeLyrics === "function") window.renderKaraokeLyrics(transcriptionSegments);
-      if (typeof window.cargarLetrasEnMonitor === "function") window.cargarLetrasEnMonitor();
-
-      if (lyricsText) {
-        lyricsText.value = transcriptionSegments.map(seg => seg.text || "").join("\n").trim();
-      }
-      status.textContent = "Estado: Voz seleccionada (Letras cargadas de memoria ⚡)";
-    } else {
-      baseTranscriptionSegments = [];
-      transcriptionSegments = [];
-      if (lyricsText) lyricsText.value = "";
-      status.textContent = `Estado: voz seleccionada -> ${item.name} (sin transcripción)`;
+    // Eliminada por completo la verificación de transcripción automática (transcription)
+    if (lyricsText && item.textoPlano) {
+      lyricsText.value = item.textoPlano;
     }
+    
+    if (typeof window.cargarLetrasEnMonitor === "function") {
+      window.cargarLetrasEnMonitor();
+    }
+
   } catch (error) {
     console.error(error);
     alert("❌ No se pudo cargar el archivo seleccionado");
@@ -337,6 +339,10 @@ export async function loadSelectedTextFromLibrary() {
 
       textInput.value = textoFormateadoParaPantalla;
       status.innerHTML = `📄 <strong>Estado:</strong> Letra cargada respetando tus líneas de estrofa original ⚡`;
+    } else if (item.textoPlano) {
+      // Si el ítem solo tiene el string plano guardado, lo inyectamos directamente
+      textInput.value = item.textoPlano;
+      status.innerHTML = `📄 <strong>Estado:</strong> Letra plana cargada en el monitor ⚡`;
     } else {
       textSegments = [];
       textInput.value = "";
@@ -376,51 +382,32 @@ export async function applyCorrectedLyrics() {
     const item = await getLibraryItemsByIdFromSupabase(currentId);
     if (!item) throw new Error("No se encontró el ítem en la base de datos");
 
-    let finalSegments = [];
+    // Procesamos siempre como segmentación manual de texto plano para crear los renglones limpios
+    const finalSegments = segmentarTextoPlano(correctedText);
+    baseTextSegments = finalSegments;
+    textSegments = finalSegments;
 
-    if (item.type === "texto") {
-      finalSegments = segmentarTextoPlano(correctedText);
-      baseTextSegments = finalSegments;
-      textSegments = finalSegments;
+    if (typeof window.renderKaraokeLyrics === "function") window.renderKaraokeLyrics(textSegments);
 
-      if (typeof window.renderKaraokeLyrics === "function") window.renderKaraokeLyrics(textSegments);
-
-      let textoFormateado = "";
-      textSegments.forEach((word, index) => {
-        textoFormateado += word.text;
-        const nextWord = textSegments[index + 1];
-        if (nextWord) {
-          textoFormateado += (nextWord.renglon !== word.renglon) ? "\n" : " ";
-        }
-      });
-
-      if (text) text.value = textoFormateado;
-      if (lyricsText) lyricsText.value = textoFormateado;
-
-      await updateLibraryItemsFromSupabase(currentId, {
-        lyrics: finalSegments,
-        isSincronizada: false
-      });
-    } else {
-      if (!Array.isArray(baseTranscriptionSegments) || !baseTranscriptionSegments.length) {
-        alert("Se aplican los cambios básicos.");
-        return;
+    let textoFormateado = "";
+    textSegments.forEach((word, index) => {
+      textoFormateado += word.text;
+      const nextWord = textSegments[index + 1];
+      if (nextWord) {
+        textoFormateado += (nextWord.renglon !== word.renglon) ? "\n" : " ";
       }
+    });
 
-      if (typeof window.buildSegmentsFromMultilineLyrics === "function") {
-        finalSegments = window.buildSegmentsFromMultilineLyrics(correctedText, baseTranscriptionSegments);
-      } else {
-        throw new Error("No está disponible la función buildSegmentsFromMultilineLyrics para reconstruir la letra corregida.");
-      }
+    if (text) text.value = textoFormateado;
+    if (lyricsText) lyricsText.value = textoFormateado;
 
-      baseTranscriptionSegments = finalSegments;
-      transcriptionSegments = finalSegments;
-
-      if (typeof window.renderKaraokeLyrics === "function") window.renderKaraokeLyrics(transcriptionSegments);
-      if (lyricsText) lyricsText.value = transcriptionSegments.map(seg => seg.text || "").join("\n").trim();
-
-      await updateLibraryItemsFromSupabase(currentId, { transcription: baseTranscriptionSegments });
-    }
+    // Guardar únicamente la estructura limpia en Supabase
+    await updateLibraryItemsFromSupabase(currentId, {
+      name: item.name,
+      textoPlano: correctedText,
+      lyrics: finalSegments,
+      isSincronizada: false
+    });
 
     if (status) status.textContent = "Estado: letra corregida aplicada y guardada ✅";
     alert("✅ Cambios aplicados y guardados correctamente.");
@@ -449,9 +436,7 @@ export function segmentarTextoPlano(texto) {
         id: palabraGlobalIndex++,
         text: palabra,
         renglon: renglonIndex + 1,
-        startTime: 0,
-        duration: 0,
-        pitch: 0
+        time: 0 // Usaremos una única marca de tiempo limpia para la sincronización nativa
       });
     });
   });
@@ -637,11 +622,12 @@ export async function finishTapSync() {
       `Actualmente: ${tapSyncTimestamps.length} / ${tapSyncLines.length} ${tipoUnidad}\n\n` +
       `¿Deseas aplicar de todos modos?`
     )) {
+      
       cancelTapSync();
       return;
     }
   }
-
+  
   const activePlayer = window.activeTapPlayer || $("selectedVoicePlayer") || $("player");
   if (activePlayer) {
     try { activePlayer.pause(); } catch (e) {}
@@ -656,7 +642,7 @@ export async function finishTapSync() {
 
   const statusId = selectedVoiceId ? "selectedVoiceStatus" : "selectedTextStatus";
   const status = $(statusId);
-  if (status) status.textContent = "Estado: Aplicando tiempos y analizando notas...";
+  if (status) status.textContent = "Estado: Sincronización finalizada. Guardando marcas de tiempo... ✅";
 
   const audioDuration = activePlayer ? activePlayer.duration : 0;
   const avgInterval = tapSyncTimestamps.length >= 2
@@ -671,139 +657,66 @@ export async function finishTapSync() {
     if (!item) throw new Error("No se pudo obtener el elemento de la biblioteca remota");
 
     let finalSegments = [];
+    const esPalabraPorPalabra = (window.currentTapSyncModeType === "palabra");
 
-    if (item.type === "texto") {
-      const esPalabraPorPalabra = (window.currentTapSyncModeType === "palabra");
-
-      if (esPalabraPorPalabra) {
-        finalSegments = item.lyrics.map((word, index) => {
-          const startTime = tapSyncTimestamps[index] || 0;
-          const nextTime = tapSyncTimestamps[index + 1] || (startTime + avgInterval);
-
-          return {
-            id: word.id,
-            text: word.text,
-            renglon: word.renglon || 1,
-            startTime,
-            duration: Math.max(0.1, nextTime - startTime),
-            pitch: word.pitch || 0,
-            parte: tapSyncParts[index] || "P1"
-          };
-        });
-      } else {
-        let globalWordId = 1;
-
-        tapSyncLines.forEach((lineText, lineIndex) => {
-          const startTimeFrase = tapSyncTimestamps[lineIndex] || 0;
-          const endTimeFrase = tapSyncTimestamps[lineIndex + 1] || (startTimeFrase + avgInterval);
-          const duracionTotalFrase = endTimeFrase - startTimeFrase;
-          const parteLinea = tapSyncParts[lineIndex] || "P1";
-
-          const palabrasDeLaLinea = lineText.split(/\s+/).filter(w => w.trim().length > 0);
-          const totalPalabras = palabrasDeLaLinea.length;
-          if (totalPalabras === 0) return;
-
-          const duracionPorPalabra = duracionTotalFrase / totalPalabras;
-
-          palabrasDeLaLinea.forEach((palabraText, wordIndex) => {
-            const wordStart = startTimeFrase + (wordIndex * duracionPorPalabra);
-
-            finalSegments.push({
-              id: globalWordId++,
-              text: palabraText,
-              renglon: lineIndex + 1,
-              startTime: wordStart,
-              duration: duracionPorPalabra,
-              pitch: null,
-              parte: parteLinea,
-              words: [{
-                start: wordStart,
-                end: wordStart + duracionPorPalabra,
-                word: palabraText
-              }]
-            });
-          });
-        });
-      }
-
-      textSegments = finalSegments;
-      baseTextSegments = finalSegments;
-
-      await updateLibraryItemsFromSupabase(currentId, {
-        lyrics: finalSegments,
-        isSincronizada: true,
-        tapModeStyle: window.currentTapSyncModeType
+    if (esPalabraPorPalabra) {
+      // 1. Sincronización precisa palabra por palabra (Nativa)
+      finalSegments = (item.lyrics || []).map((word, index) => {
+        const startTime = tapSyncTimestamps[index] || 0;
+        return {
+          id: word.id,
+          text: word.text,
+          renglon: word.renglon || 1,
+          startTime: startTime,
+          parte: tapSyncParts[index] || "P1"
+        };
       });
     } else {
-      const esPalabraPorPalabra = (window.currentTapSyncModeType === "palabra");
+      // 2. Sincronización por renglón/frase completa con interpolación de palabras
+      let globalWordId = 1;
 
-      if (esPalabraPorPalabra && Array.isArray(baseTranscriptionSegments) && baseTranscriptionSegments.length) {
-        finalSegments = baseTranscriptionSegments.map((seg, index) => {
-          const startTime = tapSyncTimestamps[index] || seg.startTime || seg.start || 0;
-          const nextTime = tapSyncTimestamps[index + 1] || (startTime + avgInterval);
+      tapSyncLines.forEach((lineText, lineIndex) => {
+        const startTimeFrase = tapSyncTimestamps[lineIndex] || 0;
+        const endTimeFrase = tapSyncTimestamps[lineIndex + 1] || (startTimeFrase + avgInterval);
+        const duracionTotalFrase = endTimeFrase - startTimeFrase;
+        const parteLinea = tapSyncParts[lineIndex] || "P1";
 
-          return {
-            ...seg,
-            startTime,
-            start: startTime,
-            duration: Math.max(0.1, nextTime - startTime),
-            end: nextTime,
-            parte: tapSyncParts[index] || seg.parte || "P1"
-          };
-        });
-      } else {
-        let globalWordId = 1;
+        const palabrasDeLaLinea = lineText.split(/\s+/).filter(w => w.trim().length > 0);
+        const totalPalabras = palabrasDeLaLinea.length;
+        if (totalPalabras === 0) return;
 
-        tapSyncLines.forEach((lineText, lineIndex) => {
-          const startTimeFrase = tapSyncTimestamps[lineIndex] || 0;
-          const endTimeFrase = tapSyncTimestamps[lineIndex + 1] || (startTimeFrase + avgInterval);
-          const duracionTotalFrase = endTimeFrase - startTimeFrase;
-          const parteLinea = tapSyncParts[lineIndex] || "P1";
+        const duracionPorPalabra = duracionTotalFrase / totalPalabras;
 
-          const palabrasDeLaLinea = lineText.split(/\s+/).filter(w => w.trim().length > 0);
-          const totalPalabras = palabrasDeLaLinea.length;
-          if (totalPalabras === 0) return;
+        palabrasDeLaLinea.forEach((palabraText, wordIndex) => {
+          const wordStart = startTimeFrase + (wordIndex * duracionPorPalabra);
 
-          const duracionPorPalabra = duracionTotalFrase / totalPalabras;
-
-          palabrasDeLaLinea.forEach((palabraText, wordIndex) => {
-            const wordStart = startTimeFrase + (wordIndex * duracionPorPalabra);
-
-            finalSegments.push({
-              id: globalWordId++,
-              text: palabraText,
-              startTime: wordStart,
-              start: wordStart,
-              duration: duracionPorPalabra,
-              end: wordStart + duracionPorPalabra,
-              pitch: null,
-              parte: parteLinea,
-              words: [{
-                start: wordStart,
-                end: wordStart + duracionPorPalabra,
-                word: palabraText
-              }]
-            });
+          finalSegments.push({
+            id: globalWordId++,
+            text: palabraText,
+            renglon: lineIndex + 1,
+            startTime: wordStart,
+            parte: parteLinea
           });
         });
-      }
-
-      transcriptionSegments = finalSegments;
-      baseTranscriptionSegments = finalSegments;
-
-      await updateLibraryItemsFromSupabase(currentId, {
-        transcription: finalSegments,
-        isSincronizada: true,
-        tapModeStyle: window.currentTapSyncModeType
       });
     }
 
-    if (status) status.textContent = "Estado: Sincronización guardada ✅";
-    await renderLibrary("todos");
-    alert("✅ ¡Sincronización por taps guardada con éxito!");
+    textSegments = finalSegments;
+    baseTextSegments = finalSegments;
+
+    // Actualización limpia en Supabase usando únicamente la columna 'lyrics'
+    await updateLibraryItemsFromSupabase(currentId, {
+      lyrics: finalSegments,
+      isSincronizada: true,
+      tapModeStyle: window.currentTapSyncModeType
+    });
+
+    if (status) status.textContent = "Estado: Sincronización guardada exitosamente en la nube ⚡";
+    alert("✅ Sincronización de tiempos completada con éxito.");
+
   } catch (error) {
-    console.error("Error al finalizar sincronización:", error);
-    if (status) status.textContent = "Estado: Error al guardar la sincronización";
-    alert("❌ Error al guardar la línea final de taps en la base de datos.");
+    console.error("Error al procesar el cierre de la marcación:", error);
+    if (status) status.textContent = "Estado: Error al actualizar marcas de tiempo";
+    alert("❌ Error al salvar la sincronización.");
   }
 }
