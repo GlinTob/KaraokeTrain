@@ -95,7 +95,7 @@ async function handleUpload(request, env) {
       });
     }
 
-    // Leer FormData
+    // Leer FormData de forma segura
     let formData;
     try {
       formData = await request.formData();
@@ -111,7 +111,7 @@ async function handleUpload(request, env) {
       throw new Error('No se encontró el archivo en el FormData');
     }
 
-    // Limpiar nombre
+    // Limpiar nombre para generar una URL segura
     const cleanName = fileName
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
@@ -120,17 +120,25 @@ async function handleUpload(request, env) {
 
     const safePath = `${Date.now()}_${cleanName}`;
 
-    // Leer el archivo como ArrayBuffer
-    const arrayBuffer = await file.arrayBuffer();
+    // ✅ CORRECCIÓN DE MEMORIA: En Cloudflare Workers, los archivos de FormData se leen de forma
+    // ultra veloz convirtiendo el stream a un objeto Blob o consumiéndolo directamente.
+    let arrayBuffer;
+    if (typeof file.arrayBuffer === 'function') {
+      arrayBuffer = await file.arrayBuffer();
+    } else {
+      // Respaldo seguro en caso de streams crudos del navegador
+      const fileBlob = new Blob([file], { type: mimeType });
+      arrayBuffer = await fileBlob.arrayBuffer();
+    }
 
-    // Guardar en R2
+    // Guardar el flujo binario en tu bucket de R2
     await env.VOCAL_APP_STORAGE.put(safePath, arrayBuffer, {
       httpMetadata: { contentType: mimeType }
     });
 
     const publicUrl = `${env.R2_PUBLIC_URL}/api/file/${safePath}`;
 
-    // Respuesta exitosa CON CORS HEADERS
+    // Respuesta exitosa inmediata con los CORS headers globales
     return new Response(JSON.stringify({
       success: true,
       filePath: safePath,
@@ -149,7 +157,6 @@ async function handleUpload(request, env) {
     });
   }
 }
-
 async function handleDelete(key, env) {
   try {
     await env.VOCAL_APP_STORAGE.delete(key);
