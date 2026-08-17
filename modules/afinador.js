@@ -1119,20 +1119,27 @@ async function startAfinador() {
 async function startAfinador() {
   const canvas = $("agujaCanvas");
   if (canvas) {
-    agujaVivaInstance = new AgujaViva(canvas);
+    //agujaVivaInstance = new AgujaViva(canvas);
+    afinadorInstance = new Afinador(canvas);
     const targetNoteEl = $("targetNote");
     const difficultyEl = $("afinadorDifficulty");
 
-    if (targetNoteEl) agujaVivaInstance.setTargetNote(targetNoteEl.value);
-    if (difficultyEl) agujaVivaInstance.setDifficulty(difficultyEl.value);
+    //if (targetNoteEl) agujaVivaInstance.setTargetNote(targetNoteEl.value);
+    //if (difficultyEl) agujaVivaInstance.setDifficulty(difficultyEl.value);
+
+    if (targetNoteEl) afinadorInstance.setTargetNote(targetNoteEl.value);
+    if (difficultyEl) afinadorInstance.setDifficulty(difficultyEl.value);
 
     if (targetNoteEl) {
-      targetNoteEl.onchange = () => agujaVivaInstance.setTargetNote(targetNoteEl.value);
+      //targetNoteEl.onchange = () => agujaVivaInstance.setTargetNote(targetNoteEl.value);
+      targetNoteEl.onchange = () => afinadorInstance.setTargetNote(targetNoteEl.value);
     }
     if (difficultyEl) {
-      difficultyEl.onchange = () => agujaVivaInstance.setDifficulty(difficultyEl.value);
+      //difficultyEl.onchange = () => agujaVivaInstance.setDifficulty(difficultyEl.value);
+      difficultyEl.onchange = () => afinadorInstance.setDifficulty(difficultyEl.value);
     }
-    agujaVivaInstance.start();
+    //agujaVivaInstance.start();
+    afinadorInstance.start();
   }
 
   audioContext = new AudioContext();
@@ -1193,9 +1200,9 @@ function stopAfinador() {
     audioContext = null;
   }
   analyser = null;
-  if (agujaVivaInstance) {
-    agujaVivaInstance.destroy();
-    agujaVivaInstance = null;
+  if (afinadorInstance) {
+    afinadorInstance.destroy();
+    afinadorInstance = null;
   }
 }
 /*
@@ -1230,11 +1237,11 @@ async function runPitchDetectionLoop() {
   try {
     const audioController = getAudioController();
     const result = await audioController.detectPitch(pitchBuffer, audioContext.sampleRate);
-    if (agujaVivaInstance) {
+    if (afinadorInstance) {
       if (result && result.pitch && result.pitch > 0) {
-        agujaVivaInstance.setPitch(result.pitch);
+        afinadorInstance.setPitch(result.pitch);
       } else {
-        agujaVivaInstance.setPitch(-1);
+        afinadorInstance.setPitch(-1);
       }
     }
   } catch (error) {
