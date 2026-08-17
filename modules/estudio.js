@@ -701,17 +701,22 @@ export async function finishTapSync() {
 
     // Actualización limpia en Supabase usando únicamente la columna 'lyrics'
     await updateLibraryItemsFromSupabase(currentId, {
+      name: `${item.name.replace(" - [KARAOKE]", "")} - [KARAOKE]`,
+      type: "karaoke", // 🚀 Esto lo moverá automáticamente de la carpeta Voz a la carpeta Karaoke
       lyrics: finalSegments,
       isSincronizada: true,
       tapModeStyle: window.currentTapSyncModeType
     });
 
-    if (status) status.textContent = "Estado: Sincronización guardada exitosamente en la nube ⚡";
-    alert("✅ Sincronización de tiempos completada con éxito.");
+    if (status) status.textContent = "Estado: ¡Archivo transformado en Karaoke y guardado con éxito! ✅";
+    
+    // Refrescamos la cuadrícula de la biblioteca
+    await renderLibrary("todos");
+    alert("✅ ¡Sincronización por taps guardada con éxito!\n\nTu archivo ha sido transformado en un Karaoke y ya está disponible en su respectiva carpeta.");
 
   } catch (error) {
-    console.error("Error al procesar el cierre de la marcación:", error);
-    if (status) status.textContent = "Estado: Error al actualizar marcas de tiempo";
-    alert("❌ Error al salvar la sincronización.");
+    console.error("Error al finalizar sincronización:", error);
+    if (status) status.textContent = "Estado: Error al guardar la sincronización";
+    alert("❌ Error al guardar la línea final de taps en la base de datos.");
   }
 }
