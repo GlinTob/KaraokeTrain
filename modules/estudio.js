@@ -272,7 +272,20 @@ export async function loadTextOptionsInStudio() {
 
   select.innerHTML = `<option value="">Selecciona una letra desde Biblioteca</option>`;
   try {
+    // Consultamos la tabla usando tu tipo de texto plano manual
     const items = await getLibraryItemsByTypeFromSupabase("texto");
+    
+    // ✅ INDICADOR DE CONSOLA: Ahora verás exactamente cuántas letras manuales encontró
+    console.log(`🔍 Buscando letras ('texto'): se encontraron ${items.length} coincidencias.`);
+
+    if (!items.length) {
+      const option = document.createElement("option");
+      option.value = "";
+      option.textContent = "No hay letras guardadas";
+      select.appendChild(option);
+      return;
+    }
+
     items.forEach(item => {
       const option = document.createElement("option");
       option.value = item.id;
@@ -280,9 +293,8 @@ export async function loadTextOptionsInStudio() {
       select.appendChild(option);
     });
   } catch (e) {
-    console.error(e);
+    console.error("Error al cargar letras en el selector del Estudio:", e);
   }
-}
 
 export async function loadSelectedTextFromLibrary() {
   const select = $("textLibrarySelect");
