@@ -37,10 +37,14 @@ export function initEstudio() {
 
   safeAdd("loadStudioTrackBtn", "click", loadSelectedTrackFromLibraryStudio);
   safeAdd("loadSelectedVoiceBtn", "click", loadSelectedVoiceFromLibrary);
+  // Añadimos el botón de cargar letras si tienes uno en tu interfaz (ejemplo: loadSelectedTextBtn)
+  safeAdd("loadSelectedTextBtn", "click", loadSelectedTextFromLibrary);
   safeAdd("studioTrackFile", "change", cargarAudioEstudio); 
 
+  // ✅ SOLUCIÓN: Cargar todas las opciones de la biblioteca al iniciar la pestaña
   loadTrackOptionsInStudio();
   loadVoiceOptionsInStudio();
+  loadTextOptionsInStudio(); // ¡Invocamos la carga de letras manuales!
 } 
 
 function getMediaErrorDesc(code) {
