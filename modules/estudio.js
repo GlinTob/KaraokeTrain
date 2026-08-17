@@ -130,7 +130,19 @@ export async function loadSelectedTrackFromLibraryStudio() {
     const urlOrBlob = item.file_url || item.audioBlob;
 
     if (typeof urlOrBlob === 'string') {
+      player.crossOrigin = "anonymous";
       player.src = urlOrBlob;
+
+      const urlConCacheBuster = urlOrBlob.includes('?') 
+        ? `${urlOrBlob}&_cb=${Date.now()}` 
+        : `${urlOrBlob}?_cb=${Date.now()}`;
+
+      console.log("📡 Descargando binario con bypass de caché:", urlConCacheBuster);
+  
+      const response = await fetch(urlConCacheBuster);
+      studioTrackBlob = await response.blob();
+    }
+      
       const response = await fetch(urlOrBlob);
       studioTrackBlob = await response.blob();
     } else if (urlOrBlob instanceof Blob) {
