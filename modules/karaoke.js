@@ -1307,10 +1307,9 @@ async function importKaraokeFile(file) {
 
     if (error) throw new Error(error.message);
 
-    await loadMyKaraokeSongs?.();
     await renderLibrary("todos");
 
-    alert(`✅ "${nuevoItemKaraoke.name}" importado con éxito en la Biblioteca y en Karaoke → Mis Canciones`);
+    alert(`✅ "${nuevoItemKaraoke.name}" importado con éxito en la Biblioteca`);
   } catch (err) {
     console.error("❌ Error importando archivo:", err);
     alert("❌ Archivo inválido, corrupto o error de subida a la nube.");
