@@ -130,20 +130,19 @@ export async function loadSelectedTrackFromLibraryStudio() {
     const urlOrBlob = item.file_url || item.audioBlob;
 
     if (typeof urlOrBlob === 'string') {
+      // 1. Indicarle al reproductor que use permisos de origen cruzado nativos
       player.crossOrigin = "anonymous";
       player.src = urlOrBlob;
-
+      
+      // 2. SOLUCIÓN CRÍTICA: Añadir un "cache-buster" (?_cb=...) para obligar al navegador 
+      // a ignorar la caché vieja y leer la nueva política CORS de Cloudflare
       const urlConCacheBuster = urlOrBlob.includes('?') 
         ? `${urlOrBlob}&_cb=${Date.now()}` 
         : `${urlOrBlob}?_cb=${Date.now()}`;
 
       console.log("📡 Descargando binario con bypass de caché:", urlConCacheBuster);
-  
-      const response = await fetch(urlConCacheBuster);
-      studioTrackBlob = await response.blob();
-    }
       
-      const response = await fetch(urlOrBlob);
+      const response = await fetch(urlConCacheBuster);
       studioTrackBlob = await response.blob();
     } else if (urlOrBlob instanceof Blob) {
       studioTrackBlob = urlOrBlob;
