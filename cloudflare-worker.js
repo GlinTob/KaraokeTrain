@@ -2,9 +2,10 @@
 
 // 1. Headers de CORS definidos GLOBALMENTE para asegurar que siempre se envíen
 const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*', // Permite cualquier origen (tu dominio de Vercel)
+  'Access-Control-Allow-Origin': '*', // Permite cualquier origen (tu dominio de Vercel y localhost)
   'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, Range',
+  'Access-Control-Expose-Headers': 'Content-Length, Content-Range',
   'Access-Control-Max-Age': '86400', // Cache de CORS por 24h
 };
 
@@ -37,20 +38,32 @@ export default {
       if (request.method === 'GET' && path.startsWith('/api/file/')) {
         const key = path.replace('/api/file/', '');
         const object = await env.VOCAL_APP_STORAGE.get(key);
+        
         if (!object) {
           return new Response('Archivo no encontrado', { 
             status: 404, 
             headers: CORS_HEADERS 
           });
         }
-        const headers = new Headers();
-        object.writeHttpMetadata(headers);
-        headers.set('etag', object.httpEtag);
-        // Asegurar que los headers de CORS se incluyan en la respuesta del archivo
-        for (const [key, value] of Object.entries(CORS_HEADERS)) {
-          headers.set(key, value);
+
+        // Crear una instancia limpia de Headers mezclando metadatos y CORS
+        const responseHeaders = new Headers();
+        object.writeHttpMetadata(responseHeaders);
+        responseHeaders.set('etag', object.httpEtag);
+        
+        // Habilitar soporte de streaming parcial para etiquetas <audio> multimedia
+        responseHeaders.set('Accept-Ranges', 'bytes');
+
+        // Inyectar de forma segura cada una de tus cabeceras CORS globales en el objeto nativo
+        for (const [corsKey, corsValue] of Object.entries(CORS_HEADERS)) {
+          responseHeaders.set(corsKey, corsValue);
         }
-        return new Response(object.body, { headers });
+
+        // Retornar el binario con el estatus y la estructura de opciones correcta
+        return new Response(object.body, { 
+          status: 200,
+          headers: responseHeaders 
+        });
       }
 
       // 404 por defecto
