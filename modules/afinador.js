@@ -173,9 +173,9 @@ export class AfinadorVisual {
     const cx = this.width / 2;
     const cy = this.height * 0.55;
 
-    for (let i = 0; i < 36; i++) {
-      const angle = (Math.PI * 2 * i) / 36 + Math.random() * 0.12;
-      const speed = 60 + Math.random() * 180;
+    for (let i = 0; i < 50; i++) {
+      const angle = (Math.PI * 2 * i) / 36 + Math.random() * 0.30;
+      const speed = 50 + Math.random() * 180;
       const color = Math.random() > 0.35 ? this.colors.marker : this.colors.axis;
 
       this.burstParticles.push({
@@ -183,9 +183,9 @@ export class AfinadorVisual {
         y: cy,
         vx: Math.cos(angle) * speed,
         vy: Math.sin(angle) * speed,
-        life: 0.5 + Math.random() * 0.5,
-        maxLife: 1,
-        size: 2 + Math.random() * 5,
+        life: 0.8 + Math.random() * 0.5,
+        maxLife: 1.4,
+        size: 4 + Math.random() * 5,
         alpha: 1,
         color
       });
@@ -203,7 +203,7 @@ export class AfinadorVisual {
         radius: i * 8,
         alpha: 0.9 - i * 0.14,
         lineWidth: 3.5 - i * 0.45,
-        maxRadius: Math.max(this.width, this.height) * 0.58
+        maxRadius: Math.max(this.width, this.height) * 0.80
       });
     }
   }
