@@ -37,15 +37,13 @@ export function initEstudio() {
 
   safeAdd("loadStudioTrackBtn", "click", loadSelectedTrackFromLibraryStudio);
   safeAdd("loadSelectedVoiceBtn", "click", loadSelectedVoiceFromLibrary);
-  // Añadimos el botón de cargar letras si tienes uno en tu interfaz (ejemplo: loadSelectedTextBtn)
-  safeAdd("loadSelectedTextBtn", "click", loadSelectedTextFromLibrary);
   safeAdd("studioTrackFile", "change", cargarAudioEstudio); 
 
-  // ✅ SOLUCIÓN: Cargar todas las opciones de la biblioteca al iniciar la pestaña
+  // Cargamos los tres menús de tu interfaz
   loadTrackOptionsInStudio();
   loadVoiceOptionsInStudio();
-  loadTextOptionsInStudio(); // ¡Invocamos la carga de letras manuales!
-} 
+  loadTextOptionsInStudio(); // El encargado de alimentar el select de tu imagen
+}
 
 function getMediaErrorDesc(code) {
   const errors = { 1: "MEDIA_ERR_ABORTED", 2: "MEDIA_ERR_NETWORK", 3: "MEDIA_ERR_DECODE", 4: "MEDIA_ERR_SRC_NOT_SUPPORTED" };
@@ -267,15 +265,19 @@ export async function loadSelectedVoiceFromLibrary() {
 }
 
 export async function loadTextOptionsInStudio() {
-  const select = $("textLibrarySelect");
-  if (!select) return;
+  // 💡 Cambia "textLibrarySelect" por el ID real que tenga el selector azul de tu imagen
+  const select = document.getElementById("textLibrarySelect") || document.querySelector("select[id*='text']");
+  if (!select) {
+    console.warn("⚠️ No se encontró el elemento select para las letras en el HTML.");
+    return;
+  }
 
   select.innerHTML = `<option value="">Selecciona una letra desde Biblioteca</option>`;
   try {
-    // Consultamos la tabla usando tu tipo de texto plano manual
+    // Jalamos los archivos categorizados como texto desde Supabase
     const items = await getLibraryItemsByTypeFromSupabase("texto");
     
-    // ✅ INDICADOR DE CONSOLA: Ahora verás exactamente cuántas letras manuales encontró
+    // Imprimimos la traza oficial en tu consola para verificar el flujo en verde
     console.log(`🔍 Buscando letras ('texto'): se encontraron ${items.length} coincidencias.`);
 
     if (!items.length) {
@@ -289,11 +291,11 @@ export async function loadTextOptionsInStudio() {
     items.forEach(item => {
       const option = document.createElement("option");
       option.value = item.id;
-      option.textContent = item.name;
+      option.textContent = `${item.name}`;
       select.appendChild(option);
     });
   } catch (e) {
-    console.error("Error al cargar letras en el selector del Estudio:", e);
+    console.error("❌ Error al cargar letras en el Estudio:", e);
   }
 }
 
