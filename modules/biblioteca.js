@@ -232,18 +232,14 @@ export async function renderLibrary(filter = "todos") {
     const library = await getAllLibraryItemsFromSupabase();
     
     // Homologamos los filtros con las categorías reales de tu base de datos
-    const filteredItems = filter === "todos"
+    const filteredItems = filter === "todos" 
       ? library 
-      : library.filter(item => 
-          item.type === filter || 
-          ((filter === "letras" || filter === "grabacion") && (item.type === "letra" || item.type === "texto"))
-      );
-      container.innerHTML = "";
-    
-    if (!filteredItems || filteredItems.length === 0) {
-      container.innerHTML = `<p class="empty-message">🗄️ No hay elementos en esta carpeta.</p>`;
-      return;
-    }
+      : library.filter(item => {
+      if (filter === "letras" || filter === "texto") {
+        return ["letra", "texto", "texto_plano"].includes(item.type);
+      }
+      return item.type === filter;
+    });
 
     filteredItems.forEach(item => {
       const div = document.createElement("div");
