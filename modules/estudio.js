@@ -244,14 +244,30 @@ export async function loadSelectedVoiceFromLibrary() {
 }
 
 export async function loadTextOptionsInStudio() {
-  const select = $("textLibrarySelect"); // Tu id exacto del HTML
-  if (!select) return;
+  // ✅ SOLUCIÓN: Buscamos el elemento usando tanto tu id como una consulta estructural 
+  // que localiza cualquier etiqueta <select> dentro de la tarjeta de Letras
+  const select = 
+    document.getElementById("textLibrarySelect") || 
+    document.querySelector(".card h3[text*='LETRA'] + select") ||
+    document.querySelector("select[id*='text']") || 
+    $("textLibrarySelect");
 
-  select.innerHTML = `<option value="">Selecciona un archivo</option>`;
+  if (!select) {
+    console.warn("⚠️ No se pudo morder la caja del menú desplegable azul en el HTML actual.");
+    return;
+  }
+
+  // Limpiamos las opciones previas y pintamos el estado inicial
+  select.innerHTML = "";
+  
+  const defaultOption = document.createElement("option");
+  defaultOption.value = "";
+  defaultOption.textContent = "Selecciona un archivo";
+  select.appendChild(defaultOption);
+
   try {
     const items = await getLibraryItemsByTypeFromSupabase("texto");
     
-    // Traza para ver en la consola que ya busca el texto en verde
     console.log(`🔍 Buscando letras ('texto'): se encontraron ${items.length} coincidencias.`);
 
     if (!items.length) {
@@ -262,17 +278,20 @@ export async function loadTextOptionsInStudio() {
       return;
     }
 
+    // Insertamos dinámicamente cada archivo de texto plano encontrado en Supabase
     items.forEach(item => {
       const option = document.createElement("option");
       option.value = item.id;
-      option.textContent = item.name;
+      option.textContent = item.name; // Inyectará "Letra de texto guardado en Supabase (sin R2)"
       select.appendChild(option);
     });
+    
+    console.log("🎨 Opciones de letras pintadas con éxito dentro del menú desplegable azul.");
+
   } catch (e) {
     console.error("❌ Error al rellenar el menú de letras:", e);
   }
 }
-
 /**
  * 2. CARGAR LA LETRA SELECCIONADA EN EL MONITOR (Se ejecuta al pulsar el botón rosa)
  */
