@@ -105,7 +105,7 @@ export async function getLibraryItemsByTypeFromSupabase(type) {
     // ✅ PERMISOS FLEXIBLES: Si el frontend pide "texto", buscamos tanto "texto" como "letra" en Supabase
     let query = db.from('library').select('*');
     
-    if (type === "texto" || type === "letra") {
+    if (type === "texto" || type === "letra" || type === "grabacion") {
       query = query.or(`type.eq.texto,type.eq.letra,type.eq.texto_plano`);
     } else {
       query = query.eq('type', type);
@@ -232,12 +232,14 @@ export async function renderLibrary(filter = "todos") {
     const library = await getAllLibraryItemsFromSupabase();
     
     // Homologamos los filtros con las categorías reales de tu base de datos
-    const filteredItems = filter === "todos" 
+    const filteredItems = filter === "todos"
       ? library 
-      : library.filter(item => item.type === filter || (filter === "letras" && item.type === "letra"));
-      
-    container.innerHTML = "";
-
+      : library.filter(item => 
+          item.type === filter || 
+          ((filter === "letras" || filter === "grabacion") && (item.type === "letra" || item.type === "texto"))
+      );
+      container.innerHTML = "";
+    
     if (!filteredItems || filteredItems.length === 0) {
       container.innerHTML = `<p class="empty-message">🗄️ No hay elementos en esta carpeta.</p>`;
       return;
