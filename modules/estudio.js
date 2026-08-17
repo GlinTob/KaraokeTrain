@@ -151,36 +151,6 @@ export async function loadSelectedTrackFromLibraryStudio() {
 // ==========================================
 // 🎙️ GESTIÓN Y DESPLIEGUE DE VOCES / LETRAS
 // ==========================================
-
-export async function loadVoiceOptionsInStudio() {
-  const select = $("voiceLibrarySelect");
-  if (!select) return;
-
-  select.innerHTML = `<option value="">Selecciona una voz guardada</option>`;
-  try {
-    const voces = await getLibraryItemsByTypeFromSupabase("voz");
-    const grabaciones = await getLibraryItemsByTypeFromSupabase("grabacion");
-    const merged = [...voces, ...grabaciones];
-
-    if (!merged.length) {
-      const option = document.createElement("option");
-      option.value = "";
-      option.textContent = "No hay voces guardadas";
-      select.appendChild(option);
-      return;
-    }
-
-    merged.forEach((item) => {
-      const option = document.createElement("option");
-      option.value = item.id;
-      option.textContent = `${item.name} (${item.date ? new Date(item.date).toLocaleDateString() : "sin fecha"})`;
-      select.appendChild(option);
-    });
-  } catch (error) {
-    console.error(error);
-  }
-}
-
 export async function loadVoiceOptionsInStudio() {
   const select = $("voiceLibrarySelect");
   if (!select) return;
