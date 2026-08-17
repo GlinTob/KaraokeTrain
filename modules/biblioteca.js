@@ -230,16 +230,27 @@ export async function renderLibrary(filter = "todos") {
 
   try {
     const library = await getAllLibraryItemsFromSupabase();
-    
-    // Homologamos los filtros con las categorías reales de tu base de datos
-    const filteredItems = filter === "todos" 
-      ? library 
-      : library.filter(item => {
-        if (filter === "letras" || filter === "texto") {
-          return ["letra", "texto", "texto_plano"].includes(item.type);
-        }
-        return item.type === filter;
-      });
+    // ✅ CORRECCIÓN DE FILTRO: Mapeamos los filtros visuales con los datos reales
+    const filteredItems = library.filter(item => {
+      if (filter === "todos") return true;
+  
+      // Si el usuario da clic en la carpeta "KARAOKE", mostramos cualquier archivo 
+      // que tenga la bandera 'isSincronizada' en verdadero o cuyo tipo sea 'karaoke'
+      if (filter === "karaoke") {
+        return item.isSincronizada === true || item.type === "karaoke";
+      }
+  
+      if (filter === "letras") {
+        return item.type === "texto" || item.type === "letra" || item.type === "texto_plano";
+      }
+  
+      if (filter === "voces") {
+        return item.type === "voz" || item.type === "grabacion";
+      }
+
+      // Filtro por defecto para carpetas exactas (pistas, etc.)
+      return item.type === filter;
+    });
     
     filteredItems.forEach(item => {
       const div = document.createElement("div");
