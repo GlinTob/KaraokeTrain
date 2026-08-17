@@ -71,14 +71,23 @@ export async function deleteLibraryItemsFromSupabase(id) {
     const item = await getLibraryItemsByIdFromSupabase(id);
     const r2Key = item?.file_path; 
 
+    // 1. Eliminar primero el registro en la base de datos de Supabase
     const { error } = await db.from('library').delete().eq('id', id);
     if (error) throw new Error(error.message);
     console.log(`✅ Registro con ID ${id} eliminado de Supabase.`);
 
-    if (r2Key && typeof window !== 'undefined' && window.CloudflareStorage) {
+    // 2. ✅ VALIDACIÓN EXPLICITA: Si r2Key es null, undefined, vacío o la cadena "null", 
+    // significa que era un texto plano. Terminamos la función aquí sin llamar a R2.
+    if (!r2Key || r2Key === "null") {
+      console.log("📄 Archivo de texto plano local eliminado correctamente (sin interacción con R2).");
+      return; 
+    }
+
+    // 3. Si tiene una clave real (pistas, voces), procedemos a borrar el binario en Cloudflare R2
+    if (typeof window !== 'undefined' && window.CloudflareStorage) {
       try {
         await window.CloudflareStorage.deleteFileFromCloudflare(r2Key);
-        console.log(`☁️ Archivo eliminado de Cloudflare R2: ${r2Key}`);
+        console.log(`☁️ Archivo binario eliminado de Cloudflare R2: ${r2Key}`);
       } catch (e) {
         console.warn('No se pudo eliminar de R2:', e);
       }
