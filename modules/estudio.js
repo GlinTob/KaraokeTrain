@@ -295,6 +295,7 @@ export async function loadTextOptionsInStudio() {
   } catch (e) {
     console.error("Error al cargar letras en el selector del Estudio:", e);
   }
+}
 
 export async function loadSelectedTextFromLibrary() {
   const select = $("textLibrarySelect");
