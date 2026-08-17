@@ -105,7 +105,7 @@ export async function getLibraryItemsByTypeFromSupabase(type) {
     // ✅ PERMISOS FLEXIBLES: Si el frontend pide "texto", buscamos tanto "texto" como "letra" en Supabase
     let query = db.from('library').select('*');
     
-    if (type === "texto" || type === "letra" || type === "grabacion") {
+    if (type === "texto" || type === "letra" || type === "letras") {
       query = query.or(`type.eq.texto,type.eq.letra,type.eq.texto_plano`);
     } else {
       query = query.eq('type', type);
@@ -235,12 +235,12 @@ export async function renderLibrary(filter = "todos") {
     const filteredItems = filter === "todos" 
       ? library 
       : library.filter(item => {
-      if (filter === "letras" || filter === "texto") {
-        return ["letra", "texto", "texto_plano"].includes(item.type);
-      }
-      return item.type === filter;
-    });
-
+        if (filter === "letras" || filter === "texto") {
+          return ["letra", "texto", "texto_plano"].includes(item.type);
+        }
+        return item.type === filter;
+      });
+    
     filteredItems.forEach(item => {
       const div = document.createElement("div");
       div.className = "library-item"; // Hereda tus estilos neón de la cuadrícula inferior
