@@ -174,8 +174,8 @@ export class AfinadorVisual {
     const cy = this.height * 0.55;
 
     for (let i = 0; i < 50; i++) {
-      const angle = (Math.PI * 2 * i) / 36 + Math.random() * 0.30;
-      const speed = 50 + Math.random() * 180;
+      const angle = (Math.PI * 2 * i) / 36 + Math.random() * 0.60;
+      const speed = 20 + Math.random() * 180;
       const color = Math.random() > 0.35 ? this.colors.marker : this.colors.axis;
 
       this.burstParticles.push({
