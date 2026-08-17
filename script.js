@@ -195,9 +195,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 
   // --- EVENTOS ESTUDIO ---
-  //safeAdd("audioFile", "change", async (e) => 
-    //const { cargarAudioEstudio } = await import("./modules/estudio.js");
-    //if (typeof cargarAudioEstudio === "function") cargarAudioEstudio(e);
+  safeAdd("audioFile", "change", async (e) => 
+    const { cargarAudioEstudio } = await import("./modules/estudio.js");
+    if (typeof cargarAudioEstudio === "function") cargarAudioEstudio(e);
   
   safeAdd("loadStudioTrackBtn", "click", async () => {
     const { loadSelectedTrackFromLibraryStudio } = await import("./modules/estudio.js");
@@ -291,6 +291,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         const { saveManualFileToLibrary } = await import("./modules/biblioteca.js");
         
         console.log("🚀 [DEBUG] Ejecutando saveManualFileToLibrary...");
+        // Pasamos el nombre personalizado de la caja de texto para que el backend lo respete
         await saveManualFileToLibrary();
         
         console.log("✅ [DEBUG] Función finalizada.");
@@ -304,7 +305,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const files = e.target.files;
     if (files.length === 0) return;
 
-    // 1. MOSTRAR EL MENÚ DE TIPO (Esto faltaba)
+    // 1. MOSTRAR EL MENÚ DE TIPO
     const uploadOptions = $("uploadOptions");
     if (uploadOptions) {
         uploadOptions.style.display = "block"; 
@@ -316,7 +317,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     
     if (progressContainer) progressContainer.style.display = "block";
 
-    // Importar función si la necesitas aquí
     const { addFileToUploadList } = await import("./modules/biblioteca.js");
 
     for (let i = 0; i < files.length; i++) {
@@ -324,11 +324,13 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (i === 0) {
             const nameInput = $("libraryFileName");
             if (nameInput && !nameInput.value.trim()) {
+                // Removemos la extensión del input visual de la pantalla de forma segura
                 nameInput.value = file.name.replace(/\.[^.]+$/, "");
             }
         }
         if (uploadList) {
-            addFileToUploadList(uploadList, file.name, "pending");
+            // Pasamos el índice i para que la barra de carga mantenga sus IDs únicos
+            addFileToUploadList(uploadList, file.name, "pending", i);
         }
     }
   });   
@@ -337,14 +339,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     const typeSelect = $("libraryFileType");
     const fileInput = $("libraryFileInput");
     if (typeSelect && fileInput) {
-      if (typeSelect.value === "texto") {
+      // Soportar variaciones de nombres técnicos para tus archivos de texto planos manuales
+      if (typeSelect.value === "texto" || typeSelect.value === "letra" || typeSelect.value === "texto_plano") {
         fileInput.setAttribute("accept", ".txt");
       } else {
         fileInput.setAttribute("accept", "audio/*");
       }
     }
   });
-
   // --- EVENTOS KARAOKE ---
   safeAdd("karaokeDuoSplitToggleBtn", "click", async () => {
     const { toggleKaraokeDuoSplitMode } = await import("./modules/karaoke.js");
