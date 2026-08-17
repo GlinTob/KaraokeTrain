@@ -589,6 +589,42 @@ export function showStatus(message, type) {
   }
 }
 
+export async function enviarAlMonitorKaraoke(karaokeItem) {
+  if (!karaokeItem) return;
+
+  try {
+    // 1. Buscamos el reproductor final del monitor de karaoke en el HTML
+    // Revisa si este es el ID de la pestaña de karaoke de tu proyecto
+    const playerFinal = document.getElementById("karaokeAudioPlayer") || document.getElementById("player"); 
+    
+    if (playerFinal && karaokeItem.file_url) {
+      playerFinal.crossOrigin = "anonymous";
+      playerFinal.src = karaokeItem.file_url;
+      playerFinal.load();
+    }
+
+    // 2. Guardamos las letras con milisegundos en el entorno global para que el Canvas las pinte
+    window.currentKaraokeLyrics = karaokeItem.lyrics || [];
+    window.currentKaraokeName = karaokeItem.name;
+
+    // 3. CAMBIO DE PESTAÑA AUTOMÁTICO EN TU INTERFAZ NEÓN
+    // Llamamos a la función global 'showTab' que maneja tu script.js
+    if (typeof window.showTab === "function") {
+      window.showTab("KARAOKE"); // Pestaña destino en mayúsculas tal como lo registran tus logs
+    } else {
+      // Intento de respaldo por simulación de clic en tu menú lateral
+      const navBtn = document.querySelector("[data-tab='karaoke']") || document.getElementById("btn-nav-karaoke");
+      if (navBtn) navBtn.click();
+    }
+
+    console.log("✅ Datos transferidos al Monitor de Canto. Pestaña cambiada a [KARAOKE].");
+
+  } catch (err) {
+    console.error("❌ Error en la pasarela de exportación al monitor:", err);
+    alert("No se pudo transferir el karaoke al monitor de canto.");
+  }
+}
+
 export function clearUploadSelection() {
   const fileInput = document.getElementById("libraryFileInput");
   const nameInput = document.getElementById("libraryFileName");
