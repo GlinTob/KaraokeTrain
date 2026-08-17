@@ -1120,7 +1120,7 @@ async function startAfinador() {
   const canvas = $("agujaCanvas");
   if (canvas) {
     //agujaVivaInstance = new AgujaViva(canvas);
-    afinadorVisual = new Afinador(canvas);
+    afinadorVisual = new AfinadorVisual(canvas);
     const targetNoteEl = $("targetNote");
     const difficultyEl = $("afinadorDifficulty");
 
