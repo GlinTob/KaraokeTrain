@@ -254,24 +254,66 @@ export async function renderLibrary(filter = "todos") {
     
     filteredItems.forEach(item => {
       const div = document.createElement("div");
-      div.className = "library-item"; // Hereda tus estilos neón de la cuadrícula inferior
-      
-      // ✅ SELECCIÓN DE ICONO CORRECTO COINCIDIENDO CON TU INTERFAZ
-      let iconoVisual = "🎵"; // Icono por defecto para audios (Pistas, Voces, Grabaciones)
+      div.className = "library-item"; // Conserva tus estilos neón oscuros
+  
+      // 1. Selección visual del icono según tu interfaz
+      let iconoVisual = "🎵";
       if (item.type === "letra" || item.type === "texto" || item.type === "texto_plano") {
-        iconoVisual = "📄"; // Icono de hoja para archivos de texto plano
-      } else if (item.type === "karaoke") {
-        iconoVisual = "🎤"; // Micrófono para karaokes completos
+        iconoVisual = "📄";
+      } else if (item.type === "karaoke" || item.isSincronizada) {
+        iconoVisual = "🎤";
       }
 
+      // 2. ✅ COMPROBACIÓN CRÍTICA: Si el archivo ya está sincronizado por Taps, 
+      // preparamos el botón rosa de exportación al monitor de canto
+      let botonCantarHTML = "";
+        if (item.isSincronizada || item.type === "karaoke" || filter === "karaoke") {
+          botonCantarHTML = `
+          <button class="send-to-monitor-btn" data-id="${item.id}" style="
+            background: linear-gradient(135deg, #ec4899, #db2777);
+            color: #fff;
+            border: none;
+            padding: 5px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 8px;
+            font-weight: bold;
+            font-size: 12px;
+            box-shadow: 0 0 10px rgba(236, 72, 153, 0.5);
+          ">↪️🎤 Cantar</button>
+        `;
+      }
+
+      // 3. Inyectamos la estructura combinando los botones
       div.innerHTML = `
         <div class="item-info">
           <span class="item-icon">${iconoVisual}</span>
           <span class="item-name">${item.name}</span>
         </div>
-        <!-- El data-id usa el ID numérico único de Supabase, resolviendo conflictos de nombres iguales -->
-        <button class="delete-library-btn" data-id="${item.id}">🗑️</button>
+        <div class="item-actions" style="display: flex; align-items: center;">
+          ${botonCantarHTML} <!-- El botón rosa aparecerá solo en los archivos listos -->
+          <button class="delete-library-btn" data-id="${item.id}">🗑️</button>
+        </div>
       `;
+
+      // 4. ✅ CAPTURAR EL CLIC DEL BOTÓN ROSA DE EXPORTACIÓN
+      if (item.isSincronizada || item.type === "karaoke" || filter === "karaoke") {
+        const btnCantar = div.querySelector(".send-to-monitor-btn");
+        if (btnCantar) {
+          btnCantar.addEventListener("click", async (e) => {
+            e.stopPropagation(); // Evita interferencias con otros clics de la tarjeta
+            console.log(`🚀 [Biblioteca] Exportando al Monitor Karaoke: ${item.name}`);
+        
+            try {
+              // LLAMAMOS AL PROCESO DE REDIRECCIÓN AUTOMÁTICA
+              await enviarAlMonitorKaraoke(item);
+            } catch (err) {
+              console.error("Error al exportar:", err);
+            }
+          });
+        }
+      }
+
       container.appendChild(div);
     });
 
