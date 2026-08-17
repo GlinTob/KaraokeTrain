@@ -35,15 +35,17 @@ let currentTapPart = "P1";
 export function initEstudio() {
   console.log("🎚️ [estudio.js] Inicializado con éxito"); 
 
+  // Enlazar los tres clics de tus botones rosas del HTML
   safeAdd("loadStudioTrackBtn", "click", loadSelectedTrackFromLibraryStudio);
   safeAdd("loadSelectedVoiceBtn", "click", loadSelectedVoiceFromLibrary);
+  safeAdd("loadSelectedTextBtn", "click", loadSelectedTextFromLibrary); // Vincula tu botón de letras manuales
   safeAdd("studioTrackFile", "change", cargarAudioEstudio); 
 
-  // Cargamos los tres menús de tu interfaz
+  // Llenar automáticamente los tres menús desplegables al abrir la pestaña
   loadTrackOptionsInStudio();
   loadVoiceOptionsInStudio();
-  loadTextOptionsInStudio(); // El encargado de alimentar el select de tu imagen
-}
+  loadTextOptionsInStudio(); // Alimenta el selector azul 'textLibrarySelect'
+} 
 
 function getMediaErrorDesc(code) {
   const errors = { 1: "MEDIA_ERR_ABORTED", 2: "MEDIA_ERR_NETWORK", 3: "MEDIA_ERR_DECODE", 4: "MEDIA_ERR_SRC_NOT_SUPPORTED" };
@@ -168,11 +170,14 @@ export async function loadVoiceOptionsInStudio() {
   const select = $("voiceLibrarySelect");
   if (!select) return;
 
-  select.innerHTML = `<option value="">Selecciona una voz guardada</option>`;
+  select.innerHTML = `<option value="">Selecciona un archivo</option>`;
   try {
     const voces = await getLibraryItemsByTypeFromSupabase("voz");
     const grabaciones = await getLibraryItemsByTypeFromSupabase("grabacion");
     const merged = [...voces, ...grabaciones];
+
+    console.log(`🔍 Buscando 'voz': se encontraron ${voces.length} coincidencias.`);
+    console.log(`🔍 Buscando 'grabacion': se encontraron ${grabaciones.length} coincidencias.`);
 
     if (!merged.length) {
       const option = document.createElement("option");
@@ -193,6 +198,9 @@ export async function loadVoiceOptionsInStudio() {
   }
 }
 
+/**
+ * Carga el archivo de audio de voz en el reproductor de la tarjeta de VOZ
+ */
 export async function loadSelectedVoiceFromLibrary() {
   const select = $("voiceLibrarySelect");
   const player = $("selectedVoicePlayer");
@@ -203,53 +211,24 @@ export async function loadSelectedVoiceFromLibrary() {
 
   const selectedId = select.value;
   if (!selectedId) {
-    alert("⚠️ Selecciona un archivo");
+    alert("⚠️ Selecciona un archivo de voz");
     return;
   }
 
   try {
     const item = await getLibraryItemsByIdFromSupabase(selectedId);
     if (!item) {
-      alert("⚠️ No se encontró el archivo");
+      alert("⚠️ No se encontró el archivo de voz");
       return;
     }
 
-    // FLUJO DE TEXTO PLANO MANUAL (Para Sincronizar mediante Tap-Sync)
-    if (item.type === "texto" || item.type === "letra" || item.type === "texto_plano") {
-      selectedVoiceBlob = null;
-      selectedVoiceId = item.id;
-      player.src = "";
-      status.textContent = `Estado: Letra manual seleccionada -> ${item.name}`;
-
-      // Si el archivo viene de Supabase con textoPlano directo, lo inyectamos en el monitor
-      if (item.textoPlano) {
-        if (lyricsText) lyricsText.value = item.textoPlano;
-        
-        if (typeof window.cargarLetrasEnMonitor === "function") {
-          window.cargarLetrasEnMonitor();
-        }
-        status.textContent = "Estado: Letra limpia cargada en el Monitor para sincronizar ⚡";
-      } else if (Array.isArray(item.lyrics) && item.lyrics.length > 0) {
-        // Respaldo en caso de que las letras se organicen por párrafos simples
-        if (lyricsText) {
-          lyricsText.value = item.lyrics.map(line => line.text || line).join("\n").trim();
-        }
-        if (typeof window.cargarLetrasEnMonitor === "function") window.cargarLetrasEnMonitor();
-        status.textContent = "Estado: Letra cargada en el Monitor ⚡";
-      } else {
-        if (lyricsText) lyricsText.value = "";
-        status.textContent = "Estado: El archivo de texto seleccionado está vacío";
-      }
-      return;
-    }
-
-    // FLUJO DE AUDIO (Voz o Grabación de apoyo)
+    // ✅ LIMPIEZA: Se eliminó el bloque 'if (item.type === "texto")' de aquí adentro.
+    // Ahora esta función procesa puramente audio de voz/grabación de forma veloz.
     selectedVoiceBlob = item.file_url || item.audioBlob;
     selectedVoiceId = item.id;
     player.src = item.file_url || item.audioBlob || "";
     status.textContent = `Estado: voz seleccionada -> ${item.name}`;
 
-    // Eliminada por completo la verificación de transcripción automática (transcription)
     if (lyricsText && item.textoPlano) {
       lyricsText.value = item.textoPlano;
     }
@@ -260,24 +239,19 @@ export async function loadSelectedVoiceFromLibrary() {
 
   } catch (error) {
     console.error(error);
-    alert("❌ No se pudo cargar el archivo seleccionado");
+    alert("❌ No se pudo cargar el archivo de voz seleccionado");
   }
 }
 
 export async function loadTextOptionsInStudio() {
-  // 💡 Cambia "textLibrarySelect" por el ID real que tenga el selector azul de tu imagen
-  const select = document.getElementById("textLibrarySelect") || document.querySelector("select[id*='text']");
-  if (!select) {
-    console.warn("⚠️ No se encontró el elemento select para las letras en el HTML.");
-    return;
-  }
+  const select = $("textLibrarySelect"); // Tu id exacto del HTML
+  if (!select) return;
 
-  select.innerHTML = `<option value="">Selecciona una letra desde Biblioteca</option>`;
+  select.innerHTML = `<option value="">Selecciona un archivo</option>`;
   try {
-    // Jalamos los archivos categorizados como texto desde Supabase
     const items = await getLibraryItemsByTypeFromSupabase("texto");
     
-    // Imprimimos la traza oficial en tu consola para verificar el flujo en verde
+    // Traza para ver en la consola que ya busca el texto en verde
     console.log(`🔍 Buscando letras ('texto'): se encontraron ${items.length} coincidencias.`);
 
     if (!items.length) {
@@ -291,14 +265,17 @@ export async function loadTextOptionsInStudio() {
     items.forEach(item => {
       const option = document.createElement("option");
       option.value = item.id;
-      option.textContent = `${item.name}`;
+      option.textContent = item.name;
       select.appendChild(option);
     });
   } catch (e) {
-    console.error("❌ Error al cargar letras en el Estudio:", e);
+    console.error("❌ Error al rellenar el menú de letras:", e);
   }
 }
 
+/**
+ * 2. CARGAR LA LETRA SELECCIONADA EN EL MONITOR (Se ejecuta al pulsar el botón rosa)
+ */
 export async function loadSelectedTextFromLibrary() {
   const select = $("textLibrarySelect");
   const status = $("selectedTextStatus");
@@ -340,7 +317,6 @@ export async function loadSelectedTextFromLibrary() {
       textInput.value = textoFormateadoParaPantalla;
       status.innerHTML = `📄 <strong>Estado:</strong> Letra cargada respetando tus líneas de estrofa original ⚡`;
     } else if (item.textoPlano) {
-      // Si el ítem solo tiene el string plano guardado, lo inyectamos directamente
       textInput.value = item.textoPlano;
       status.innerHTML = `📄 <strong>Estado:</strong> Letra plana cargada en el monitor ⚡`;
     } else {
