@@ -102,8 +102,18 @@ export async function deleteLibraryItemsFromSupabase(id) {
 export async function getLibraryItemsByTypeFromSupabase(type) {
   if (!db) await initSupabase();
   try {
-    const { data, error } = await db.from('library').select('*').eq('type', type);
+    // ✅ PERMISOS FLEXIBLES: Si el frontend pide "texto", buscamos tanto "texto" como "letra" en Supabase
+    let query = db.from('library').select('*');
+    
+    if (type === "texto" || type === "letra") {
+      query = query.or(`type.eq.texto,type.eq.letra,type.eq.texto_plano`);
+    } else {
+      query = query.eq('type', type);
+    }
+
+    const { data, error } = await query;
     if (error) throw new Error(`❌ Error de Supabase: ${error.message}`);
+    
     console.log(`🔍 Buscando '${type}': se encontraron ${data.length} coincidencias.`);
     return data;
   } catch (error) {
