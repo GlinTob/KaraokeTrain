@@ -1,539 +1,428 @@
-/**
- * MÓDULO INTEGRADO DE MONITOR DE KARAOKE (MODO SOLO & DÚO SPLIT)
- * Soporta Canvas de 1800x600px, escala de 10 notas, avatares/íconos dinámicos,
- * rastro de pitch suave, detección dual y teleprompter compartido.
- */
-import { $, safeAdd } from "../script.js";
-
-let pitchHistory = [];
-let karaokePitchDetectionAudioCtx = null;
-let karaokePitchDetectionAnalyser = null;
-let karaokePitchLoopRafId = null;
-let karaokePitchSourceNode = null;
-let karaokePitchWorkletNode = null;
-
-/**
- * Conmuta el modo Dúo Split ON/OFF
- */
-function toggleKaraokeDuoSplitMode() {
-  window.karaokeDuoSplitMode = !window.karaokeDuoSplitMode;
-  const btn = $("karaokeDuoSplitToggleBtn");
-  if (btn) {
-    btn.textContent = window.karaokeDuoSplitMode ? "🎤🎤 Modo Dúo Split: ON" : "🎤🎤 Modo Dúo Split: OFF";
-    btn.style.background = window.karaokeDuoSplitMode ? "#22c55e" : "#3b82f6";
-  }
-
-  if (window.karaokeDuoSplitMode) {
-    ensureP2PitchTracking();
-  } else {
-    stopP2PitchTracking();
-  }
-
-  if (window.karaokeRendererInstance) {
-    const track = $("karaokeTrack");
-    const t = track ? track.currentTime : 0;
-    window.karaokeRendererInstance.render(t, window.karaokePitchP1, window.karaokePitchP2);
-  }
-}
-
-/**
- * Inicia el seguimiento de pitch para el Micrófono 2 (Cantante 2)
- */
-async function ensureP2PitchTracking() {
-  if (window.karaokeDuoAnalyser2 && window.karaokeDuoAudioContext) {
-    karaokeSplitAnalyser2 = window.karaokeDuoAnalyser2;
-    karaokeSplitAudioCtx = window.karaokeDuoAudioContext;
-    return;
-  }
-  if (karaokeSplitAnalyser2) return;
-
-  try {
-    const mic2Id = (typeof window.getSelectedMicId === "function") ? window.getSelectedMicId(2) : null;
-    if (!mic2Id) {
-      console.warn("[DuoSplit] No hay Mic 2 seleccionado en la configuración.");
-      return;
-    }
-    if (!karaokeSplitAudioCtx) {
-      karaokeSplitAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    }
-    karaokeSplitStream2 = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        deviceId: { exact: mic2Id },
-        echoCancellation: false,
-        noiseSuppression: false,
-        autoGainControl: false
-      }
-    });
-    const src2 = karaokeSplitAudioCtx.createMediaStreamSource(karaokeSplitStream2);
-    karaokeSplitAnalyser2 = karaokeSplitAudioCtx.createAnalyser();
-    karaokeSplitAnalyser2.fftSize = 2048;
-    src2.connect(karaokeSplitAnalyser2);
-    console.log("[DuoSplit] Pitch tracking del Mic 2 iniciado correctamente.");
-  } catch (e) {
-    console.warn("No se pudo iniciar pitch tracking en Mic 2 (P2):", e);
-  }
-}
-
-/**
- * Detiene el rastreo de audio del Micrófono 2
- */
-function stopP2PitchTracking() {
-  try {
-    if (karaokeSplitStream2) {
-      karaokeSplitStream2.getTracks().forEach(t => t.stop());
-    }
-  } catch (e) {}
-  karaokeSplitStream2 = null;
-  karaokeSplitAnalyser2 = null;
-  window.karaokePitchP2 = -1;
-  window.pitchHistoryMic2 = [];
-}
-
-
-// --- CLASE PRINCIPAL DEL RENDERIZADOR ---
-
-export class KaraokeCanvasRenderer {
-  constructor(canvasId, options = {}) {
-    this.canvas = typeof canvasId === 'string' ? document.getElementById(canvasId) : canvasId;
-    if (!this.canvas) throw new Error(`Canvas no encontrado`);
-    this.ctx = this.canvas.getContext('2d');
-
-    // Configuración por defecto y calibración para monitor 1800x600px
-    this.options = { maxFrameRate: options.maxFrameRate || 30, ...options };
-    this.lastFrameTime = 0;
-    this.frameInterval = 1000 / this.options.maxFrameRate;
-
-    // Escala fija de 10 notas requerida: A4 (69) a F3 (53)
-    this.noteLabels = ["A4", "G4", "F4", "E4", "D4", "C4", "B3", "A3", "G3", "F3"];
-    this.midiMax = 69; // A4
-    this.midiMin = 53; // F3
-    this.midiRange = this.midiMax - this.midiMin;
-
-    window.karaokeRendererInstance = this;
-  }
-
-  shouldRender() {
-    const now = performance.now();
-    if (now - this.lastFrameTime < this.frameInterval) return false;
-    this.lastFrameTime = now;
-    return true;
-  }
-
-  frequencyToMidi(freq) {
-    if (!freq || freq <= 0) return 0;
-    return Math.round(12 * Math.log2(freq / 440) + 69);
-  }
-
-  midiToY(midi, pTop, pBottom) {
-    let m = midi || 60;
-    if (m < this.midiMin) m = this.midiMin;
-    if (m > this.midiMax) m = this.midiMax;
-
-    const pHeight = pBottom - pTop;
-    const normalized = (this.midiMax - m) / this.midiRange;
-    return pTop + normalized * pHeight;
-  }
-
-  obtenerPaletaTema(hue = 0) {
-    const temaActual = localStorage.getItem("singIt_stage") || localStorage.getItem("vocalApp_stage") || "theme-clasico";
-    const fuenteBase = localStorage.getItem("singIt_font") || "Arial";
-
-    let config = {
-      fondo: "#111827",
-      lineas: "#333333",
-      etiquetas: "#9ca3af",
-      barraFutura: "#1e40af",
-      bordeFuturo: "#3b82f6",
-      fuente: fuenteBase,
-      tamanoTexto: "16px"
-    };
-
-    if (temaActual === "theme-moderno") {
-      config = { fondo: "#082f49", lineas: "rgba(6, 182, 212, 0.2)", etiquetas: "#06b6d4", barraFutura: "#1e3a8a", bordeFuturo: "#06b6d4", fuente: fuenteBase, tamanoTexto: "16px" };
-    } else if (temaActual === "theme-disco") {
-      config = { fondo: "#2e1065", lineas: "rgba(219, 39, 119, 0.25)", etiquetas: "#facc15", barraFutura: "#701a75", bordeFuturo: "#db2777", fuente: fuenteBase, tamanoTexto: "18px" };
-    } else if (temaActual === "theme-acustico") {
-      config = { fondo: "#451a03", lineas: "rgba(120, 53, 15, 0.4)", etiquetas: "#fcd34d", barraFutura: "#78350f", bordeFuturo: "#b45309", fuente: fuenteBase, tamanoTexto: "15px" };
-    } else if (temaActual === "theme-fiesta") {
-      config = {
-        fondo: `hsl(${hue}, 40%, 12%)`,
-        lineas: "rgba(255, 255, 255, 0.15)",
-        etiquetas: "#ff007f",
-        barraFutura: `hsl(${(hue + 180) % 360}, 50%, 25%)`,
-        bordeFuturo: `hsl(${(hue + 180) % 360}, 70%, 50%)`,
-        fuente: fuenteBase,
-        tamanoTexto: "18px"
-      };
-    } else if (temaActual === "theme-retrowave") {
-      config = { fondo: "#1e0b36", lineas: "rgba(255, 0, 127, 0.25)", etiquetas: "#38bdf8", barraFutura: "#4c1d95", bordeFuturo: "#ff007f", fuente: fuenteBase, tamanoTexto: "16px" };
-    }
-    return config;
-  }
-
-  /**
-   * Dibuja el bloque lateral de Avatar e Íconos configurables
-   */
-  drawAvatarBlock(pTop, pBottom, parte) {
-    if (!parte) return;
-    const isP1 = (parte === "C1" || parte === "P1");
-
-    // Datos configurables desde la pestaña de configuración (localStorage)
-    const nombre = isP1 
-      ? (localStorage.getItem("singIt_c1_name") || "Wen-dolyne")
-      : (localStorage.getItem("singIt_c2_name") || "To-bonito");
-    
-    const avatarEmoji = isP1 
-      ? (localStorage.getItem("singIt_c1_avatar") || "👩")
-      : (localStorage.getItem("singIt_c2_avatar") || "🧔🏾");
-
-    const icon1 = isP1 
-      ? (localStorage.getItem("singIt_c1_icon1") || "SQUARE_PURPLE")
-      : (localStorage.getItem("singIt_c2_icon1") || "🐱");
-
-    const icon2 = isP1 
-      ? (localStorage.getItem("singIt_c1_icon2") || "⚛️")
-      : (localStorage.getItem("singIt_c2_icon2") || "🤔");
-
-    const cx = 60;
-    const blockTop = pTop + 8;
-    const avatarSize = 48;
-    const halfSize = 24;
-    const nameH = 20;
-    const gap = 4;
-
-    // 1) Nombre arriba
-    this.ctx.fillStyle = "#ffffff";
-    this.ctx.font = `bold 15px ${localStorage.getItem("singIt_font") || "Arial"}`;
-    this.ctx.textAlign = "center";
-    this.ctx.textBaseline = "alphabetic";
-    this.ctx.fillText(nombre, cx, blockTop + nameH);
-
-    // 2) Avatar Emoji al centro (sin círculo)
-    const avTop = blockTop + nameH + gap;
-    this.ctx.font = `${avatarSize}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",Arial`;
-    this.ctx.textAlign = "center";
-    this.ctx.textBaseline = "middle";
-    this.ctx.fillText(avatarEmoji, cx, avTop + avatarSize / 2);
-
-    // 3) Fila inferior con 2 íconos seleccionables
-    const rowTop = avTop + avatarSize + gap;
-    const iconFont = `${halfSize}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",Arial`;
-
-    // Ícono 1
-    if (icon1 === "SQUARE_PURPLE") {
-      const sqX = cx - halfSize - 4;
-      this.ctx.fillStyle = "#7c3aed";
-      this.ctx.fillRect(sqX, rowTop, halfSize, halfSize);
-      this.ctx.strokeStyle = "#a855f7";
-      this.ctx.lineWidth = 1;
-      this.ctx.strokeRect(sqX, rowTop, halfSize, halfSize);
-    } else {
-      this.ctx.font = iconFont;
-      this.ctx.textAlign = "center";
-      this.ctx.textBaseline = "middle";
-      this.ctx.fillText(icon1, cx - halfSize / 2 - 2, rowTop + halfSize / 2);
-    }
-
-    // Ícono 2
-    this.ctx.font = iconFont;
-    this.ctx.textAlign = "center";
-    this.ctx.textBaseline = "middle";
-    this.ctx.fillText(icon2, cx + halfSize / 2 + 2, rowTop + halfSize / 2);
-
-    this.ctx.textBaseline = "alphabetic";
-  }
-
-  /**
-   * Dibuja el rastro continuo del pitch del usuario (Fading Trail)
-   */
-  _drawPitchTrace(history, rgbStr, lineWidth, pTop, pBottom, startX) {
-    if (!history || history.length === 0) return;
-
-    const VISIBLE_SAMPLES = 75;
-    const start = Math.max(0, history.length - VISIBLE_SAMPLES);
-    const visible = history.slice(start);
-    const totalSlots = visible.length;
-    if (totalSlots < 2) return;
-
-    const lineX = Math.max(80, Math.floor(this.canvas.width * 0.22));
-    const traceWidth = lineX - startX;
-    const slotWidth = traceWidth / VISIBLE_SAMPLES;
-
-    this.ctx.lineCap = "round";
-    this.ctx.lineJoin = "round";
-
-    let prevX = null, prevY = null;
-    for (let i = 0; i < totalSlots; i++) {
-      const freq = visible[i];
-      if (!freq || freq <= 0) { prevX = null; prevY = null; continue; }
-
-      const midi = this.frequencyToMidi(freq);
-      const y = this.midiToY(midi, pTop, pBottom);
-      const x = startX + (i + (VISIBLE_SAMPLES - totalSlots)) * slotWidth;
-
-      if (prevX !== null) {
-        const alpha = Math.pow(i / (totalSlots - 1), 1.6);
-        this.ctx.beginPath();
-        this.ctx.strokeStyle = `rgba(${rgbStr}, ${alpha.toFixed(3)})`;
-        this.ctx.lineWidth = lineWidth;
-        this.ctx.moveTo(prevX, prevY);
-        this.ctx.lineTo(x, y);
-        this.ctx.stroke();
-      }
-      prevX = x; prevY = y;
-    }
-  }
-
-  /**
-   * Renderiza una región del pentagrama (Modo Solo o Split)
-   */
-  drawRegion(pTop, pBottom, pitchVal, pitchHist, parteFiltro, etiquetaParte, paleta, segmentosLetras, currentTime) {
-    const isSplit = window.karaokeDuoSplitMode;
-    const avatarBlockW = isSplit ? 120 : 0;
-    const noteLabelsX = 28 + avatarBlockW;
-    const pentagramStartX = 35 + avatarBlockW;
-    const lineX = Math.max(80 + avatarBlockW, Math.floor(this.canvas.width * 0.22));
-    const pixelsPerSecond = (this.canvas.width - 50 - avatarBlockW) / 6;
-
-    // 1. Dibujar Avatares e Íconos
-    if (isSplit) {
-      this.drawAvatarBlock(pTop, pBottom, etiquetaParte);
-    }
-
-    // 2. Pentagrama de 5 líneas estructuradas con espacio proporcional para 10 notas
-    const pHeight = pBottom - pTop;
-    this.ctx.strokeStyle = paleta.lineas;
-    this.ctx.lineWidth = 1;
-    const numLines = 5;
-    for (let i = 0; i < numLines; i++) {
-      const y = pTop + (pHeight / (numLines - 1)) * i;
-      this.ctx.beginPath();
-      this.ctx.moveTo(pentagramStartX, y);
-      this.ctx.lineTo(this.canvas.width, y);
-      this.ctx.stroke();
-    }
-
-    // 3. Escala de 10 Notas requeridas: ["A4","G4","F4","E4","D4","C4","B3","A3","G3","F3"]
-    this.ctx.fillStyle = paleta.etiquetas;
-    this.ctx.font = `bold 18px ${paleta.fuente}`;
-    this.ctx.textAlign = "right";
-    this.ctx.textBaseline = "middle";
-
-    const totalNotes = this.noteLabels.length;
-    this.noteLabels.forEach((label, i) => {
-      const y = pTop + (pHeight / (totalNotes - 1)) * i;
-      this.ctx.fillText(label, noteLabelsX, y);
-    });
-
-    // 4. Barras de Notas y Letras
-    if (Array.isArray(segmentosLetras) && segmentosLetras.length > 0) {
-      const timeWindowStart = currentTime - 1;
-      const timeWindowEnd = currentTime + 6;
-
-      segmentosLetras.forEach((segment) => {
-        const parteSeg = segment.parte || "C1";
-        if (parteFiltro && parteSeg !== parteFiltro && parteSeg !== "DUO" && parteSeg !== "DÚO") return;
-
-        const words = Array.isArray(segment.words) ? segment.words : [];
-        words.forEach((word) => {
-          const wStart = word.start || word.startTime || segment.start || 0;
-          const wEnd = word.end || (wStart + (word.duration || 0.5));
-
-          if (wEnd < timeWindowStart || wStart > timeWindowEnd) return;
-
-          const wordStartX = lineX + (wStart - currentTime) * pixelsPerSecond;
-          const wordEndX = lineX + (wEnd - currentTime) * pixelsPerSecond;
-          const barWidth = Math.max(wordEndX - wordStartX, 35);
-
-          const midi = word.midi || segment.midi || 60;
-          const barY = this.midiToY(midi, pTop, pBottom);
-          const barHeight = 22;
-
-          const isActive = currentTime >= wStart && currentTime <= wEnd;
-          const isPast = currentTime > wEnd;
-
-          let isCorrect = false;
-          if (isActive && pitchVal > 0) {
-            const userMidi = this.frequencyToMidi(pitchVal);
-            if (Math.abs(userMidi - midi) <= 2) isCorrect = true;
-          }
-
-          let barColor, textColor, borderColor;
-          if (isPast) {
-            barColor = "#4b5563"; // Nota inactiva / ya cantada
-            textColor = "#9ca3af";
-            borderColor = "#6b7280";
-          } else if (isActive) {
-            barColor = isCorrect ? "#22c55e" : "#3b82f6";
-            textColor = "#ffffff";
-            borderColor = isCorrect ? "#4ade80" : "#60a5fa";
-          } else {
-            barColor = (parteSeg === "DUO" || parteSeg === "DÚO") ? "#7c3aed" : paleta.barraFutura;
-            textColor = "rgba(255, 255, 255, 0.85)";
-            borderColor = (parteSeg === "DUO" || parteSeg === "DÚO") ? "#a855f7" : paleta.bordeFuturo;
-          }
-
-          this.ctx.fillStyle = barColor;
-          this.ctx.strokeStyle = borderColor;
-          this.ctx.lineWidth = isActive ? 2 : 1;
-
-          this.ctx.beginPath();
-          if (this.ctx.roundRect) {
-            this.ctx.roundRect(wordStartX, barY - barHeight / 2, barWidth, barHeight, 5);
-          } else {
-            this.ctx.fillRect(wordStartX, barY - barHeight / 2, barWidth, barHeight);
-          }
-          this.ctx.fill();
-          this.ctx.stroke();
-
-          // Texto de la sílaba/palabra sobre la barra
-          this.ctx.fillStyle = textColor;
-          this.ctx.textAlign = "center";
-          this.ctx.textBaseline = "middle";
-          const displayWord = word.word || word.text || "";
-          this.ctx.font = `${isActive ? "bold " : ""}${displayWord.length > 8 ? "18" : "22"}px ${paleta.fuente}`;
-          this.ctx.fillText(displayWord, wordStartX + barWidth / 2, barY);
-        });
-      });
-    }
-
-    // 5. Rastro de Pitch (Fading Trail) por región
-    const traceColor = (etiquetaParte === "C2" || etiquetaParte === "P2") ? "6, 182, 212" : "250, 204, 21";
-    this._drawPitchTrace(pitchHist, traceColor, 5, pTop, pBottom, pentagramStartX);
-
-    // 6. Punto Flotante del Usuario en la línea de tiempo
-    if (typeof pitchVal === 'number' && isFinite(pitchVal) && pitchVal > 0) {
-      const userY = this.midiToY(this.frequencyToMidi(pitchVal), pTop, pBottom);
-      const dotColor = (etiquetaParte === "C2" || etiquetaParte === "P2") ? "#06b6d4" : "#facc15";
-
-      this.ctx.beginPath();
-      this.ctx.fillStyle = dotColor;
-      this.ctx.shadowColor = dotColor;
-      this.ctx.shadowBlur = 15;
-      this.ctx.arc(lineX, userY, 12, 0, Math.PI * 2);
-      this.ctx.fill();
-      this.ctx.shadowBlur = 0;
-      this.ctx.strokeStyle = "#ffffff";
-      this.ctx.lineWidth = 2.5;
-      this.ctx.stroke();
-    }
-
-    // 7. Línea Roja de Separación (Playhead "Ahora")
-    this.ctx.strokeStyle = "#ef4444";
-    this.ctx.lineWidth = 2;
-    this.ctx.beginPath();
-    this.ctx.moveTo(lineX, pTop);
-    this.ctx.lineTo(lineX, pBottom);
-    this.ctx.stroke();
-  }
-
-  /**
-   * Método de renderizado principal
-   */
-  render(currentTime = 0, currentFreq = -1, currentFreq2 = -1, transcriptionSegments = null) {
-    if (!this.shouldRender()) return;
-
-    const hueFiesta = (currentTime * 40) % 360;
-    const paleta = this.obtenerPaletaTema(hueFiesta);
-
-    // Actualización de variables de tono e historial
-    if (typeof currentFreq === "number") window.karaokePitchP1 = currentFreq;
-    if (typeof currentFreq2 === "number") window.karaokePitchP2 = currentFreq2;
-
-    const freq1 = window.karaokePitchP1;
-    const freq2 = window.karaokePitchP2;
-
-    window.pitchHistoryMic1.push(freq1 > 0 ? freq1 : null);
-    window.pitchHistoryMic2.push(freq2 > 0 ? freq2 : null);
-
-    const maxHistory = 80;
-    if (window.pitchHistoryMic1.length > maxHistory) window.pitchHistoryMic1.shift();
-    if (window.pitchHistoryMic2.length > maxHistory) window.pitchHistoryMic2.shift();
-
-    const segmentosLetras = transcriptionSegments || window.transcriptionSegments || window.textSegments || [];
-
-    // Limpieza general del fondo
-    this.ctx.fillStyle = paleta.fondo;
-    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-
-    // DIBUJO SEGÚN MODO (SOLO vs DÚO SPLIT)
-    if (window.karaokeDuoSplitMode) {
-      const TELE_H = 95;
-      const GAP = 12;
-      const totalUsable = this.canvas.height - TELE_H - 15;
-      const regionH = (totalUsable - GAP) / 2;
-
-      const topC1 = 15;
-      const bottomC1 = topC1 + regionH;
-      const topC2 = bottomC1 + GAP;
-      const bottomC2 = topC2 + regionH;
-
-      // Línea divisoria central entre mitades
-      this.ctx.fillStyle = "rgba(255, 255, 255, 0.08)";
-      this.ctx.fillRect(0, bottomC1 + 2, this.canvas.width, GAP - 4);
-
-      // Render Región C1 (Arriba)
-      this.drawRegion(topC1, bottomC1, freq1, window.pitchHistoryMic1, "C1", "C1", paleta, segmentosLetras, currentTime);
-
-      // Render Región C2 (Abajo)
-      this.drawRegion(topC2, bottomC2, freq2, window.pitchHistoryMic2, "C2", "C2", paleta, segmentosLetras, currentTime);
-    } else {
-      // Modo Clásico (Región Única)
-      const topP = 35;
-      const bottomP = this.canvas.height - 110;
-      this.drawRegion(topP, bottomP, freq1, window.pitchHistoryMic1, null, null, paleta, segmentosLetras, currentTime);
-    }
-
-    // TELEPROMPTER COMPARTIDO FIXO (Línea inferior compartida)
-    if (Array.isArray(segmentosLetras) && segmentosLetras.length > 0) {
-      const idx = segmentosLetras.findIndex(s => currentTime >= (s.start || 0) && currentTime <= (s.end || ((s.start || 0) + 1.5)));
-
-      const teleHeight = 90;
-      const teleTop = this.canvas.height - teleHeight;
-
-      this.ctx.fillStyle = "rgba(0, 0, 0, 0.85)";
-      this.ctx.fillRect(0, teleTop, this.canvas.width, teleHeight);
-
-      if (idx !== -1) {
-        this.ctx.textAlign = "center";
-        this.ctx.textBaseline = "middle";
-
-        // Prefijo por cantante en modo split
-        const parteActual = segmentosLetras[idx].parte || "C1";
-        let prefijo = "";
-        if (window.karaokeDuoSplitMode) {
-          prefijo = (parteActual === "DUO" || parteActual === "DÚO") 
-            ? "🟪 DÚO · " 
-            : (parteActual === "C2" || parteActual === "P2" ? "🟧 C2 · " : "🟦 C1 · ");
-        }
-
-        // Línea Actual (Principal)
-        this.ctx.fillStyle = "#ffffff";
-        this.ctx.font = `bold 28px ${paleta.fuente}`;
-        this.ctx.fillText(prefijo + (segmentosLetras[idx].text || ""), this.canvas.width / 2, teleTop + 32);
-
-        // Línea Siguiente (Preview)
-        if (segmentosLetras[idx + 1]) {
-          this.ctx.fillStyle = "#94a3b8";
-          this.ctx.font = `italic 20px ${paleta.fuente}`;
-          this.ctx.fillText(segmentosLetras[idx + 1].text || "", this.canvas.width / 2, teleTop + 68);
-        }
-      }
-    }
-  }
-
-  handleResize() {
-    // Recalcular métricas en caso de cambio de dimensión del viewport
-    this.lastFrameTime = 0;
-  }
-}
-
-// Función global de retrocompatibilidad
-window.drawKaraokeMonitor = function(currentTime, currentFreq, currentFreq2) {
-  if (window.karaokeRendererInstance) {
-    window.karaokeRendererInstance.render(currentTime, currentFreq, currentFreq2);
+// ============================================================================
+// MONITOR KARAOKE CANVAS (1800x600px) - MÓDULO ES6 COMPATIBLE
+// ============================================================================
+
+const $ = (id) => document.getElementById(id);
+
+// --- ESTADO Y CONFIGURACIÓN DEL MONITOR ---
+let monitorConfig = {
+  width: 1800,
+  height: 600,
+  fontFamily: "Arial, sans-serif",
+  fontSize: 20,
+  activeLyricColor: "#00ffcc",
+  inactiveLyricColor: "#888888",
+  pastLyricColor: "#444444",
+  noteBarColor: "#ff007f",
+  activeNoteBarColor: "#00ffcc",
+  pitchLineColorP1: "#00e5ff",
+  pitchLineColorP2: "#ff0055",
+  pitchDotColorP1: "#ffffff",
+  pitchDotColorP2: "#ffffff",
+  separatorColor: "#ff0000",
+  duoSplitMode: true,
+  
+  c1AvatarUrl: "",
+  c1Icon1Url: "",
+  c1Icon2Url: "",
+  c2AvatarUrl: "",
+  c2Icon1Url: "",
+  c2Icon2Url: "",
+  
+  images: {
+    c1Avatar: null,
+    c1Icon1: null,
+    c1Icon2: null,
+    c2Avatar: null,
+    c2Icon1: null,
+    c2Icon2: null
   }
 };
+
+let currentLyricsSegments = [];
+let pitchHistoryP1 = [];
+let pitchHistoryP2 = [];
+const MAX_PITCH_HISTORY = 120;
+
+const NOTE_SCALE = ["A4", "G4", "F4", "E4", "D4", "C4", "B3", "A3", "G3", "F3"];
+
+function loadImage(url) {
+  if (!url) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = url;
+  });
+}
+
+export async function updateMonitorConfig(newConfig = {}) {
+  monitorConfig = { ...monitorConfig, ...newConfig };
+
+  if (newConfig.c1AvatarUrl) monitorConfig.images.c1Avatar = await loadImage(newConfig.c1AvatarUrl);
+  if (newConfig.c1Icon1Url) monitorConfig.images.c1Icon1 = await loadImage(newConfig.c1Icon1Url);
+  if (newConfig.c1Icon2Url) monitorConfig.images.c1Icon2 = await loadImage(newConfig.c1Icon2Url);
+  if (newConfig.c2AvatarUrl) monitorConfig.images.c2Avatar = await loadImage(newConfig.c2AvatarUrl);
+  if (newConfig.c2Icon1Url) monitorConfig.images.c2Icon1 = await loadImage(newConfig.c2Icon1Url);
+  if (newConfig.c2Icon2Url) monitorConfig.images.c2Icon2 = await loadImage(newConfig.c2Icon2Url);
+}
+
+export function cargarLetrasEnMonitor(segments = []) {
+  currentLyricsSegments = Array.isArray(segments) ? segments : [];
+}
+
+export function limpiarVariablesMonitor() {
+  pitchHistoryP1 = [];
+  pitchHistoryP2 = [];
+  currentLyricsSegments = [];
+}
+
+export const resetMonitorHistories = limpiarVariablesMonitor;
+
+function convertFrequencyToNoteName(freq) {
+  if (!freq || freq <= 0) return null;
+  const A4 = 440;
+  const noteNames = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+  const midi = Math.round(12 * Math.log2(freq / A4)) + 69;
+  const noteIndex = (midi % 12 + 12) % 12;
+  const octave = Math.floor(midi / 12) - 1;
+  return `${noteNames[noteIndex]}${octave}`;
+}
+
+function getNoteY(noteName, topY, height) {
+  if (!noteName) return null;
+  const cleanNote = noteName.trim().toUpperCase();
+  const index = NOTE_SCALE.indexOf(cleanNote);
+  if (index === -1) return null;
+
+  const step = height / (NOTE_SCALE.length + 1);
+  return topY + step * (index + 1);
+}
+
+function drawPentagram(ctx, x, topY, width, height) {
+  ctx.save();
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.25)";
+  ctx.lineWidth = 1.5;
+
+  const pentagramNotes = ["G4", "E4", "C4", "A3", "F3"];
+  pentagramNotes.forEach((note) => {
+    const y = getNoteY(note, topY, height);
+    if (y !== null) {
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + width, y);
+      ctx.stroke();
+    }
+  });
+
+  ctx.restore();
+}
+
+function drawAvatarAndIcons(ctx, x, y, avatarImg, icon1Img, icon2Img, label) {
+  ctx.save();
+  
+  const avatarSize = 50;
+  ctx.beginPath();
+  ctx.arc(x + avatarSize / 2, y + avatarSize / 2, avatarSize / 2, 0, Math.PI * 2);
+  ctx.clip();
+
+  if (avatarImg) {
+    ctx.drawImage(avatarImg, x, y, avatarSize, avatarSize);
+  } else {
+    ctx.fillStyle = "#333333";
+    ctx.fill();
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 14px " + monitorConfig.fontFamily;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(label, x + avatarSize / 2, y + avatarSize / 2);
+  }
+  ctx.restore();
+
+  const iconSize = 24;
+  if (icon1Img) {
+    ctx.drawImage(icon1Img, x + avatarSize + 10, y + 13, iconSize, iconSize);
+  }
+  if (icon2Img) {
+    ctx.drawImage(icon2Img, x + avatarSize + 40, y + 13, iconSize, iconSize);
+  }
+}
+
+function drawPitchTrail(ctx, pitchHistory, topY, height, regionX, regionWidth, colorLine, colorDot) {
+  if (!pitchHistory || pitchHistory.length < 2) return;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.strokeStyle = colorLine;
+  ctx.lineWidth = 3;
+
+  let lastX = null;
+  let lastY = null;
+
+  const stepX = regionWidth / MAX_PITCH_HISTORY;
+
+  for (let i = 0; i < pitchHistory.length; i++) {
+    const freq = pitchHistory[i];
+    const x = regionX + i * stepX;
+
+    if (freq > 0) {
+      const noteName = convertFrequencyToNoteName(freq);
+      const y = getNoteY(noteName, topY, height);
+
+      if (y !== null) {
+        if (lastX === null) {
+          ctx.moveTo(x, y);
+        } else {
+          ctx.lineTo(x, y);
+        }
+        lastX = x;
+        lastY = y;
+      }
+    }
+  }
+  ctx.stroke();
+
+  if (lastX !== null && lastY !== null) {
+    ctx.beginPath();
+    ctx.arc(lastX, lastY, 7, 0, Math.PI * 2);
+    ctx.fillStyle = colorDot;
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = colorLine;
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+function drawTeleprompter(ctx, lyricsSegments, currentTime, x, y, width, height) {
+  ctx.save();
+  ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+  ctx.fillRect(x, y, width, height);
+
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.1)";
+  ctx.strokeRect(x, y, width, height);
+
+  let currentLineText = "Música en espera...";
+  let nextLineText = "";
+
+  if (Array.isArray(lyricsSegments) && lyricsSegments.length > 0) {
+    for (let i = 0; i < lyricsSegments.length; i++) {
+      const seg = lyricsSegments[i];
+      if (currentTime >= seg.start && currentTime <= seg.end + 1.0) {
+        currentLineText = seg.text || seg.words?.map(w => w.word).join("") || "";
+        if (lyricsSegments[i + 1]) {
+          nextLineText = lyricsSegments[i + 1].text || lyricsSegments[i + 1].words?.map(w => w.word).join("") || "";
+        }
+        break;
+      }
+    }
+  }
+
+  ctx.font = `bold 22px ${monitorConfig.fontFamily}`;
+  ctx.fillStyle = monitorConfig.activeLyricColor;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(currentLineText, x + width / 2, y + height / 3 + 2);
+
+  if (nextLineText) {
+    ctx.font = `16px ${monitorConfig.fontFamily}`;
+    ctx.fillStyle = monitorConfig.inactiveLyricColor;
+    ctx.fillText(nextLineText, x + width / 2, y + (height * 3) / 4);
+  }
+
+  ctx.restore();
+}
+
+function drawNotesAndLyrics(ctx, segments, currentTime, regionX, regionY, regionWidth, regionHeight) {
+  if (!Array.isArray(segments) || !segments.length) return;
+
+  ctx.save();
+  const timeWindow = 6;
+  const pixelsPerSecond = regionWidth / timeWindow;
+
+  segments.forEach((seg) => {
+    const words = seg.words || [{ word: seg.text, start: seg.start, end: seg.end, note: seg.note }];
+
+    words.forEach((w) => {
+      if (w.start > currentTime + timeWindow || w.end < currentTime - 2) return;
+
+      const startX = regionX + (w.start - currentTime + 2) * pixelsPerSecond;
+      const barWidth = Math.max((w.end - w.start) * pixelsPerSecond, 10);
+      const noteName = w.note || convertFrequencyToNoteName(w.pitch);
+      const y = getNoteY(noteName, regionY, regionHeight);
+
+      if (y !== null) {
+        const isActive = currentTime >= w.start && currentTime <= w.end;
+        const isPast = currentTime > w.end;
+
+        ctx.fillStyle = isActive
+          ? monitorConfig.activeNoteBarColor
+          : isPast
+          ? monitorConfig.pastLyricColor
+          : monitorConfig.noteBarColor;
+
+        ctx.beginPath();
+        ctx.roundRect(startX, y - 6, barWidth, 12, 4);
+        ctx.fill();
+
+        ctx.font = `bold 14px ${monitorConfig.fontFamily}`;
+        ctx.fillStyle = isActive
+          ? monitorConfig.activeLyricColor
+          : isPast
+          ? monitorConfig.pastLyricColor
+          : monitorConfig.inactiveLyricColor;
+
+        ctx.textAlign = "center";
+        ctx.fillText(w.word || "", startX + barWidth / 2, y - 10);
+      }
+    });
+  });
+
+  ctx.restore();
+}
+
+// ============================================================================
+// FUNCIÓN PRINCIPAL RENDERIZADORA (COMPATIBLE CON FIRMA ANTIGUA Y NUEVA)
+// ============================================================================
+
+export function drawKaraokeMonitor(arg1, arg2, arg3, arg4, arg5) {
+  let canvasTarget = null;
+  let currentTime = 0;
+  let pitchP1 = -1;
+  let pitchP2 = -1;
+  let lyricsSegments = currentLyricsSegments;
+
+  // Detección polimórfica de firma de llamada
+  if (typeof arg1 === "number") {
+    // Firma Antigua: (currentTime, pitchP1, pitchP2, [canvasTarget], [lyrics])
+    currentTime = arg1 || 0;
+    pitchP1 = arg2 ?? -1;
+    pitchP2 = arg3 ?? -1;
+    canvasTarget = arg4 || $("karaokeCanvas") || $("monitorCanvas") || document.querySelector("canvas");
+    if (Array.isArray(arg5)) lyricsSegments = arg5;
+  } else {
+    // Firma Nueva: (canvasIdOrElement, currentTime, pitchP1, pitchP2, [lyrics])
+    canvasTarget = arg1 || $("karaokeCanvas") || $("monitorCanvas") || document.querySelector("canvas");
+    currentTime = arg2 || 0;
+    pitchP1 = arg3 ?? -1;
+    pitchP2 = arg4 ?? -1;
+    if (Array.isArray(arg5)) lyricsSegments = arg5;
+  }
+
+  const canvas = typeof canvasTarget === "string" ? $(canvasTarget) : canvasTarget;
+  if (!canvas) return;
+
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
+  if (canvas.width !== monitorConfig.width) canvas.width = monitorConfig.width;
+  if (canvas.height !== monitorConfig.height) canvas.height = monitorConfig.height;
+
+  ctx.fillStyle = "#0d0e15";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  pitchHistoryP1.push(pitchP1);
+  if (pitchHistoryP1.length > MAX_PITCH_HISTORY) pitchHistoryP1.shift();
+
+  pitchHistoryP2.push(pitchP2);
+  if (pitchHistoryP2.length > MAX_PITCH_HISTORY) pitchHistoryP2.shift();
+
+  const teleprompterHeight = 70;
+  const mainY = teleprompterHeight + 10;
+  const mainHeight = canvas.height - mainY - 10;
+
+  if (monitorConfig.duoSplitMode) {
+    const halfHeight = mainHeight / 2 - 5;
+
+    // Región Cantante 1 (C1)
+    const c1TopY = mainY;
+    drawAvatarAndIcons(
+      ctx,
+      20,
+      c1TopY + 10,
+      monitorConfig.images.c1Avatar,
+      monitorConfig.images.c1Icon1,
+      monitorConfig.images.c1Icon2,
+      "C1"
+    );
+    drawPentagram(ctx, 150, c1TopY, canvas.width - 170, halfHeight);
+    drawNotesAndLyrics(ctx, lyricsSegments, currentTime, 150, c1TopY, canvas.width - 170, halfHeight);
+    drawPitchTrail(
+      ctx,
+      pitchHistoryP1,
+      c1TopY,
+      halfHeight,
+      150,
+      canvas.width - 170,
+      monitorConfig.pitchLineColorP1,
+      monitorConfig.pitchDotColorP1
+    );
+
+    // Separador Dúo Split
+    const separatorY = mainY + halfHeight + 5;
+    ctx.save();
+    ctx.strokeStyle = monitorConfig.separatorColor;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(20, separatorY);
+    ctx.lineTo(canvas.width - 20, separatorY);
+    ctx.stroke();
+    ctx.restore();
+
+    // Región Cantante 2 (C2)
+    const c2TopY = separatorY + 5;
+    drawAvatarAndIcons(
+      ctx,
+      20,
+      c2TopY + 10,
+      monitorConfig.images.c2Avatar,
+      monitorConfig.images.c2Icon1,
+      monitorConfig.images.c2Icon2,
+      "C2"
+    );
+    drawPentagram(ctx, 150, c2TopY, canvas.width - 170, halfHeight);
+    drawNotesAndLyrics(ctx, lyricsSegments, currentTime, 150, c2TopY, canvas.width - 170, halfHeight);
+    drawPitchTrail(
+      ctx,
+      pitchHistoryP2,
+      c2TopY,
+      halfHeight,
+      150,
+      canvas.width - 170,
+      monitorConfig.pitchLineColorP2,
+      monitorConfig.pitchDotColorP2
+    );
+
+  } else {
+    // Modo Unificado / Solo
+    drawAvatarAndIcons(
+      ctx,
+      20,
+      mainY + 10,
+      monitorConfig.images.c1Avatar,
+      monitorConfig.images.c1Icon1,
+      monitorConfig.images.c1Icon2,
+      "SOLO"
+    );
+    drawPentagram(ctx, 150, mainY, canvas.width - 170, mainHeight);
+    drawNotesAndLyrics(ctx, lyricsSegments, currentTime, 150, mainY, canvas.width - 170, mainHeight);
+    drawPitchTrail(
+      ctx,
+      pitchHistoryP1,
+      mainY,
+      mainHeight,
+      150,
+      canvas.width - 170,
+      monitorConfig.pitchLineColorP1,
+      monitorConfig.pitchDotColorP1
+    );
+  }
+
+  // Teleprompter Superior
+  drawTeleprompter(ctx, lyricsSegments, currentTime, 150, 5, canvas.width - 300, teleprompterHeight);
+}
 
 export async function startKaraokeRecording() {
   const track = $("karaokeTrack") || $("trackPlayer");
