@@ -129,17 +129,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     console.warn("⚠️ Advertencia inicializando Supabase:", err);
   }
 
-  // Verificar en modulo Config
-  function saveSetting(key, element) {
-  if (!element) return;
-  localStorage.setItem(key, element.value);
-  showSaveNotification();
-  }
-  
   const allKaraokeThemes = ['theme-clasico', 'theme-moderno', 'theme-disco', 'theme-acustico', 'theme-fiesta'];
-  //const temaGuardado = localStorage.getItem("vocalApp_theme") || "oscuro";
-  //document.documentElement.setAttribute("data-theme", temaGuardado);
-  //document.body.setAttribute("data-theme", temaGuardado);
+  const temaGuardado = localStorage.getItem("vocalApp_theme") || "oscuro";
+  document.documentElement.setAttribute("data-theme", temaGuardado);
+  document.body.setAttribute("data-theme", temaGuardado);
 
   function applyKaraokeTheme() {
     const theme = localStorage.getItem("vocalApp_stage") || "theme-clasico";
@@ -153,8 +146,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   applyKaraokeTheme();
 
   safeAdd("karaokeThemeSelect", "change", async (e) => {
-    saveSetting("vocalApp_stage", e.target);
-    //localStorage.setItem("vocalApp_stage", e.target.value);
+    localStorage.setItem("vocalApp_stage", e.target.value);
     applyKaraokeTheme();
   });
 
