@@ -1,65 +1,45 @@
-import { getAudioController } from './audio-controller.js';
+import { getAudioController } from './audio-controller.js'; 
 
-/**
- Hero-mode tuner needle with particle trail
+/** 
+ * AgujaViva — Hero-mode tuner needle with particle trail
  * Canvas 2D renderer, 60fps, theme-aware, no dependencies
  */
 
-const $ = (id) => document.getElementById(id);
+// Utilidad abreviada para buscar elementos del DOM
+const $ = (id) => document.getElementById(id); 
 
+// Estado de grabación global de la pestaña Afinador
 const state = {
   isRecording: false
-};
+}; 
 
-let afinadorVisual = null;
+// Instancias y buffers globales internos
+let agujaVivaInstance = null;
 let pitchLoopTimeout = null;
 const pitchBuffer = new Float32Array(2048);
 let audioContext = null;
 let analyser = null;
-let stream = null;
+let stream = null; 
 
-// ==========================================================
-// UTILIDADES MUSICALES
-// ==========================================================
-
+// Auxiliares matemáticos
 function frequencyToCentsOff(freq, targetFreq) {
   return 1200 * Math.log2(freq / targetFreq);
-}
+} 
 
 function noteToFrequency(noteName) {
-  const notes = { C: 0, 'C#': 1, D: 2, 'D#': 3, E: 4, F: 5, 'F#': 6, G: 7, 'G#': 8, A: 9, 'A#': 10, B: 11 };
+  const notes = { 'C': 0, 'C#': 1, 'D': 2, 'D#': 3, 'E': 4, 'F': 5, 'F#': 6, 'G': 7, 'G#': 8, 'A': 9, 'A#': 10, 'B': 11 };
   const match = noteName.match(/^([A-G]#?)(\d)$/);
-  if (!match) return 82.41;
+  if (!match) return 164.81; // E3 por defecto
   const key = match[1];
   const octave = parseInt(match[2], 10);
-  const semitonesFromA4 = (notes[key] - 9) + (octave - 4) * 12;
-  return 440 * Math.pow(2, semitonesFromA4 / 12);
-}
+  const semitones = notes[key] + (octave - 4) * 12;
+  return 440 * Math.pow(2, semitones / 12);
+} 
 
-function frequencyToMidi(freq) {
-  return Math.round(69 + 12 * Math.log2(freq / 440));
-}
-
-function midiToNoteName(midi) {
-  const names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-  const name = names[midi % 12];
-  const octave = Math.floor(midi / 12) - 1;
-  return `${name}${octave}`;
-}
-
-function frequencyToNoteName(freq) {
-  if (!freq || freq <= 0) return '--';
-  return midiToNoteName(frequencyToMidi(freq));
-}
-
-// ==========================================================
-// VISUAL PRINCIPAL
-// ==========================================================
-
-export class AfinadorVisual {
+export class AgujaViva {
   constructor(canvas, options = {}) {
     this.canvas = canvas;
-    this.ctx = canvas.getContext('2d', { alpha: true, desynchronized: true });
+    this.ctx = canvas.getContext('2d', { alpha: true, desynchronized: true }); 
 
     this.maxParticles = options.maxParticles || 120;
     this.particleLife = options.particleLife || 2.5;
@@ -69,22 +49,11 @@ export class AfinadorVisual {
     this.height = 0;
     this.dpr = window.devicePixelRatio || 1;
 
-    /*
-    this.currentFreq = -1;
-    this.currentNote = '--';
-    this.targetFreq = 82.41;
-    this.cents = 0;
-    this.maxCents = 30;
-    */
     this.currentFreq = -1;
     this.targetFreq = 164.81;
     this.cents = 0;
-    this.maxCents = 50;
+    this.maxCents = 30;
 
-    /*
-    this.markerOffset = 0;
-    this.targetMarkerOffset = 0;
-    */
     this.needleAngle = 0;
     this.targetAngle = 0;
     this.shakeIntensity = 0;
@@ -94,22 +63,6 @@ export class AfinadorVisual {
     this.popScale = 1;
     this.popDecay = 0.8;
 
-    /*
-    this.running = false;
-    this.rafId = null;
-    this.lastTime = 0;
-
-    this.axisSparks = [];
-    this.maxAxisSparks = 220;
-
-    this.burstParticles = [];
-    this.ripples = [];
-
-    this.particleAccum = 0;
-    this.glowPulse = 0;
-    this.wasTuned = false;
-    this.rippleCooldown = 0;
-    */
     this.particles = [];
     this.lastParticleTime = 0;
     this.particleSpawnAccum = 0;
@@ -118,7 +71,6 @@ export class AfinadorVisual {
     this.wasInTolerance = false;
     this.rippleCooldown = 0;
 
-    
     this.colors = {
       bg: '#0f172a',
       needle: '#facc15',
@@ -137,27 +89,23 @@ export class AfinadorVisual {
       textMuted: '#94a3b8',
       grid: 'rgba(148, 163, 184, 0.08)',
     };
+
     this.rafId = null;
     this.lastTime = 0;
     this.running = false;
-    
+
     this.resize = this.resize.bind(this);
     window.addEventListener('resize', this.resize);
     this.resize();
-  }
+  } 
 
   resize() {
+    if (!this.canvas) return;
     const rect = this.canvas.getBoundingClientRect();
-    this.width = rect.width;
-    this.height = rect.height;
-    this.dpr = window.devicePixelRatio || 1;
+    this.width = rect.width || 300;
+    this.height = rect.height || 150;
+    this.dpr = window.devicePixelRatio || 1; 
 
-    /*
-    this.canvas.width = this.width * this.dpr;
-    this.canvas.height = this.height * this.dpr;
-    this.canvas.style.width = `${this.width}px`;
-    this.canvas.style.height = `${this.height}px`;
-    */
     this.canvas.width = this.width * this.dpr;
     this.canvas.height = this.height * this.dpr;
     this.canvas.style.width = this.width + 'px';
@@ -165,111 +113,8 @@ export class AfinadorVisual {
 
     this.ctx.setTransform(1, 0, 0, 1, 0, 0);
     this.ctx.scale(this.dpr, this.dpr);
-  }
+  } 
 
-  /*
-  setTargetNote(noteName) {
-    this.targetFreq = noteToFrequency(noteName);
-  }
-
-  setDifficulty(level) {
-    const tolerances = {
-      facil: 50,
-      medio: 30,
-      dificil: 15,
-      experto: 5
-    };
-    this.maxCents = tolerances[level] || 30;
-  }
-  
-  setPitch(freq) {
-    this.currentFreq = freq;
-
-    if (!freq || freq <= 0 || !this.targetFreq) {
-      this.currentNote = '--';
-      this.cents = 0;
-      this.targetMarkerOffset = 0;
-      this.wasTuned = false;
-      return;
-    }
-  
-    this.currentNote = frequencyToNoteName(freq);
-    this.cents = frequencyToCentsOff(freq, this.targetFreq);
-
-    const normalized = Math.max(-1, Math.min(1, this.cents / this.maxCents));
-    const maxTravel = this.height * 0.22;
-
-    // Grave: abajo / Agudo: arriba
-    this.targetMarkerOffset = -normalized * maxTravel;
-
-    const tuned = Math.abs(this.cents) <= Math.max(6, this.maxCents * 0.35);
-    */
-
-    if (tuned && !this.wasTuned && this.rippleCooldown <= 0) {
-      this.triggerTunedExplosion();
-      this.triggerRipple();
-      this.rippleCooldown = 0.8;
-    }
-
-    this.wasTuned = tuned;
-  }
-
-  triggerTunedExplosion() {
-    const cx = this.width / 2;
-    const cy = this.height * 0.55;
-
-    for (let i = 0; i < 50; i++) {
-      const angle = (Math.PI * 2 * i) / 36 + Math.random() * 0.60;
-      const speed = 20 + Math.random() * 180;
-      const color = Math.random() > 0.35 ? this.colors.marker : this.colors.axis;
-
-      this.burstParticles.push({
-        x: cx,
-        y: cy,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed,
-        life: 0.8 + Math.random() * 0.5,
-        maxLife: 1.4,
-        size: 4 + Math.random() * 5,
-        alpha: 1,
-        color
-      });
-    }
-  }
-
-updateParticle(p, dt) {
-  // Aplicar gravedad
-  p.vy += 0.15; 
-  
-  // Aplicar fricción (0.95 significa 5% de pérdida de velocidad por frame)
-  p.vx *= 0.95;
-  p.vy *= 0.95;
-
-  // Actualizar posición
-  p.x += p.vx * dt;
-  p.y += p.vy * dt;
-
-  // Reducir vida
-  p.life -= dt;
-  p.alpha = p.life / p.maxLife; // Desvanecer al reducir la vida
-}
-
-  triggerRipple() {
-    const cx = this.width / 2;
-    const cy = this.height * 0.55;
-
-    for (let i = 0; i < 4; i++) {
-      this.ripples.push({
-        x: cx,
-        y: cy,
-        radius: i * 8,
-        alpha: 0.9 - i * 0.14,
-        lineWidth: 3.5 - i * 0.45,
-        maxRadius: Math.max(this.width, this.height) * 0.80
-      });
-    }
-  }
-  */
   setPitch(freq) {
     this.currentFreq = freq; 
 
@@ -277,13 +122,14 @@ updateParticle(p, dt) {
       this.cents = frequencyToCentsOff(freq, this.targetFreq);
       const targetAngle = Math.max(-1, Math.min(1, this.cents / this.maxCents));
 
-      const wasInTolerance = Math.abs(this.needleAngle) <= 1;
-      const nowInTolerance = Math.abs(targetAngle) <= 1;
+      const toleranceThreshold = 0.15;
+      const wasInTolerance = Math.abs(this.needleAngle) <= toleranceThreshold;
+      const nowInTolerance = Math.abs(targetAngle) <= toleranceThreshold;
       if (wasInTolerance !== nowInTolerance) {
         this.triggerBurst();
       }
 
-      const isNowInTolerance = Math.abs(this.cents) <= this.maxCents;
+      const isNowInTolerance = Math.abs(this.cents) <= (this.maxCents * 0.15);
       if (isNowInTolerance && !this.wasInTolerance && this.rippleCooldown <= 0) {
         this.triggerRipple();
         this.rippleCooldown = 1.5;
@@ -420,99 +266,7 @@ updateParticle(p, dt) {
 
     this.updateThemeColors();
   } 
-  /*
-  spawnAxisSpark() {
-    const cx = this.width / 2;
-    const centerY = this.height * 0.55;
 
-    const spreadY = this.height * 0.27;
-    const y = centerY + (Math.random() - 0.5) * spreadY * 2;
-
-    const direction = Math.random() > 0.5 ? 1 : -1;
-    const angle = (direction === 1 ? 0 : Math.PI) + (Math.random() - 0.5) * 0.9;
-
-    const closeness = this.currentFreq > 0
-      ? 1 - Math.min(1, Math.abs(this.cents) / Math.max(this.maxCents, 1))
-      : 0;
-
-    const speed = 25 + Math.random() * (60 + closeness * 80);
-
-    let color = this.colors.axis;
-    if (this.currentFreq > 0) {
-      if (this.cents < -this.maxCents * 0.25) color = this.colors.flat;
-      else if (this.cents > this.maxCents * 0.25) color = this.colors.sharp;
-      else color = this.colors.marker;
-    }
-
-    this.axisSparks.push({
-      x: cx + (Math.random() - 0.5) * 3,
-      y,
-      vx: Math.cos(angle) * speed,
-      vy: Math.sin(angle) * speed * 0.35,
-      life: 0.45 + Math.random() * 0.75,
-      maxLife: 1,
-      alpha: 1,
-      size: 1.5 + Math.random() * 3.5,
-      color
-    });
-  }
-
-  update(dt) {
-    const diff = this.targetMarkerOffset - this.markerOffset;
-    this.markerOffset += diff * Math.min(1, dt * 9);
-
-    this.glowPulse += dt * 5;
-
-    if (this.rippleCooldown > 0) {
-      this.rippleCooldown -= dt;
-    }
-
-    const closeness = this.currentFreq > 0
-      ? 1 - Math.min(1, Math.abs(this.cents) / Math.max(this.maxCents, 1))
-      : 0;
-
-    if (this.currentFreq > 0) {
-      const sparkRate = 10 + closeness * 38;
-      this.particleAccum += dt * sparkRate;
-
-      while (this.particleAccum >= 1 && this.axisSparks.length < this.maxAxisSparks) {
-        this.spawnAxisSpark();
-        this.particleAccum -= 1;
-      }
-    } else {
-      this.particleAccum = 0;
-    }
-
-    this.axisSparks = this.axisSparks.filter(p => {
-      p.life -= dt;
-      p.x += p.vx * dt;
-      p.y += p.vy * dt;
-      p.alpha = Math.max(0, p.life / p.maxLife);
-      return p.life > 0;
-    });
-
-    this.burstParticles = this.burstParticles.filter(p => {
-      p.life -= dt;
-      p.x += p.vx * dt;
-      p.y += p.vy * dt;
-      p.alpha = Math.max(0, p.life / p.maxLife);
-      return p.life > 0;
-    });
-
-    this.ripples = this.ripples.filter(r => {
-      r.radius += dt * 150;
-      r.alpha -= dt * 0.9;
-      return r.alpha > 0 && r.radius < r.maxRadius;
-    });
-
-    this.updateThemeColors();
-  }
-
-  updateThemeColors() {
-    const cs = getComputedStyle(document.documentElement);
-    this.colors.bg = cs.getPropertyValue('--bg-main').trim() || '#081226';
-  }
-  */
   spawnParticles(dt) {
     if (this.currentFreq <= 0) {
       this.particleSpawnAccum += dt;
@@ -541,7 +295,7 @@ updateParticle(p, dt) {
     const speed = 80 + Math.random() * 120;
 
     let color;
-    if (Math.abs(this.cents) <= this.maxCents) {
+    if (Math.abs(this.cents) <= (this.maxCents * 0.15)) {
       color = this.colors.center;
     } else if (this.cents < 0) {
       color = this.colors.flat;
@@ -588,212 +342,24 @@ updateParticle(p, dt) {
   } 
 
   updateThemeColors() {
+    if (typeof document === 'undefined') return;
     const cs = getComputedStyle(document.documentElement);
     const bg = cs.getPropertyValue('--bg-main').trim() || '#0f172a';
     this.colors.bg = bg;
-  }
+  } 
 
   render() {
     const ctx = this.ctx;
     const w = this.width;
     const h = this.height;
     const cx = w / 2;
-    const cy = h * 0.55;
+    const cy = h * 0.55; 
 
     ctx.clearRect(0, 0, w, h);
 
-    // Fondo
     ctx.fillStyle = this.colors.bg;
     ctx.fillRect(0, 0, w, h);
 
-    /*
-    // Rejilla decorativa
-    for (let i = 1; i < 10; i++) {
-      const x = (w / 10) * i;
-      ctx.strokeStyle = this.colors.grid;
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(x, h * 0.28);
-      ctx.lineTo(x, h * 0.82);
-      ctx.stroke();
-    }
-
-    // Líneas decorativas laterales
-    ctx.strokeStyle = this.colors.decoBlue;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(cx - w * 0.22, h * 0.28);
-    ctx.lineTo(cx - w * 0.22, h * 0.82);
-    ctx.stroke();
-
-    ctx.strokeStyle = this.colors.decoOrange;
-    ctx.beginPath();
-    ctx.moveTo(cx + w * 0.22, h * 0.28);
-    ctx.lineTo(cx + w * 0.22, h * 0.82);
-    ctx.stroke();
-
-    // Eje/aguja fija
-    ctx.save();
-    ctx.shadowColor = this.colors.axisGlow;
-    ctx.shadowBlur = 16;
-    ctx.strokeStyle = this.colors.axis;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(cx, h * 0.18);
-    ctx.lineTo(cx, h * 0.82);
-    ctx.stroke();
-    ctx.restore();
-
-    // Marca objetivo
-    ctx.fillStyle = 'rgba(148, 163, 184, 0.45)';
-    ctx.fillRect(cx - 38, cy - 10, 76, 20);
-
-    // Ondas tipo agua
-    this.ripples.forEach(r => {
-      ctx.save();
-      ctx.strokeStyle = `rgba(34, 197, 94, ${r.alpha})`;
-      ctx.lineWidth = r.lineWidth;
-      ctx.shadowColor = 'rgba(34, 197, 94, 0.55)';
-      ctx.shadowBlur = 14;
-      ctx.beginPath();
-      ctx.arc(r.x, r.y, r.radius, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.restore();
-    });
-
-    // Chispas del eje
-    this.axisSparks.forEach(p => {
-      ctx.save();
-      ctx.globalAlpha = p.alpha;
-      const rgb = this.hexToRgb(p.color);
-      const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size * 4);
-      g.addColorStop(0, `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, 0.95)`);
-      g.addColorStop(1, `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, 0)`);
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    });
-
-    // Explosión al afinar
-    this.burstParticles.forEach(p => {
-      ctx.save();
-      ctx.globalAlpha = p.alpha;
-      const rgb = this.hexToRgb(p.color);
-      const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size * 5);
-      g.addColorStop(0, `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, 1)`);
-      g.addColorStop(1, `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, 0)`);
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    });
-
-    // Punto móvil
-    const markerY = cy + this.markerOffset;
-    const tuned = this.currentFreq > 0 && Math.abs(this.cents) <= Math.max(6, this.maxCents * 0.35);
-
-    const markerColor = tuned
-      ? this.colors.marker
-      : (this.cents < 0 ? this.colors.flat : this.cents > 0 ? this.colors.sharp : this.colors.marker);
-
-    const pulse = 1 + Math.sin(this.glowPulse * 3.5) * 0.08;
-
-    ctx.save();
-    ctx.shadowColor = tuned ? this.colors.markerGlow : markerColor;
-    ctx.shadowBlur = tuned ? 32 : 18;
-    ctx.fillStyle = markerColor;
-    ctx.beginPath();
-    ctx.arc(cx, markerY, 7 * pulse, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-
-    // Decoración inferior
-    this.renderDecorativeBar(ctx, w, h);
-
-    // Puntitos tenues en reposo
-    if (this.currentFreq <= 0) {
-      ctx.fillStyle = 'rgba(250, 204, 21, 0.45)';
-      ctx.beginPath();
-      ctx.arc(cx - 16, cy + 72, 2, 0, Math.PI * 2);
-      ctx.arc(cx + 10, cy + 82, 2, 0, Math.PI * 2);
-      ctx.arc(cx + 34, cy + 68, 1.5, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
-
-  renderDecorativeBar(ctx, w, h) {
-    const barY = h * 0.9;
-    const barW = w * 0.6;
-    const barX = (w - barW) / 2;
-    const segments = 21;
-    const segW = barW / segments;
-    const center = Math.floor(segments / 2);
-
-    for (let i = 0; i < segments; i++) {
-      const x = barX + i * segW + 2;
-      const y = barY;
-      const width = segW - 4;
-      const height = 10;
-
-      let color = 'rgba(148,163,184,0.15)';
-      if (i < center) color = this.colors.decoBlue;
-      if (i > center) color = this.colors.decoOrange;
-      if (i === center) color = 'rgba(96, 165, 250, 0.45)';
-
-      ctx.fillStyle = color;
-      ctx.fillRect(x, y, width, height);
-    }
-
-    ctx.fillStyle = this.colors.textMuted;
-    ctx.font = '11px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText('GRAVE', barX - 20, barY + 8);
-    ctx.fillText('AGUDO', barX + barW + 24, barY + 8);
-  }
-  
-
-  hexToRgb(hex) {
-    const h = hex.replace('#', '');
-    const bigint = parseInt(h, 16);
-    return [(bigint >> 16) & 255, (bigint >> 8) & 255, bigint & 255];
-  }
-
-  start() {
-    if (this.running) return;
-    this.running = true;
-    this.lastTime = performance.now();
-    this.tick(this.lastTime);
-  }
-
-  stop() {
-    this.running = false;
-    if (this.rafId) {
-      cancelAnimationFrame(this.rafId);
-      this.rafId = null;
-    }
-  }
-
-  tick(timestamp) {
-    if (!this.running) return;
-
-    const dt = Math.min((timestamp - this.lastTime) / 1000, 0.1);
-    this.lastTime = timestamp;
-
-    this.update(dt);
-    this.render();
-
-    this.rafId = requestAnimationFrame((t) => this.tick(t));
-  }
-
-  destroy() {
-    this.stop();
-    window.removeEventListener('resize', this.resize);
-    this.ctx.clearRect(0, 0, this.width, this.height);
-  }
-  */
     ctx.strokeStyle = this.colors.grid;
     ctx.lineWidth = 1;
     for (let i = 1; i < 10; i++) {
@@ -825,7 +391,7 @@ updateParticle(p, dt) {
     });
 
     if (this.burstAlpha > 0) {
-      const burstColor = Math.abs(this.cents) <= this.maxCents ? this.colors.center : 
+      const burstColor = Math.abs(this.cents) <= (this.maxCents * 0.15) ? this.colors.center : 
         (this.cents < 0 ? this.colors.flat : this.colors.sharp);
       ctx.strokeStyle = `rgba(${this.hexToRgb(burstColor).join(',')}, ${this.burstAlpha})`;
       ctx.lineWidth = 3;
@@ -900,39 +466,38 @@ updateParticle(p, dt) {
     const segmentCount = 21;
     const segmentW = barW / segmentCount;
     const centerIdx = Math.floor(segmentCount / 2);
-    const litCount = Math.floor((this.needleAngle + 1) / 2 * segmentCount);
+    const currentIdx = Math.max(0, Math.min(segmentCount - 1, Math.round((this.needleAngle + 1) / 2 * (segmentCount - 1))));
 
     for (let i = 0; i < segmentCount; i++) {
       const x = barX + i * segmentW + 2;
       const y = barY;
       const wSeg = segmentW - 4;
       const hSeg = 14;
-      let color;
-      let alpha = 1;
+      let color = this.colors.ledOff;
+      let alpha = 0.3;
 
       if (i === centerIdx) {
-        if (Math.abs(this.cents) <= this.maxCents && this.currentFreq > 0) {
+        if (Math.abs(this.cents) <= (this.maxCents * 0.15) && this.currentFreq > 0) {
           color = this.colors.ledOn;
-        } else if (this.cents < 0) {
-          color = this.colors.ledFlat;
-        } else {
-          color = this.colors.ledSharp;
+          alpha = 1;
+        } else if (this.currentFreq > 0) {
+          color = this.cents < 0 ? this.colors.ledFlat : this.colors.ledSharp;
+          alpha = 0.5;
         }
-      } else if (i < litCount) {
-        color = this.colors.ledFlat;
-        alpha = 0.6 + (i / centerIdx) * 0.4;
-      } else if (i > litCount) {
-        color = this.colors.ledSharp;
-        alpha = 0.6 + ((segmentCount - 1 - i) / (segmentCount - 1 - centerIdx)) * 0.4;
-      } else {
-        color = this.colors.ledOff;
-        alpha = 0.3;
+      } else if (this.currentFreq > 0) {
+        if (currentIdx < centerIdx && i >= currentIdx && i < centerIdx) {
+          color = this.colors.ledFlat;
+          alpha = 0.6 + (i / centerIdx) * 0.4;
+        } else if (currentIdx > centerIdx && i > centerIdx && i <= currentIdx) {
+          color = this.colors.ledSharp;
+          alpha = 0.6 + ((segmentCount - 1 - i) / (segmentCount - 1 - centerIdx)) * 0.4;
+        }
       }
 
       ctx.fillStyle = this.hexToRgba(color, alpha);
       ctx.fillRect(x, y, wSeg, hSeg);
 
-      if (i === centerIdx || (i < litCount && i > centerIdx - 3) || (i > litCount && i < centerIdx + 3)) {
+      if (this.currentFreq > 0 && (i === currentIdx || (i === centerIdx && Math.abs(this.cents) <= (this.maxCents * 0.15)))) {
         ctx.shadowColor = color;
         ctx.shadowBlur = 8;
         ctx.fillRect(x, y, wSeg, hSeg);
@@ -966,8 +531,13 @@ updateParticle(p, dt) {
   }
 
   hexToRgb(hex) {
-    const h = hex.replace('#', '');
+    if (!hex || typeof hex !== 'string') return [250, 204, 21];
+    let h = hex.replace('#', '').trim();
+    if (h.length === 3) {
+      h = h.split('').map(c => c + c).join('');
+    }
     const bigint = parseInt(h, 16);
+    if (isNaN(bigint)) return [250, 204, 21];
     return [(bigint >> 16) & 255, (bigint >> 8) & 255, bigint & 255];
   }
 
@@ -979,53 +549,12 @@ updateParticle(p, dt) {
   destroy() {
     this.stop();
     window.removeEventListener('resize', this.resize);
-    if (this.ctx) {
+    if (this.ctx && this.width && this.height) {
       this.ctx.clearRect(0, 0, this.width, this.height);
     }
   }
 }
 
-// ==========================================================
-// CONTROL DE GRABACIÓN
-// ==========================================================
-
-/*
-export async function toggleRecording() {
-  const btn = $('recordBtn');
-  if (!btn) return;
-
-  const btnText = btn.querySelector('.btn-text');
-
-  if (!state.isRecording) {
-    try {
-      state.isRecording = true;
-      if (btnText) btnText.textContent = 'Detener';
-      btn.classList.add('recording');
-      btn.setAttribute('aria-pressed', 'true');
-
-      await startAfinador();
-    } catch (error) {
-      console.error('No se pudo iniciar el afinador:', error);
-
-      state.isRecording = false;
-      if (btnText) btnText.textContent = 'Iniciar';
-      btn.classList.remove('recording');
-      btn.setAttribute('aria-pressed', 'false');
-
-      alert('❌ No se pudo iniciar el micrófono del afinador: ' + error.message);
-      stopAfinador();
-    }
-  } else {
-    state.isRecording = false;
-    if (btnText) btnText.textContent = 'Iniciar';
-    btn.classList.remove('recording');
-    btn.setAttribute('aria-pressed', 'false');
-
-    stopAfinador();
-    resetAfinadorUI();
-  }
-}
-*/
 export async function toggleRecording() {
   const btn = $("recordBtn");
   if (!btn) return;
@@ -1035,7 +564,16 @@ export async function toggleRecording() {
     btn.innerHTML = '🎤 Detener';
     btn.classList.add("recording");
     btn.setAttribute("aria-pressed", "true");
-    await startAfinador();
+    try {
+      await startAfinador();
+    } catch (err) {
+      console.error("Error al iniciar el afinador:", err);
+      state.isRecording = false;
+      btn.innerHTML = '🎤 Iniciar';
+      btn.classList.remove("recording");
+      btn.setAttribute("aria-pressed", "false");
+      stopAfinador();
+    }
   } else {
     state.isRecording = false;
     btn.innerHTML = '🎤 Iniciar';
@@ -1043,7 +581,7 @@ export async function toggleRecording() {
     btn.setAttribute("aria-pressed", "false");
     stopAfinador();
 
-    const noteDisplay = $("currentNoteDisplay");
+    const noteDisplay = $("currentNoteDisplay") || $("noteDisplay");
     const centsDisplay = $("centsDisplay");
     const guideText = $("guideText");
 
@@ -1062,56 +600,27 @@ export async function toggleRecording() {
   }
 }
 
-function resetAfinadorUI() {
-  const noteDisplay = $('currentNoteDisplay');
-  const centsDisplay = $('centsDisplay');
-  const guideText = $('guideText');
-
-  if (noteDisplay) {
-    noteDisplay.textContent = '--';
-    noteDisplay.className = 'current-note state-idle';
-  }
-
-  if (centsDisplay) {
-    centsDisplay.textContent = '';
-    centsDisplay.className = 'cents-display';
-  }
-
-  if (guideText) {
-    guideText.textContent = 'Esperando voz...';
-    guideText.className = 'guide-text';
-  }
-}
-
-/*
 async function startAfinador() {
-  if (afinadorVisual) {
-    afinadorVisual.destroy();
-    afinadorVisual = null;
-  }
-
-  const canvas = $('agujaCanvas');
+  const canvas = $("agujaCanvas");
   if (canvas) {
-    afinadorVisual = new AfinadorVisual(canvas);
+    agujaVivaInstance = new AgujaViva(canvas);
+    const targetNoteEl = $("targetNote");
+    const difficultyEl = $("afinadorDifficulty");
 
-    const targetNoteEl = $('targetNote');
-    const difficultyEl = $('afinadorDifficulty');
-
-    if (targetNoteEl) afinadorVisual.setTargetNote(targetNoteEl.value);
-    if (difficultyEl) afinadorVisual.setDifficulty(difficultyEl.value);
+    if (targetNoteEl) agujaVivaInstance.setTargetNote(targetNoteEl.value);
+    if (difficultyEl) agujaVivaInstance.setDifficulty(difficultyEl.value);
 
     if (targetNoteEl) {
-      targetNoteEl.onchange = () => afinadorVisual?.setTargetNote(targetNoteEl.value);
+      targetNoteEl.onchange = () => agujaVivaInstance.setTargetNote(targetNoteEl.value);
     }
     if (difficultyEl) {
-      difficultyEl.onchange = () => afinadorVisual?.setDifficulty(difficultyEl.value);
+      difficultyEl.onchange = () => agujaVivaInstance.setDifficulty(difficultyEl.value);
     }
-
-    afinadorVisual.start();
+    agujaVivaInstance.start();
   }
 
-  audioContext = new (window.AudioContext || window.webkitAudioContext)();
-
+  const AudioCtx = window.AudioContext || window.webkitAudioContext;
+  audioContext = new AudioCtx();
   if (audioContext.state === 'suspended') {
     await audioContext.resume();
   }
@@ -1130,101 +639,10 @@ async function startAfinador() {
   mic.connect(analyser);
 
   setTimeout(() => {
-    if (state.isRecording) runPitchDetectionLoop();
-  }, 200);
-}
-*/
-
-async function startAfinador() {
-  const canvas = $("agujaCanvas");
-  if (canvas) {
-    //agujaVivaInstance = new AgujaViva(canvas);
-    afinadorVisual = new AfinadorVisual(canvas);
-    const targetNoteEl = $("targetNote");
-    const difficultyEl = $("afinadorDifficulty");
-
-    //if (targetNoteEl) agujaVivaInstance.setTargetNote(targetNoteEl.value);
-    //if (difficultyEl) agujaVivaInstance.setDifficulty(difficultyEl.value);
-
-    if (targetNoteEl) afinadorVisual.setTargetNote(targetNoteEl.value);
-    if (difficultyEl) afinadorVisual.setDifficulty(difficultyEl.value);
-
-    if (targetNoteEl) {
-      //targetNoteEl.onchange = () => agujaVivaInstance.setTargetNote(targetNoteEl.value);
-      targetNoteEl.onchange = () => afinadorVisual.setTargetNote(targetNoteEl.value);
-    }
-    if (difficultyEl) {
-      //difficultyEl.onchange = () => agujaVivaInstance.setDifficulty(difficultyEl.value);
-      difficultyEl.onchange = () => afinadorVisual.setDifficulty(difficultyEl.value);
-    }
-    //agujaVivaInstance.start();
-    afinadorVisual.start();
-  }
-
-  audioContext = new AudioContext();
-  stream = await navigator.mediaDevices.getUserMedia({
-    audio: {
-      echoCancellation: false,
-      noiseSuppression: false,
-      autoGainControl: false
-    }
-  });
-
-  const mic = audioContext.createMediaStreamSource(stream);
-  analyser = audioContext.createAnalyser();
-  analyser.fftSize = 2048;
-  mic.connect(analyser);
-
-  setTimeout(() => {
     runPitchDetectionLoop();
   }, 300);
 }
 
-/*
-function stopAfinador() {
-  if (pitchLoopTimeout) {
-    clearTimeout(pitchLoopTimeout);
-    pitchLoopTimeout = null;
-  }
-
-  if (stream) {
-    stream.getTracks().forEach(t => t.stop());
-    stream = null;
-  }
-
-  if (audioContext) {
-    audioContext.close().catch(() => {});
-    audioContext = null;
-  }
-
-  analyser = null;
-
-  if (afinadorVisual) {
-    afinadorVisual.destroy();
-    afinadorVisual = null;
-  }
-}
-*/
-function stopAfinador() {
-  if (pitchLoopTimeout) {
-    clearTimeout(pitchLoopTimeout);
-    pitchLoopTimeout = null;
-  }
-  if (stream) {
-    stream.getTracks().forEach(t => t.stop());
-    stream = null;
-  }
-  if (audioContext) {
-    audioContext.close();
-    audioContext = null;
-  }
-  analyser = null;
-  if (afinadorVisual) {
-    afinadorVisual.destroy();
-    afinadorVisual = null;
-  }
-}
-/*
 function stopAfinador() {
   if (pitchLoopTimeout) {
     clearTimeout(pitchLoopTimeout);
@@ -1244,11 +662,7 @@ function stopAfinador() {
     agujaVivaInstance = null;
   }
 }
-*/
 
-// ==========================================================
-// LOOP DE DETECCIÓN
-// ==========================================================
 async function runPitchDetectionLoop() {
   if (!state.isRecording || !analyser || !audioContext) return;
   analyser.getFloatTimeDomainData(pitchBuffer);
@@ -1256,11 +670,55 @@ async function runPitchDetectionLoop() {
   try {
     const audioController = getAudioController();
     const result = await audioController.detectPitch(pitchBuffer, audioContext.sampleRate);
-    if (afinadorVisual) {
-      if (result && result.pitch && result.pitch > 0) {
-        afinadorVisual.setPitch(result.pitch);
-      } else {
-        afinadorVisual.setPitch(-1);
+    
+    const noteDisplay = $("currentNoteDisplay") || $("noteDisplay");
+    const centsDisplay = $("centsDisplay");
+    const guideText = $("guideText");
+
+    if (result && result.pitch && result.pitch > 0) {
+      if (agujaVivaInstance) {
+        agujaVivaInstance.setPitch(result.pitch);
+      }
+
+      const pitchCents = result.cents || (agujaVivaInstance ? agujaVivaInstance.cents : 0);
+      const maxTol = agujaVivaInstance ? agujaVivaInstance.maxCents : 30;
+
+      if (noteDisplay) {
+        noteDisplay.textContent = result.note || "--";
+        const isCentered = Math.abs(pitchCents) <= (maxTol * 0.15);
+        noteDisplay.className = `current-note ${isCentered ? 'state-on' : (pitchCents < 0 ? 'state-flat' : 'state-sharp')}`;
+      }
+      if (centsDisplay) {
+        const c = Math.round(pitchCents);
+        centsDisplay.textContent = `${c > 0 ? '+' : ''}${c} cents`;
+        centsDisplay.classList.add("visible");
+      }
+      if (guideText) {
+        if (Math.abs(pitchCents) <= (maxTol * 0.15)) {
+          guideText.textContent = "¡Afinado!";
+          guideText.className = "guide-text state-on";
+        } else if (pitchCents < 0) {
+          guideText.textContent = "Demasiado grave (Subir pitch)";
+          guideText.className = "guide-text state-flat";
+        } else {
+          guideText.textContent = "Demasiado agudo (Bajar pitch)";
+          guideText.className = "guide-text state-sharp";
+        }
+      }
+    } else {
+      if (agujaVivaInstance) {
+        agujaVivaInstance.setPitch(-1);
+      }
+      if (noteDisplay) {
+        noteDisplay.textContent = "--";
+        noteDisplay.className = "current-note state-idle";
+      }
+      if (centsDisplay) {
+        centsDisplay.classList.remove("visible");
+      }
+      if (guideText) {
+        guideText.textContent = "🎤 Escuchando...";
+        guideText.className = "guide-text";
       }
     }
   } catch (error) {
@@ -1271,85 +729,3 @@ async function runPitchDetectionLoop() {
     pitchLoopTimeout = setTimeout(runPitchDetectionLoop, 16);
   }
 }
-/*
-async function runPitchDetectionLoop() {
-  if (!state.isRecording || !analyser || !audioContext) return;
-
-  analyser.getFloatTimeDomainData(pitchBuffer);
-
-  try {
-    const audioController = getAudioController();
-    const result = await audioController.detectPitch(pitchBuffer, audioContext.sampleRate);
-
-    const noteDisplay = $('currentNoteDisplay');
-    const centsDisplay = $('centsDisplay');
-    const guideText = $('guideText');
-
-    if (typeof result === 'number' && result > 0) {
-      if (afinadorVisual) {
-        afinadorVisual.setPitch(result);
-      }
-
-      const detectedNote = frequencyToNoteName(result);
-      const targetNoteName = $('targetNote')?.value || 'E2';
-      const targetFreq = noteToFrequency(targetNoteName);
-      const cents = frequencyToCentsOff(result, targetFreq);
-
-      if (noteDisplay) {
-        noteDisplay.textContent = detectedNote;
-        noteDisplay.className = 'current-note state-active';
-      }
-
-      if (centsDisplay) {
-        const rounded = Math.round(cents);
-        const sign = rounded > 0 ? '+' : '';
-        centsDisplay.textContent = `${sign}${rounded}¢`;
-        centsDisplay.className = 'cents-display';
-      }
-
-      if (guideText) {
-        const difficultyEl = $('afinadorDifficulty');
-        const level = difficultyEl?.value || 'medio';
-        const tolerances = { facil: 50, medio: 30, dificil: 15, experto: 5 };
-        const tolerance = tolerances[level] || 30;
-
-        if (Math.abs(cents) <= Math.max(6, tolerance * 0.35)) {
-          guideText.textContent = '✅ Afinado';
-          guideText.className = 'guide-text state-good';
-        } else if (cents < 0) {
-          guideText.textContent = '⬆️ Sube la voz';
-          guideText.className = 'guide-text state-low';
-        } else {
-          guideText.textContent = '⬇️ Baja la voz';
-          guideText.className = 'guide-text state-high';
-        }
-      }
-    } else {
-      if (afinadorVisual) {
-        afinadorVisual.setPitch(-1);
-      }
-
-      if (noteDisplay) {
-        noteDisplay.textContent = '--';
-        noteDisplay.className = 'current-note state-idle';
-      }
-
-      if (centsDisplay) {
-        centsDisplay.textContent = '';
-        centsDisplay.className = 'cents-display';
-      }
-
-      if (guideText) {
-        guideText.textContent = 'Esperando voz...';
-        guideText.className = 'guide-text';
-      }
-    }
-  } catch (error) {
-    console.error('Fallo en bucle de detección:', error);
-  }
-
-  if (state.isRecording) {
-    pitchLoopTimeout = setTimeout(runPitchDetectionLoop, 16);
-  }
-}
-*/
