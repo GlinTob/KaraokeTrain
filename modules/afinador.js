@@ -164,33 +164,47 @@ export class AgujaViva {
   } 
 
   setPitch(freq) {
-    this.currentFreq = freq; 
+  this.currentFreq = freq; 
 
-    if (freq > 0 && this.targetFreq > 0) {
-      this.cents = frequencyToCentsOff(freq, this.targetFreq);
-      const targetAngle = Math.max(-1, Math.min(1, this.cents / this.maxCents));
+  if (freq > 0 && this.targetFreq > 0) {
+    this.cents = frequencyToCentsOff(freq, this.targetFreq);
+    const targetAngle = Math.max(-1, Math.min(1, this.cents / this.maxCents));
 
-      const toleranceThreshold = 0.15;
-      const wasInTolerance = Math.abs(this.needleAngle) <= toleranceThreshold;
-      const nowInTolerance = Math.abs(targetAngle) <= toleranceThreshold;
-      if (wasInTolerance !== nowInTolerance) {
-        this.triggerBurst();
-      }
+    // 1. Umbral dinámico proporcional a la tolerancia elegida (por defecto 1)
+    const activeTolerance = this.tolerance || 1;
+    const threshold = activeTolerance * 0.15;
 
-      const isNowInTolerance = Math.abs(this.cents) <= (this.maxCents * 0.15);
-      if (isNowInTolerance && !this.wasInTolerance && this.rippleCooldown <= 0) {
-        this.triggerRipple();
-        this.rippleCooldown = 1.5;
-      }
-      this.wasInTolerance = isNowInTolerance;
+    // 2. Evaluaciones de tolerancia
+    const wasInTolerance = Math.abs(this.needleAngle) <= threshold;
+    const nowInTolerance = Math.abs(targetAngle) <= threshold;
 
-      this.targetAngle = targetAngle;
-    } else {
-      this.cents = 0;
-      this.targetAngle = 0;
-      this.wasInTolerance = false;
+    // Disparador de animación al cruzar el límite de afinación
+    if (wasInTolerance !== nowInTolerance) {
+      this.triggerBurst();
     }
-  } 
+
+    // Disparador de efecto ripple cuando entra a tolerancia
+    if (nowInTolerance && !this.wasInTolerance && this.rippleCooldown <= 0) {
+      this.triggerRipple();
+      this.rippleCooldown = 1.5;
+    }
+
+    this.wasInTolerance = nowInTolerance;
+    this.targetAngle = targetAngle;
+
+    // 3. Asignación del estado actual
+    if (nowInTolerance) {
+      this.status = 'in-tune';
+    } else {
+      this.status = targetAngle < 0 ? 'flat' : 'sharp';
+    }
+  } else {
+    this.cents = 0;
+    this.targetAngle = 0;
+    this.wasInTolerance = false;
+    this.status = 'off';
+  }
+}
 
   setTargetNote(noteName) {
     this.targetFreq = noteToFrequency(noteName);
