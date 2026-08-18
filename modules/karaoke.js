@@ -100,6 +100,8 @@ export async function updateMonitorConfig(newConfig = {}) {
   if (newConfig.c2AvatarUrl) monitorConfig.images.c2Avatar = await loadImage(newConfig.c2AvatarUrl);
   if (newConfig.c2Icon1Url) monitorConfig.images.c2Icon1 = await loadImage(newConfig.c2Icon1Url);
   if (newConfig.c2Icon2Url) monitorConfig.images.c2Icon2 = await loadImage(newConfig.c2Icon2Url);
+
+  drawKaraokeMonitor();
 }
 
 export function cargarLetrasEnMonitor(segments = []) {
@@ -134,9 +136,37 @@ function convertFrequencyToNoteName(freq) {
   return `${noteNames[noteIndex]}${octave}`;
 }
 
+function normalizeNoteName(noteName) {
+  if (!noteName) return null;
+  let clean = noteName.trim().toUpperCase();
+  if (NOTE_SCALE.includes(clean)) return clean;
+  
+  const baseMap = {
+    "C#": "C", "DB": "C",
+    "D#": "D", "EB": "D",
+    "F#": "F", "GB": "F",
+    "G#": "G", "AB": "G",
+    "A#": "A", "BB": "A"
+  };
+  
+  const match = clean.match(/^([A-G][#B]?)(-?\d+)$/);
+  if (match) {
+    let notePart = match[1];
+    let octavePart = parseInt(match[2], 10);
+    
+    if (baseMap[notePart]) notePart = baseMap[notePart];
+    if (octavePart > 4) octavePart = 4;
+    if (octavePart < 3) octavePart = 3;
+    
+    const normalized = `${notePart}${octavePart}`;
+    if (NOTE_SCALE.includes(normalized)) return normalized;
+  }
+  return "C4";
+}
+
 function getNoteY(noteName, topY, height) {
   if (!noteName) return null;
-  const cleanNote = noteName.trim().toUpperCase();
+  const cleanNote = normalizeNoteName(noteName);
   const index = NOTE_SCALE.indexOf(cleanNote);
   if (index === -1) return null;
 
@@ -279,7 +309,7 @@ function drawTeleprompter(ctx, lyricsSegments, currentTime, x, y, width, height)
   ctx.restore();
 }
 
-function drawNotesAndLyrics(ctx, segments, currentTime, regionX, regionY, regionWidth, regionHeight) {
+function drawNotesAndLyrics(ctx, segments, currentTime, regionX, regionY, regionWidth, regionHeight, targetPlayer = null) {
   if (!Array.isArray(segments) || !segments.length) return;
 
   ctx.save();
@@ -287,7 +317,11 @@ function drawNotesAndLyrics(ctx, segments, currentTime, regionX, regionY, region
   const pixelsPerSecond = regionWidth / timeWindow;
 
   segments.forEach((seg) => {
-    const words = seg.words || [{ word: seg.text, start: seg.start, end: seg.end, note: seg.note }];
+    if (targetPlayer && seg.player && String(seg.player).toUpperCase() !== String(targetPlayer).toUpperCase()) {
+      return;
+    }
+
+    const words = seg.words || [{ word: seg.text, start: seg.start, end: seg.end, note: seg.note, pitch: seg.pitch }];
 
     words.forEach((w) => {
       if (w.start > currentTime + timeWindow || w.end < currentTime - 2) return;
@@ -371,7 +405,8 @@ export function drawKaraokeMonitor(arg1, arg2, arg3, arg4, arg5) {
   const mainHeight = canvas.height - mainY - 10;
 
   if (monitorConfig.duoSplitMode) {
-    const halfHeight = mainHeight / 2 - 5;
+    const separatorGap = 20;
+    const halfHeight = (mainHeight - separatorGap) / 2;
 
     const c1TopY = mainY;
     drawAvatarAndIcons(
@@ -384,7 +419,7 @@ export function drawKaraokeMonitor(arg1, arg2, arg3, arg4, arg5) {
       "C1"
     );
     drawPentagram(ctx, 150, c1TopY, canvas.width - 170, halfHeight);
-    drawNotesAndLyrics(ctx, lyricsSegments, currentTime, 150, c1TopY, canvas.width - 170, halfHeight);
+    drawNotesAndLyrics(ctx, lyricsSegments, currentTime, 150, c1TopY, canvas.width - 170, halfHeight, "P1");
     drawPitchTrail(
       ctx,
       pitchHistoryP1,
@@ -396,7 +431,7 @@ export function drawKaraokeMonitor(arg1, arg2, arg3, arg4, arg5) {
       monitorConfig.pitchDotColorP1
     );
 
-    const separatorY = mainY + halfHeight + 5;
+    const separatorY = mainY + halfHeight + separatorGap / 2;
     ctx.save();
     ctx.strokeStyle = monitorConfig.separatorColor;
     ctx.lineWidth = 3;
@@ -406,7 +441,7 @@ export function drawKaraokeMonitor(arg1, arg2, arg3, arg4, arg5) {
     ctx.stroke();
     ctx.restore();
 
-    const c2TopY = separatorY + 5;
+    const c2TopY = separatorY + separatorGap / 2;
     drawAvatarAndIcons(
       ctx,
       20,
@@ -417,7 +452,7 @@ export function drawKaraokeMonitor(arg1, arg2, arg3, arg4, arg5) {
       "C2"
     );
     drawPentagram(ctx, 150, c2TopY, canvas.width - 170, halfHeight);
-    drawNotesAndLyrics(ctx, lyricsSegments, currentTime, 150, c2TopY, canvas.width - 170, halfHeight);
+    drawNotesAndLyrics(ctx, lyricsSegments, currentTime, 150, c2TopY, canvas.width - 170, halfHeight, "P2");
     drawPitchTrail(
       ctx,
       pitchHistoryP2,
@@ -440,7 +475,7 @@ export function drawKaraokeMonitor(arg1, arg2, arg3, arg4, arg5) {
       "SOLO"
     );
     drawPentagram(ctx, 150, mainY, canvas.width - 170, mainHeight);
-    drawNotesAndLyrics(ctx, lyricsSegments, currentTime, 150, mainY, canvas.width - 170, mainHeight);
+    drawNotesAndLyrics(ctx, lyricsSegments, currentTime, 150, mainY, canvas.width - 170, mainHeight, null);
     drawPitchTrail(
       ctx,
       pitchHistoryP1,
@@ -724,7 +759,7 @@ export async function startKaraokePitchDetection() {
 
   finalNode.connect(karaokePitchDetectionAnalyser);
 
-  if (typeof karaokeDuoSplitMode !== "undefined" && karaokeDuoSplitMode) {
+  if (monitorConfig.duoSplitMode) {
     try {
       if (typeof ensureP2PitchTracking === "function") {
         await ensureP2PitchTracking();
@@ -765,16 +800,16 @@ export function loop() {
 
   try {
     if (
-      typeof karaokeDuoSplitMode !== "undefined" && karaokeDuoSplitMode &&
-      typeof karaokeSplitAnalyser2 !== "undefined" && karaokeSplitAnalyser2 &&
-      typeof sr2 !== "undefined" && sr2 &&
+      monitorConfig.duoSplitMode &&
+      typeof karaokeDuoAnalyser2 !== "undefined" && karaokeDuoAnalyser2 &&
+      typeof karaokeDuoAudioContext !== "undefined" && karaokeDuoAudioContext &&
       typeof AudioUtils !== "undefined" && AudioUtils?.detectPitch
     ) {
       const detectPitchFn = AudioUtils.detectPitch;
 
-      const buf2 = new Float32Array(karaokeSplitAnalyser2.fftSize);
-      karaokeSplitAnalyser2.getFloatTimeDomainData(buf2);
-      pitch2 = detectPitchFn(buf2, sr2);
+      const buf2 = new Float32Array(karaokeDuoAnalyser2.fftSize);
+      karaokeDuoAnalyser2.getFloatTimeDomainData(buf2);
+      pitch2 = detectPitchFn(buf2, karaokeDuoAudioContext.sampleRate);
     }
   } catch (error) {
     console.error("Error detectando pitch P2 en karaoke:", error);
@@ -964,7 +999,8 @@ function ultrastarToSegments(parsed) {
         words: currentWords,
         pitch: currentWords[0].pitch,
         midi: currentWords[0].midi,
-        note: currentWords[0].note
+        note: currentWords[0].note,
+        player: note.player || "P1"
       });
       currentWords = [];
     }
@@ -991,7 +1027,8 @@ function ultrastarToSegments(parsed) {
       words: currentWords,
       pitch: currentWords[0].pitch,
       midi: currentWords[0].midi,
-      note: currentWords[0].note
+      note: currentWords[0].note,
+      player: "P1"
     });
   }
   
@@ -1002,6 +1039,7 @@ function parseUltrastarTxt(content) {
   const lines = content.split("\n");
   const metadata = {};
   const notes = [];
+  let currentP = "P1";
 
   for (const line of lines) {
     const trimmed = line.trim();
@@ -1014,6 +1052,11 @@ function parseUltrastarTxt(content) {
         const value = match[2].trim();
         metadata[key] = value;
       }
+      continue;
+    }
+
+    if (trimmed.startsWith("P")) {
+      currentP = trimmed.toUpperCase();
       continue;
     }
 
@@ -1041,7 +1084,8 @@ function parseUltrastarTxt(content) {
             startBeat,
             duration,
             pitch,
-            syllable
+            syllable,
+            player: currentP
           });
         }
       }
@@ -1282,8 +1326,9 @@ export async function mixKaraoke() {
     resultDiv.innerHTML = "<p style='color: var(--text-muted);'>Uniendo la pista y tu voz. Esto puede tardar unos segundos...</p>";
   }
 
+  let audioCtx = null;
   try {
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
     const fetchOptions = trackFile.startsWith("http") ? { mode: "cors" } : {};
     const response = await fetch(trackFile, fetchOptions);
@@ -1365,14 +1410,15 @@ export async function mixKaraoke() {
         };
       }
     }
-
-    try { await audioCtx.close(); } catch (e) {}
   } catch (err) {
     console.error("Error al mezclar:", err);
     if (resultDiv) {
       resultDiv.innerHTML = "<p style='color: #ef4444;'>❌ Hubo un error al mezclar los audios.</p>";
     }
   } finally {
+    if (audioCtx) {
+      try { await audioCtx.close(); } catch (e) {}
+    }
     if (btn) {
       btn.textContent = "🎧 Mezclar Pista + Voz";
       btn.disabled = false;
