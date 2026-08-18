@@ -137,9 +137,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
   
   const allKaraokeThemes = ['theme-clasico', 'theme-moderno', 'theme-disco', 'theme-acustico', 'theme-fiesta'];
-  const temaGuardado = localStorage.getItem("vocalApp_theme") || "oscuro";
-  document.documentElement.setAttribute("data-theme", temaGuardado);
-  document.body.setAttribute("data-theme", temaGuardado);
+  //const temaGuardado = localStorage.getItem("vocalApp_theme") || "oscuro";
+  //document.documentElement.setAttribute("data-theme", temaGuardado);
+  //document.body.setAttribute("data-theme", temaGuardado);
 
   function applyKaraokeTheme() {
     const theme = localStorage.getItem("vocalApp_stage") || "theme-clasico";
@@ -154,7 +154,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   safeAdd("karaokeThemeSelect", "change", async (e) => {
     saveSetting("vocalApp_stage", e.target);
-    localStorage.setItem("vocalApp_stage", e.target.value);
+    //localStorage.setItem("vocalApp_stage", e.target.value);
     applyKaraokeTheme();
   });
 
@@ -217,10 +217,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     const { loadSelectedVoiceFromLibrary } = await import("./modules/estudio.js");
     if (typeof loadSelectedVoiceFromLibrary === "function") loadSelectedVoiceFromLibrary();
   });
+  /*
   safeAdd("loadSelectedTextBtn", "click", async () => {
     const { loadSelectedTextFromLibrary } = await import("./modules/estudio.js");
     if (typeof loadSelectedTextFromLibrary === "function") loadSelectedTextFromLibrary();
   });
+  */
   safeAdd("applyCorrectedLyricsBtn", "click", async () => {
     const { applyCorrectedLyrics } = await import("./modules/estudio.js");
     if (typeof applyCorrectedLyrics === "function") applyCorrectedLyrics();
