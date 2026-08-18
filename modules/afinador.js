@@ -1,5 +1,3 @@
-import { getAudioController } from './audio-controller.js'; 
-
 /** 
  * AgujaViva — Hero-mode tuner needle with particle trail
  * Canvas 2D renderer, 60fps, theme-aware, no dependencies
@@ -35,6 +33,56 @@ function noteToFrequency(noteName) {
   const semitones = notes[key] + (octave - 4) * 12;
   return 440 * Math.pow(2, semitones / 12);
 } 
+
+// Algoritmo de autocorrelación para la detección de frecuencia fundamental (Pitch)
+function autoCorrelate(buf, sampleRate) {
+  let SIZE = buf.length;
+  let rms = 0;
+
+  for (let i = 0; i < SIZE; i++) {
+    const val = buf[i];
+    rms += val * val;
+  }
+  rms = Math.sqrt(rms / SIZE);
+  if (rms < 0.01) return -1; // Señal insuficiente
+
+  let r1 = 0, r2 = SIZE - 1;
+  const thres = 0.2;
+  for (let i = 0; i < SIZE / 2; i++) {
+    if (Math.abs(buf[i]) < thres) { r1 = i; break; }
+  }
+  for (let i = 1; i < SIZE / 2; i++) {
+    if (Math.abs(buf[SIZE - i]) < thres) { r2 = SIZE - i; break; }
+  }
+
+  const slicedBuf = buf.slice(r1, r2);
+  SIZE = slicedBuf.length;
+
+  const c = new Float32Array(SIZE);
+  for (let i = 0; i < SIZE; i++) {
+    for (let j = 0; j < SIZE - i; j++) {
+      c[i] = c[i] + slicedBuf[j] * slicedBuf[j + i];
+    }
+  }
+
+  let d = 0;
+  while (c[d] > c[d + 1]) d++;
+  let maxval = -1, maxpos = -1;
+  for (let i = d; i < SIZE; i++) {
+    if (c[i] > maxval) {
+      maxval = c[i];
+      maxpos = i;
+    }
+  }
+  let T0 = maxpos;
+
+  const x1 = c[T0 - 1], x2 = c[T0], x3 = c[T0 + 1];
+  const a = (x1 + x3 - 2 * x2) / 2;
+  const b = (x3 - x1) / 2;
+  if (a) T0 = T0 - b / (2 * a);
+
+  return sampleRate / T0;
+}
 
 export class AgujaViva {
   constructor(canvas, options = {}) {
@@ -555,6 +603,86 @@ export class AgujaViva {
   }
 }
 
+function updateUI(freq) {
+  const noteDisplay = $("currentNoteDisplay") || $("noteDisplay");
+  const centsDisplay = $("centsDisplay");
+  const guideText = $("guideText");
+
+  if (!state.isRecording || freq <= 0) {
+    if (noteDisplay) {
+      noteDisplay.textContent = "--";
+      noteDisplay.className = "current-note state-idle";
+    }
+    if (centsDisplay) {
+      centsDisplay.textContent = "";
+      centsDisplay.className = "cents-display";
+    }
+    if (guideText) {
+      guideText.textContent = "🎤 Escuchando...";
+      guideText.className = "guide-text";
+    }
+    return;
+  }
+
+  if (agujaVivaInstance) {
+    const cents = agujaVivaInstance.cents;
+    const absCents = Math.abs(cents);
+    const targetNoteEl = $("targetNote");
+    const targetNoteName = targetNoteEl ? targetNoteEl.value : "E3";
+
+    if (noteDisplay) {
+      noteDisplay.textContent = targetNoteName;
+    }
+
+    if (absCents <= agujaVivaInstance.maxCents * 0.15) {
+      if (noteDisplay) noteDisplay.className = "current-note state-on";
+      if (centsDisplay) {
+        centsDisplay.textContent = "Afinado (0 cents)";
+        centsDisplay.className = "cents-display visible cents-on";
+      }
+      if (guideText) {
+        guideText.textContent = "¡Nota Perfecta!";
+        guideText.className = "guide-text state-on";
+      }
+    } else if (cents < 0) {
+      if (noteDisplay) noteDisplay.className = "current-note state-flat";
+      if (centsDisplay) {
+        centsDisplay.textContent = `${Math.round(cents)} cents`;
+        centsDisplay.className = "cents-display visible cents-flat";
+      }
+      if (guideText) {
+        guideText.textContent = "▲ Sube la voz (Grave)";
+        guideText.className = "guide-text state-flat";
+      }
+    } else {
+      if (noteDisplay) noteDisplay.className = "current-note state-sharp";
+      if (centsDisplay) {
+        centsDisplay.textContent = `+${Math.round(cents)} cents`;
+        centsDisplay.className = "cents-display visible cents-sharp";
+      }
+      if (guideText) {
+        guideText.textContent = "▼ Baja la voz (Agudo)";
+        guideText.className = "guide-text state-sharp";
+      }
+    }
+  }
+}
+
+function runPitchDetectionLoop() {
+  if (!state.isRecording || !analyser || !audioContext) return;
+
+  analyser.getFloatTimeDomainData(pitchBuffer);
+  const freq = autoCorrelate(pitchBuffer, audioContext.sampleRate);
+
+  if (agujaVivaInstance) {
+    agujaVivaInstance.setPitch(freq);
+  }
+
+  updateUI(freq);
+
+  pitchLoopTimeout = setTimeout(runPitchDetectionLoop, 50);
+}
+
 export async function toggleRecording() {
   const btn = $("recordBtn");
   if (!btn) return;
@@ -611,10 +739,10 @@ async function startAfinador() {
     if (difficultyEl) agujaVivaInstance.setDifficulty(difficultyEl.value);
 
     if (targetNoteEl) {
-      targetNoteEl.onchange = () => agujaVivaInstance.setTargetNote(targetNoteEl.value);
+      targetNoteEl.onchange = () => agujaVivaInstance && agujaVivaInstance.setTargetNote(targetNoteEl.value);
     }
     if (difficultyEl) {
-      difficultyEl.onchange = () => agujaVivaInstance.setDifficulty(difficultyEl.value);
+      difficultyEl.onchange = () => agujaVivaInstance && agujaVivaInstance.setDifficulty(difficultyEl.value);
     }
     agujaVivaInstance.start();
   }
@@ -648,6 +776,14 @@ function stopAfinador() {
     clearTimeout(pitchLoopTimeout);
     pitchLoopTimeout = null;
   }
+  if (agujaVivaInstance) {
+    agujaVivaInstance.destroy();
+    agujaVivaInstance = null;
+  }
+  if (analyser) {
+    analyser.disconnect();
+    analyser = null;
+  }
   if (stream) {
     stream.getTracks().forEach(t => t.stop());
     stream = null;
@@ -655,77 +791,5 @@ function stopAfinador() {
   if (audioContext) {
     audioContext.close();
     audioContext = null;
-  }
-  analyser = null;
-  if (agujaVivaInstance) {
-    agujaVivaInstance.destroy();
-    agujaVivaInstance = null;
-  }
-}
-
-async function runPitchDetectionLoop() {
-  if (!state.isRecording || !analyser || !audioContext) return;
-  analyser.getFloatTimeDomainData(pitchBuffer);
-
-  try {
-    const audioController = getAudioController();
-    const result = await audioController.detectPitch(pitchBuffer, audioContext.sampleRate);
-    
-    const noteDisplay = $("currentNoteDisplay") || $("noteDisplay");
-    const centsDisplay = $("centsDisplay");
-    const guideText = $("guideText");
-
-    if (result && result.pitch && result.pitch > 0) {
-      if (agujaVivaInstance) {
-        agujaVivaInstance.setPitch(result.pitch);
-      }
-
-      const pitchCents = result.cents || (agujaVivaInstance ? agujaVivaInstance.cents : 0);
-      const maxTol = agujaVivaInstance ? agujaVivaInstance.maxCents : 30;
-
-      if (noteDisplay) {
-        noteDisplay.textContent = result.note || "--";
-        const isCentered = Math.abs(pitchCents) <= (maxTol * 0.15);
-        noteDisplay.className = `current-note ${isCentered ? 'state-on' : (pitchCents < 0 ? 'state-flat' : 'state-sharp')}`;
-      }
-      if (centsDisplay) {
-        const c = Math.round(pitchCents);
-        centsDisplay.textContent = `${c > 0 ? '+' : ''}${c} cents`;
-        centsDisplay.classList.add("visible");
-      }
-      if (guideText) {
-        if (Math.abs(pitchCents) <= (maxTol * 0.15)) {
-          guideText.textContent = "¡Afinado!";
-          guideText.className = "guide-text state-on";
-        } else if (pitchCents < 0) {
-          guideText.textContent = "Demasiado grave (Subir pitch)";
-          guideText.className = "guide-text state-flat";
-        } else {
-          guideText.textContent = "Demasiado agudo (Bajar pitch)";
-          guideText.className = "guide-text state-sharp";
-        }
-      }
-    } else {
-      if (agujaVivaInstance) {
-        agujaVivaInstance.setPitch(-1);
-      }
-      if (noteDisplay) {
-        noteDisplay.textContent = "--";
-        noteDisplay.className = "current-note state-idle";
-      }
-      if (centsDisplay) {
-        centsDisplay.classList.remove("visible");
-      }
-      if (guideText) {
-        guideText.textContent = "🎤 Escuchando...";
-        guideText.className = "guide-text";
-      }
-    }
-  } catch (error) {
-    console.error("Fallo en bucle de detección:", error);
-  }
-
-  if (state.isRecording) {
-    pitchLoopTimeout = setTimeout(runPitchDetectionLoop, 16);
   }
 }
