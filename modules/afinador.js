@@ -203,6 +203,7 @@ export class AfinadorVisual {
     this.targetMarkerOffset = -normalized * maxTravel;
 
     const tuned = Math.abs(this.cents) <= Math.max(6, this.maxCents * 0.35);
+    */
 
     if (tuned && !this.wasTuned && this.rippleCooldown <= 0) {
       this.triggerTunedExplosion();
@@ -235,6 +236,23 @@ export class AfinadorVisual {
       });
     }
   }
+
+updateParticle(p, dt) {
+  // Aplicar gravedad
+  p.vy += 0.15; 
+  
+  // Aplicar fricción (0.95 significa 5% de pérdida de velocidad por frame)
+  p.vx *= 0.95;
+  p.vy *= 0.95;
+
+  // Actualizar posición
+  p.x += p.vx * dt;
+  p.y += p.vy * dt;
+
+  // Reducir vida
+  p.life -= dt;
+  p.alpha = p.life / p.maxLife; // Desvanecer al reducir la vida
+}
 
   triggerRipple() {
     const cx = this.width / 2;
@@ -735,6 +753,7 @@ export class AfinadorVisual {
     ctx.fillText('GRAVE', barX - 20, barY + 8);
     ctx.fillText('AGUDO', barX + barW + 24, barY + 8);
   }
+  
 
   hexToRgb(hex) {
     const h = hex.replace('#', '');
