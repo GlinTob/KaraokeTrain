@@ -1,9 +1,10 @@
-// ====================================================================
-// 🎨 MONITOR DE RENDERIZADO Y FLUJO DE REPRODUCCIÓN DEL KARAOKE
-// ====================================================================
+/**
+ * MÓDULO INTEGRADO DE MONITOR DE KARAOKE (MODO SOLO & DÚO SPLIT)
+ * Soporta Canvas de 1800x600px, escala de 10 notas, avatares/íconos dinámicos,
+ * rastro de pitch suave, detección dual y teleprompter compartido.
+ */
 import { $, safeAdd } from "../script.js";
 
-// Declaración de historiales locales para evitar errores de referencia en el render
 let pitchHistory = [];
 let karaokePitchDetectionAudioCtx = null;
 let karaokePitchDetectionAnalyser = null;
@@ -11,297 +12,530 @@ let karaokePitchLoopRafId = null;
 let karaokePitchSourceNode = null;
 let karaokePitchWorkletNode = null;
 
-export function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2) {
-  const canvas = $("karaokeCanvas");
-  if (!canvas) return;
-  const ctx = canvas.getContext("2d");
-  const hueFiesta = (currentTime * 50) % 360;
-  const paleta = obtenerPaletaTema(hueFiesta);
+/**
+ * Conmuta el modo Dúo Split ON/OFF
+ */
+function toggleKaraokeDuoSplitMode() {
+  window.karaokeDuoSplitMode = !window.karaokeDuoSplitMode;
+  const btn = $("karaokeDuoSplitToggleBtn");
+  if (btn) {
+    btn.textContent = window.karaokeDuoSplitMode ? "🎤🎤 Modo Dúo Split: ON" : "🎤🎤 Modo Dúo Split: OFF";
+    btn.style.background = window.karaokeDuoSplitMode ? "#22c55e" : "#3b82f6";
+  }
 
-  // Guardamos pitch global para repintados manuales (toggle, etc.)
-  if (typeof currentFreq === "number") karaokePitchP1 = currentFreq;
-  if (typeof currentFreq2 === "number") karaokePitchP2 = currentFreq2;
+  if (window.karaokeDuoSplitMode) {
+    ensureP2PitchTracking();
+  } else {
+    stopP2PitchTracking();
+  }
 
-  // --- CONFIGURACIÓN COMÚN ---
-  const MIDI_MIN = 36;
-  const MIDI_MAX = 84;
-  const lineX = 80; // Línea roja (Ahora)
-  const pixelsPerSecond = (canvas.width - 50) / 7;
+  if (window.karaokeRendererInstance) {
+    const track = $("karaokeTrack");
+    const t = track ? track.currentTime : 0;
+    window.karaokeRendererInstance.render(t, window.karaokePitchP1, window.karaokePitchP2);
+  }
+}
 
-  function obtenerPaletaTema(hue = 0) {
-    const temaActual = localStorage.getItem("vocalApp_stage") || "theme-clasico";
-    let config = { fondo: "#111827", lineas: "#333333", etiquetas: "#666666", barraFutura: "#1e40af", bordeFuturo: "#3b82f6", tamanoTexto: "15px" };
-    switch (temaActual) {
-      case "theme-moderno":
-        config = { fondo: "#082f49", lineas: "rgba(6, 182, 212, 0.2)", etiquetas: "#06b6d4", barraFutura: "#1e3a8a", bordeFuturo: "#06b6d4", tamanoTexto: "16px" };
-        break;
-      case "theme-disco":
-        config = { fondo: "#2e1065", lineas: "rgba(219, 39, 119, 0.25)", etiquetas: "#facc15", barraFutura: "#701a75", bordeFuturo: "#db2777", tamanoTexto: "18px" };
-        break;
-      case "theme-acustico":
-        config = { fondo: "#451a03", lineas: "rgba(120, 53, 15, 0.4)", etiquetas: "#fcd34d", barraFutura: "#78350f", bordeFuturo: "#b45309", tamanoTexto: "14px" };
-        break;
-      case "theme-fiesta":
-        config = {
-          fondo: `hsl(${hue}, 40%, 12%)`,
-          lineas: "rgba(255, 255, 255, 0.15)",
-          etiquetas: "#ff007f",
-          barraFutura: `hsl(${(hue + 180) % 360}, 50%, 25%)`,
-          bordeFuturo: `hsl(${(hue + 180) % 360}, 70%, 50%)`,
-          tamanoTexto: "19px"
-        };
-        break;
+/**
+ * Inicia el seguimiento de pitch para el Micrófono 2 (Cantante 2)
+ */
+async function ensureP2PitchTracking() {
+  if (window.karaokeDuoAnalyser2 && window.karaokeDuoAudioContext) {
+    karaokeSplitAnalyser2 = window.karaokeDuoAnalyser2;
+    karaokeSplitAudioCtx = window.karaokeDuoAudioContext;
+    return;
+  }
+  if (karaokeSplitAnalyser2) return;
+
+  try {
+    const mic2Id = (typeof window.getSelectedMicId === "function") ? window.getSelectedMicId(2) : null;
+    if (!mic2Id) {
+      console.warn("[DuoSplit] No hay Mic 2 seleccionado en la configuración.");
+      return;
+    }
+    if (!karaokeSplitAudioCtx) {
+      karaokeSplitAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    karaokeSplitStream2 = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        deviceId: { exact: mic2Id },
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false
+      }
+    });
+    const src2 = karaokeSplitAudioCtx.createMediaStreamSource(karaokeSplitStream2);
+    karaokeSplitAnalyser2 = karaokeSplitAudioCtx.createAnalyser();
+    karaokeSplitAnalyser2.fftSize = 2048;
+    src2.connect(karaokeSplitAnalyser2);
+    console.log("[DuoSplit] Pitch tracking del Mic 2 iniciado correctamente.");
+  } catch (e) {
+    console.warn("No se pudo iniciar pitch tracking en Mic 2 (P2):", e);
+  }
+}
+
+/**
+ * Detiene el rastreo de audio del Micrófono 2
+ */
+function stopP2PitchTracking() {
+  try {
+    if (karaokeSplitStream2) {
+      karaokeSplitStream2.getTracks().forEach(t => t.stop());
+    }
+  } catch (e) {}
+  karaokeSplitStream2 = null;
+  karaokeSplitAnalyser2 = null;
+  window.karaokePitchP2 = -1;
+  window.pitchHistoryMic2 = [];
+}
+
+
+// --- CLASE PRINCIPAL DEL RENDERIZADOR ---
+
+export class KaraokeCanvasRenderer {
+  constructor(canvasId, options = {}) {
+    this.canvas = typeof canvasId === 'string' ? document.getElementById(canvasId) : canvasId;
+    if (!this.canvas) throw new Error(`Canvas no encontrado`);
+    this.ctx = this.canvas.getContext('2d');
+
+    // Configuración por defecto y calibración para monitor 1800x600px
+    this.options = { maxFrameRate: options.maxFrameRate || 30, ...options };
+    this.lastFrameTime = 0;
+    this.frameInterval = 1000 / this.options.maxFrameRate;
+
+    // Escala fija de 10 notas requerida: A4 (69) a F3 (53)
+    this.noteLabels = ["A4", "G4", "F4", "E4", "D4", "C4", "B3", "A3", "G3", "F3"];
+    this.midiMax = 69; // A4
+    this.midiMin = 53; // F3
+    this.midiRange = this.midiMax - this.midiMin;
+
+    window.karaokeRendererInstance = this;
+  }
+
+  shouldRender() {
+    const now = performance.now();
+    if (now - this.lastFrameTime < this.frameInterval) return false;
+    this.lastFrameTime = now;
+    return true;
+  }
+
+  frequencyToMidi(freq) {
+    if (!freq || freq <= 0) return 0;
+    return Math.round(12 * Math.log2(freq / 440) + 69);
+  }
+
+  midiToY(midi, pTop, pBottom) {
+    let m = midi || 60;
+    if (m < this.midiMin) m = this.midiMin;
+    if (m > this.midiMax) m = this.midiMax;
+
+    const pHeight = pBottom - pTop;
+    const normalized = (this.midiMax - m) / this.midiRange;
+    return pTop + normalized * pHeight;
+  }
+
+  obtenerPaletaTema(hue = 0) {
+    const temaActual = localStorage.getItem("singIt_stage") || localStorage.getItem("vocalApp_stage") || "theme-clasico";
+    const fuenteBase = localStorage.getItem("singIt_font") || "Arial";
+
+    let config = {
+      fondo: "#111827",
+      lineas: "#333333",
+      etiquetas: "#9ca3af",
+      barraFutura: "#1e40af",
+      bordeFuturo: "#3b82f6",
+      fuente: fuenteBase,
+      tamanoTexto: "16px"
+    };
+
+    if (temaActual === "theme-moderno") {
+      config = { fondo: "#082f49", lineas: "rgba(6, 182, 212, 0.2)", etiquetas: "#06b6d4", barraFutura: "#1e3a8a", bordeFuturo: "#06b6d4", fuente: fuenteBase, tamanoTexto: "16px" };
+    } else if (temaActual === "theme-disco") {
+      config = { fondo: "#2e1065", lineas: "rgba(219, 39, 119, 0.25)", etiquetas: "#facc15", barraFutura: "#701a75", bordeFuturo: "#db2777", fuente: fuenteBase, tamanoTexto: "18px" };
+    } else if (temaActual === "theme-acustico") {
+      config = { fondo: "#451a03", lineas: "rgba(120, 53, 15, 0.4)", etiquetas: "#fcd34d", barraFutura: "#78350f", bordeFuturo: "#b45309", fuente: fuenteBase, tamanoTexto: "15px" };
+    } else if (temaActual === "theme-fiesta") {
+      config = {
+        fondo: `hsl(${hue}, 40%, 12%)`,
+        lineas: "rgba(255, 255, 255, 0.15)",
+        etiquetas: "#ff007f",
+        barraFutura: `hsl(${(hue + 180) % 360}, 50%, 25%)`,
+        bordeFuturo: `hsl(${(hue + 180) % 360}, 70%, 50%)`,
+        fuente: fuenteBase,
+        tamanoTexto: "18px"
+      };
+    } else if (temaActual === "theme-retrowave") {
+      config = { fondo: "#1e0b36", lineas: "rgba(255, 0, 127, 0.25)", etiquetas: "#38bdf8", barraFutura: "#4c1d95", bordeFuturo: "#ff007f", fuente: fuenteBase, tamanoTexto: "16px" };
     }
     return config;
   }
 
-  // 1. LIMPIAR TODO EL CANVAS
-  ctx.fillStyle = paleta.fondo;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  /**
+   * Dibuja el bloque lateral de Avatar e Íconos configurables
+   */
+  drawAvatarBlock(pTop, pBottom, parte) {
+    if (!parte) return;
+    const isP1 = (parte === "C1" || parte === "P1");
 
-  // Fuente de datos (palabras con tiempos) - asegurar arrays inicializados
-  const datos = (typeof textSegments !== 'undefined' && textSegments && textSegments.length > 0) ? textSegments : transcriptionSegments;
+    // Datos configurables desde la pestaña de configuración (localStorage)
+    const nombre = isP1 
+      ? (localStorage.getItem("singIt_c1_name") || "Wen-dolyne")
+      : (localStorage.getItem("singIt_c2_name") || "To-bonito");
+    
+    const avatarEmoji = isP1 
+      ? (localStorage.getItem("singIt_c1_avatar") || "👩")
+      : (localStorage.getItem("singIt_c2_avatar") || "🧔🏾");
 
-  // Offset extra cuando hay etiqueta de avatar (split mode)
-  const AVATAR_BLOCK_W = karaokeDuoSplitMode ? 110 : 0;
-  const noteLabelsX = 28 + AVATAR_BLOCK_W;
-  const pentagramStartX = 35 + AVATAR_BLOCK_W;
-  const dynLineX = lineX + AVATAR_BLOCK_W;
+    const icon1 = isP1 
+      ? (localStorage.getItem("singIt_c1_icon1") || "SQUARE_PURPLE")
+      : (localStorage.getItem("singIt_c2_icon1") || "🐱");
 
-  function drawAvatarBlock(pTop, pBottom, parte) {
-    if (!parte || parte === "DUO") return;
-    const isP1 = (parte === "P1");
-    const nombre = isP1 ? "Wen-dolyne" : "To-bonito";
-    const avatarEmoji = isP1 ? "👩" : "🧔🏾";
+    const icon2 = isP1 
+      ? (localStorage.getItem("singIt_c1_icon2") || "⚛️")
+      : (localStorage.getItem("singIt_c2_icon2") || "🤔");
 
-    const cx = 5 + AVATAR_BLOCK_W / 2;
-    const blockTop = pTop + 10;
-    const avatarSize = 56;
-    const halfSize = 28; 
-    const nameH = 22;
-    const gap = 6;
+    const cx = 60;
+    const blockTop = pTop + 8;
+    const avatarSize = 48;
+    const halfSize = 24;
+    const nameH = 20;
+    const gap = 4;
 
-    // 1) Nombre
-    ctx.fillStyle = "white";
-    ctx.font = "bold 13px Arial";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "alphabetic";
-    ctx.fillText(nombre, cx, blockTop + nameH - 4);
+    // 1) Nombre arriba
+    this.ctx.fillStyle = "#ffffff";
+    this.ctx.font = `bold 15px ${localStorage.getItem("singIt_font") || "Arial"}`;
+    this.ctx.textAlign = "center";
+    this.ctx.textBaseline = "alphabetic";
+    this.ctx.fillText(nombre, cx, blockTop + nameH);
 
-    // 2) Avatar emoji
+    // 2) Avatar Emoji al centro (sin círculo)
     const avTop = blockTop + nameH + gap;
-    ctx.font = `${avatarSize}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",Arial`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(avatarEmoji, cx, avTop + avatarSize / 2);
+    this.ctx.font = `${avatarSize}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",Arial`;
+    this.ctx.textAlign = "center";
+    this.ctx.textBaseline = "middle";
+    this.ctx.fillText(avatarEmoji, cx, avTop + avatarSize / 2);
 
-    // 3) Fila inferior con dos íconos al lado
+    // 3) Fila inferior con 2 íconos seleccionables
     const rowTop = avTop + avatarSize + gap;
-    const iconHalfFont = `${halfSize}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",Arial`;
+    const iconFont = `${halfSize}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",Arial`;
 
-    if (isP1) {
-      const sqX = cx - halfSize - gap / 2;
-      ctx.fillStyle = "#7c3aed";
-      ctx.fillRect(sqX, rowTop, halfSize, halfSize);
-      ctx.strokeStyle = "#a855f7";
-      ctx.lineWidth = 1;
-      ctx.strokeRect(sqX, rowTop, halfSize, halfSize);
-      
-      ctx.font = iconHalfFont;
-      ctx.fillStyle = "white";
-      ctx.textBaseline = "middle";
-      ctx.textAlign = "center";
-      ctx.fillText("⚛️", cx + halfSize / 2 + gap / 2, rowTop + halfSize / 2);
+    // Ícono 1
+    if (icon1 === "SQUARE_PURPLE") {
+      const sqX = cx - halfSize - 4;
+      this.ctx.fillStyle = "#7c3aed";
+      this.ctx.fillRect(sqX, rowTop, halfSize, halfSize);
+      this.ctx.strokeStyle = "#a855f7";
+      this.ctx.lineWidth = 1;
+      this.ctx.strokeRect(sqX, rowTop, halfSize, halfSize);
     } else {
-      ctx.font = iconHalfFont;
-      ctx.fillStyle = "white";
-      ctx.textBaseline = "middle";
-      ctx.textAlign = "center";
-      ctx.fillText("🐱", cx - halfSize / 2 - gap / 2, rowTop + halfSize / 2);
-      ctx.fillText("🤔", cx + halfSize / 2 + gap / 2, rowTop + halfSize / 2);
+      this.ctx.font = iconFont;
+      this.ctx.textAlign = "center";
+      this.ctx.textBaseline = "middle";
+      this.ctx.fillText(icon1, cx - halfSize / 2 - 2, rowTop + halfSize / 2);
     }
-    ctx.textBaseline = "alphabetic";
+
+    // Ícono 2
+    this.ctx.font = iconFont;
+    this.ctx.textAlign = "center";
+    this.ctx.textBaseline = "middle";
+    this.ctx.fillText(icon2, cx + halfSize / 2 + 2, rowTop + halfSize / 2);
+
+    this.ctx.textBaseline = "alphabetic";
   }
 
-  function drawRegion(pTop, pBottom, pitchVal, pitchHist, parteFiltro, etiquetaParte) {
-    const pHeight = pBottom - pTop;
-    const numLines = 10;
-    const midiToY = (midi) => {
-      const val = (midi && midi > 0) ? midi : 60;
-      const normalized = (MIDI_MAX - val) / (MIDI_MAX - MIDI_MIN);
-      return pTop + (normalized * pHeight);
-    };
+  /**
+   * Dibuja el rastro continuo del pitch del usuario (Fading Trail)
+   */
+  _drawPitchTrace(history, rgbStr, lineWidth, pTop, pBottom, startX) {
+    if (!history || history.length === 0) return;
 
-    drawAvatarBlock(pTop, pBottom, etiquetaParte);
+    const VISIBLE_SAMPLES = 75;
+    const start = Math.max(0, history.length - VISIBLE_SAMPLES);
+    const visible = history.slice(start);
+    const totalSlots = visible.length;
+    if (totalSlots < 2) return;
 
-    // Pentagrama
-    ctx.strokeStyle = paleta.lineas;
-    ctx.lineWidth = 1;
-    for (let i = 0; i <= numLines; i++) {
-      const y = pTop + (pHeight / numLines) * i;
-      ctx.beginPath();
-      ctx.moveTo(pentagramStartX, y);
-      ctx.lineTo(canvas.width, y);
-      ctx.stroke();
+    const lineX = Math.max(80, Math.floor(this.canvas.width * 0.22));
+    const traceWidth = lineX - startX;
+    const slotWidth = traceWidth / VISIBLE_SAMPLES;
+
+    this.ctx.lineCap = "round";
+    this.ctx.lineJoin = "round";
+
+    let prevX = null, prevY = null;
+    for (let i = 0; i < totalSlots; i++) {
+      const freq = visible[i];
+      if (!freq || freq <= 0) { prevX = null; prevY = null; continue; }
+
+      const midi = this.frequencyToMidi(freq);
+      const y = this.midiToY(midi, pTop, pBottom);
+      const x = startX + (i + (VISIBLE_SAMPLES - totalSlots)) * slotWidth;
+
+      if (prevX !== null) {
+        const alpha = Math.pow(i / (totalSlots - 1), 1.6);
+        this.ctx.beginPath();
+        this.ctx.strokeStyle = `rgba(${rgbStr}, ${alpha.toFixed(3)})`;
+        this.ctx.lineWidth = lineWidth;
+        this.ctx.moveTo(prevX, prevY);
+        this.ctx.lineTo(x, y);
+        this.ctx.stroke();
+      }
+      prevX = x; prevY = y;
+    }
+  }
+
+  /**
+   * Renderiza una región del pentagrama (Modo Solo o Split)
+   */
+  drawRegion(pTop, pBottom, pitchVal, pitchHist, parteFiltro, etiquetaParte, paleta, segmentosLetras, currentTime) {
+    const isSplit = window.karaokeDuoSplitMode;
+    const avatarBlockW = isSplit ? 120 : 0;
+    const noteLabelsX = 28 + avatarBlockW;
+    const pentagramStartX = 35 + avatarBlockW;
+    const lineX = Math.max(80 + avatarBlockW, Math.floor(this.canvas.width * 0.22));
+    const pixelsPerSecond = (this.canvas.width - 50 - avatarBlockW) / 6;
+
+    // 1. Dibujar Avatares e Íconos
+    if (isSplit) {
+      this.drawAvatarBlock(pTop, pBottom, etiquetaParte);
     }
 
-    // Notas a la izquierda
-    ctx.fillStyle = paleta.etiquetas;
-    ctx.font = "bold 20px Arial";
-    ctx.textAlign = "right";
-    const noteLabels = ["C6", "A5", "F5", "D5", "B4", "G4", "E4", "C4", "A3", "F3", "D3", "C3"];
-    noteLabels.forEach((label, i) => {
-      const y = pTop + (pHeight / numLines) * i + 7;
-      ctx.fillText(label, noteLabelsX, y);
+    // 2. Pentagrama de 5 líneas estructuradas con espacio proporcional para 10 notas
+    const pHeight = pBottom - pTop;
+    this.ctx.strokeStyle = paleta.lineas;
+    this.ctx.lineWidth = 1;
+    const numLines = 5;
+    for (let i = 0; i < numLines; i++) {
+      const y = pTop + (pHeight / (numLines - 1)) * i;
+      this.ctx.beginPath();
+      this.ctx.moveTo(pentagramStartX, y);
+      this.ctx.lineTo(this.canvas.width, y);
+      this.ctx.stroke();
+    }
+
+    // 3. Escala de 10 Notas requeridas: ["A4","G4","F4","E4","D4","C4","B3","A3","G3","F3"]
+    this.ctx.fillStyle = paleta.etiquetas;
+    this.ctx.font = `bold 18px ${paleta.fuente}`;
+    this.ctx.textAlign = "right";
+    this.ctx.textBaseline = "middle";
+
+    const totalNotes = this.noteLabels.length;
+    this.noteLabels.forEach((label, i) => {
+      const y = pTop + (pHeight / (totalNotes - 1)) * i;
+      this.ctx.fillText(label, noteLabelsX, y);
     });
 
-    // Barras de notas
-    if (Array.isArray(datos) && datos.length > 0) {
-      datos.forEach((seg) => {
-        const parteSeg = seg.parte || "P1";
-        if (parteFiltro && parteSeg !== parteFiltro && parteSeg !== "DUO") return;
+    // 4. Barras de Notas y Letras
+    if (Array.isArray(segmentosLetras) && segmentosLetras.length > 0) {
+      const timeWindowStart = currentTime - 1;
+      const timeWindowEnd = currentTime + 6;
 
-        const words = Array.isArray(seg.words) ? seg.words : [];
-        words.forEach(w => {
-          const start = w.start || w.startTime || seg.start || 0;
-          const end = w.end || (start + (w.duration || 0.5));
-          if (end < currentTime - 1 || start > currentTime + (canvas.width / pixelsPerSecond)) return;
-          
-          const x = dynLineX + (start - currentTime) * pixelsPerSecond;
-          const width = (end - start) * pixelsPerSecond;
-          const midi = w.midi || seg.midi || 60;
-          const y = midiToY(midi);
-          const h = 24;
+      segmentosLetras.forEach((segment) => {
+        const parteSeg = segment.parte || "C1";
+        if (parteFiltro && parteSeg !== parteFiltro && parteSeg !== "DUO" && parteSeg !== "DÚO") return;
 
-          const isActive = currentTime >= start && currentTime <= end;
-          const isPast = currentTime > end;
+        const words = Array.isArray(segment.words) ? segment.words : [];
+        words.forEach((word) => {
+          const wStart = word.start || word.startTime || segment.start || 0;
+          const wEnd = word.end || (wStart + (word.duration || 0.5));
 
-          let barColor = paleta.barraFutura;
-          let strokeColor = paleta.bordeFuturo;
+          if (wEnd < timeWindowStart || wStart > timeWindowEnd) return;
 
-          if (parteSeg === "DUO") {
-            barColor = "#7c3aed";
-            strokeColor = "#a855f7";
-          } else if (parteSeg === "P2") {
-            barColor = "#9a3412";
-            strokeColor = "#f97316";
+          const wordStartX = lineX + (wStart - currentTime) * pixelsPerSecond;
+          const wordEndX = lineX + (wEnd - currentTime) * pixelsPerSecond;
+          const barWidth = Math.max(wordEndX - wordStartX, 35);
+
+          const midi = word.midi || segment.midi || 60;
+          const barY = this.midiToY(midi, pTop, pBottom);
+          const barHeight = 22;
+
+          const isActive = currentTime >= wStart && currentTime <= wEnd;
+          const isPast = currentTime > wEnd;
+
+          let isCorrect = false;
+          if (isActive && pitchVal > 0) {
+            const userMidi = this.frequencyToMidi(pitchVal);
+            if (Math.abs(userMidi - midi) <= 2) isCorrect = true;
           }
 
-          if (isPast) barColor = "#4b5563";
-
-          if (isActive) {
-            const userMidi = Math.round(12 * Math.log2(pitchVal / 440) + 69);
-            const isCorrect = pitchVal > 0 && Math.abs(userMidi - midi) <= 2;
-            barColor = isCorrect ? "#22c55e" : strokeColor;
-            strokeColor = "white";
+          let barColor, textColor, borderColor;
+          if (isPast) {
+            barColor = "#4b5563"; // Nota inactiva / ya cantada
+            textColor = "#9ca3af";
+            borderColor = "#6b7280";
+          } else if (isActive) {
+            barColor = isCorrect ? "#22c55e" : "#3b82f6";
+            textColor = "#ffffff";
+            borderColor = isCorrect ? "#4ade80" : "#60a5fa";
+          } else {
+            barColor = (parteSeg === "DUO" || parteSeg === "DÚO") ? "#7c3aed" : paleta.barraFutura;
+            textColor = "rgba(255, 255, 255, 0.85)";
+            borderColor = (parteSeg === "DUO" || parteSeg === "DÚO") ? "#a855f7" : paleta.bordeFuturo;
           }
 
-          ctx.fillStyle = barColor;
-          ctx.beginPath();
-          if (ctx.roundRect) ctx.roundRect(x, y - h / 2, Math.max(width, 25), h, 5);
-          else ctx.fillRect(x, y - h / 2, Math.max(width, 25), h);
-          ctx.fill();
+          this.ctx.fillStyle = barColor;
+          this.ctx.strokeStyle = borderColor;
+          this.ctx.lineWidth = isActive ? 2 : 1;
 
-          if (isActive || !isPast) {
-            ctx.strokeStyle = strokeColor;
-            ctx.lineWidth = isActive ? 3 : 1;
-            ctx.stroke();
+          this.ctx.beginPath();
+          if (this.ctx.roundRect) {
+            this.ctx.roundRect(wordStartX, barY - barHeight / 2, barWidth, barHeight, 5);
+          } else {
+            this.ctx.fillRect(wordStartX, barY - barHeight / 2, barWidth, barHeight);
           }
+          this.ctx.fill();
+          this.ctx.stroke();
 
-          ctx.fillStyle = "white";
-          ctx.font = `bold ${paleta.tamanoTexto || "15px"} Arial`;
-          ctx.textAlign = "center";
-          ctx.fillText(w.word || w.text || "", x + Math.max(width, 25) / 2, y + 5);
+          // Texto de la sílaba/palabra sobre la barra
+          this.ctx.fillStyle = textColor;
+          this.ctx.textAlign = "center";
+          this.ctx.textBaseline = "middle";
+          const displayWord = word.word || word.text || "";
+          this.ctx.font = `${isActive ? "bold " : ""}${displayWord.length > 8 ? "18" : "22"}px ${paleta.fuente}`;
+          this.ctx.fillText(displayWord, wordStartX + barWidth / 2, barY);
         });
       });
     }
 
-    // Rastro de pitch y punto del usuario
-    if (pitchVal > 0) {
-      const userMidi = Math.round(12 * Math.log2(pitchVal / 440) + 69);
-      const userY = midiToY(userMidi);
+    // 5. Rastro de Pitch (Fading Trail) por región
+    const traceColor = (etiquetaParte === "C2" || etiquetaParte === "P2") ? "6, 182, 212" : "250, 204, 21";
+    this._drawPitchTrace(pitchHist, traceColor, 5, pTop, pBottom, pentagramStartX);
 
-      ctx.beginPath();
-      ctx.strokeStyle = "rgba(250, 204, 21, 0.5)";
-      ctx.lineWidth = 4;
-      let started = false;
-      pitchHist.forEach((f, i) => {
-        if (f) {
-          const x = dynLineX - (pitchHist.length - i) * 3;
-          const yPos = midiToY(Math.round(12 * Math.log2(f / 440) + 69));
-          if (x < pentagramStartX) return;
-          if (!started) { ctx.moveTo(x, yPos); started = true; } else { ctx.lineTo(x, yPos); }
-        }
-      });
+    // 6. Punto Flotante del Usuario en la línea de tiempo
+    if (typeof pitchVal === 'number' && isFinite(pitchVal) && pitchVal > 0) {
+      const userY = this.midiToY(this.frequencyToMidi(pitchVal), pTop, pBottom);
+      const dotColor = (etiquetaParte === "C2" || etiquetaParte === "P2") ? "#06b6d4" : "#facc15";
+
+      this.ctx.beginPath();
+      this.ctx.fillStyle = dotColor;
+      this.ctx.shadowColor = dotColor;
+      this.ctx.shadowBlur = 15;
+      this.ctx.arc(lineX, userY, 12, 0, Math.PI * 2);
+      this.ctx.fill();
+      this.ctx.shadowBlur = 0;
+      this.ctx.strokeStyle = "#ffffff";
+      this.ctx.lineWidth = 2.5;
+      this.ctx.stroke();
     }
-    ctx.stroke();
 
-    ctx.beginPath();
-    ctx.fillStyle = "#facc15";
-    ctx.arc(dynLineX, userY, 9, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = "white";
-    ctx.lineWidth = 2;
-    ctx.stroke();
-      
-    // Línea roja (Ahora)
-    ctx.strokeStyle = "#ef4444";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(dynLineX, pTop - 2);
-    ctx.lineTo(dynLineX, pBottom + 2);
-    ctx.stroke();
-    
-    // 2. Renderizar según modo (Single vs Dúo Split)
-    if (karaokeDuoSplitMode) {
-      const TELE_H = 100;
-      const GAP = 14;
-      const totalUsable = canvas.height - TELE_H - 20;
+    // 7. Línea Roja de Separación (Playhead "Ahora")
+    this.ctx.strokeStyle = "#ef4444";
+    this.ctx.lineWidth = 2;
+    this.ctx.beginPath();
+    this.ctx.moveTo(lineX, pTop);
+    this.ctx.lineTo(lineX, pBottom);
+    this.ctx.stroke();
+  }
+
+  /**
+   * Método de renderizado principal
+   */
+  render(currentTime = 0, currentFreq = -1, currentFreq2 = -1, transcriptionSegments = null) {
+    if (!this.shouldRender()) return;
+
+    const hueFiesta = (currentTime * 40) % 360;
+    const paleta = this.obtenerPaletaTema(hueFiesta);
+
+    // Actualización de variables de tono e historial
+    if (typeof currentFreq === "number") window.karaokePitchP1 = currentFreq;
+    if (typeof currentFreq2 === "number") window.karaokePitchP2 = currentFreq2;
+
+    const freq1 = window.karaokePitchP1;
+    const freq2 = window.karaokePitchP2;
+
+    window.pitchHistoryMic1.push(freq1 > 0 ? freq1 : null);
+    window.pitchHistoryMic2.push(freq2 > 0 ? freq2 : null);
+
+    const maxHistory = 80;
+    if (window.pitchHistoryMic1.length > maxHistory) window.pitchHistoryMic1.shift();
+    if (window.pitchHistoryMic2.length > maxHistory) window.pitchHistoryMic2.shift();
+
+    const segmentosLetras = transcriptionSegments || window.transcriptionSegments || window.textSegments || [];
+
+    // Limpieza general del fondo
+    this.ctx.fillStyle = paleta.fondo;
+    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+    // DIBUJO SEGÚN MODO (SOLO vs DÚO SPLIT)
+    if (window.karaokeDuoSplitMode) {
+      const TELE_H = 95;
+      const GAP = 12;
+      const totalUsable = this.canvas.height - TELE_H - 15;
       const regionH = (totalUsable - GAP) / 2;
-      const topP1 = 20;
-      const bottomP1 = topP1 + regionH;
-      const topP2 = bottomP1 + GAP;
-      const bottomP2 = topP2 + regionH;
 
-      pitchHistoryP1.push(currentFreq > 0 ? currentFreq : null);
-      if (pitchHistoryP1.length > 60) pitchHistoryP1.shift();
-      pitchHistoryP2.push(currentFreq2 > 0 ? currentFreq2 : null);
-      if (pitchHistoryP2.length > 60) pitchHistoryP2.shift();
+      const topC1 = 15;
+      const bottomC1 = topC1 + regionH;
+      const topC2 = bottomC1 + GAP;
+      const bottomC2 = topC2 + regionH;
 
-      ctx.fillStyle = "rgba(255,255,255,0.06)";
-      ctx.fillRect(0, bottomP1, canvas.width, GAP);
+      // Línea divisoria central entre mitades
+      this.ctx.fillStyle = "rgba(255, 255, 255, 0.08)";
+      this.ctx.fillRect(0, bottomC1 + 2, this.canvas.width, GAP - 4);
 
-      drawRegion(topP1, bottomP1, currentFreq, pitchHistoryP1, "P1", "P1");
-      drawRegion(topP2, bottomP2, currentFreq2, pitchHistoryP2, "P2", "P2");
+      // Render Región C1 (Arriba)
+      this.drawRegion(topC1, bottomC1, freq1, window.pitchHistoryMic1, "C1", "C1", paleta, segmentosLetras, currentTime);
+
+      // Render Región C2 (Abajo)
+      this.drawRegion(topC2, bottomC2, freq2, window.pitchHistoryMic2, "C2", "C2", paleta, segmentosLetras, currentTime);
     } else {
-        const P_TOP = 40;
-        const P_BOTTOM = canvas.height - 110;
-        pitchHistory.push(currentFreq > 0 ? currentFreq : null);
-        if (pitchHistory.length > 60) pitchHistory.shift();
-        drawRegion(P_TOP, P_BOTTOM, currentFreq, pitchHistory, null, null);
+      // Modo Clásico (Región Única)
+      const topP = 35;
+      const bottomP = this.canvas.height - 110;
+      this.drawRegion(topP, bottomP, freq1, window.pitchHistoryMic1, null, null, paleta, segmentosLetras, currentTime);
     }
-    
-    // 3. TELEPROMPTER DOBLE LÍNEA
-    if (Array.isArray(datos) && datos.length > 0) {
-      const idx = datos.findIndex(s => currentTime >= (s.start || 0) && currentTime <= (s.end || (s.start + 1)));
+
+    // TELEPROMPTER COMPARTIDO FIXO (Línea inferior compartida)
+    if (Array.isArray(segmentosLetras) && segmentosLetras.length > 0) {
+      const idx = segmentosLetras.findIndex(s => currentTime >= (s.start || 0) && currentTime <= (s.end || ((s.start || 0) + 1.5)));
+
+      const teleHeight = 90;
+      const teleTop = this.canvas.height - teleHeight;
+
+      this.ctx.fillStyle = "rgba(0, 0, 0, 0.85)";
+      this.ctx.fillRect(0, teleTop, this.canvas.width, teleHeight);
+
       if (idx !== -1) {
-        ctx.fillStyle = "rgba(0, 0, 0, 0.8)";
-        ctx.fillRect(0, canvas.height - 100, canvas.width, 100);
-        ctx.textAlign = "center";
-        ctx.fillStyle = "white";
-        ctx.font = "bold 30px Arial";
-        const parteActual = datos[idx].parte || "P1";
-        const prefijo = karaokeDuoSplitMode ? (parteActual === "DUO" ? "🟪 DÚO · " : (parteActual === "P2" ? "🟧 P2 · " : "🟦 P1 · ")) : "";
-        ctx.fillText(prefijo + (datos[idx].text || ""), canvas.width / 2, canvas.height - 65);
-        if (datos[idx + 1]) {
-            ctx.fillStyle = "#94a3b8";
-            ctx.font = "italic 22px Arial";
-            ctx.fillText(datos[idx + 1].text || "", canvas.width / 2, canvas.height - 25);
+        this.ctx.textAlign = "center";
+        this.ctx.textBaseline = "middle";
+
+        // Prefijo por cantante en modo split
+        const parteActual = segmentosLetras[idx].parte || "C1";
+        let prefijo = "";
+        if (window.karaokeDuoSplitMode) {
+          prefijo = (parteActual === "DUO" || parteActual === "DÚO") 
+            ? "🟪 DÚO · " 
+            : (parteActual === "C2" || parteActual === "P2" ? "🟧 C2 · " : "🟦 C1 · ");
+        }
+
+        // Línea Actual (Principal)
+        this.ctx.fillStyle = "#ffffff";
+        this.ctx.font = `bold 28px ${paleta.fuente}`;
+        this.ctx.fillText(prefijo + (segmentosLetras[idx].text || ""), this.canvas.width / 2, teleTop + 32);
+
+        // Línea Siguiente (Preview)
+        if (segmentosLetras[idx + 1]) {
+          this.ctx.fillStyle = "#94a3b8";
+          this.ctx.font = `italic 20px ${paleta.fuente}`;
+          this.ctx.fillText(segmentosLetras[idx + 1].text || "", this.canvas.width / 2, teleTop + 68);
         }
       }
     }
   }
+
+  handleResize() {
+    // Recalcular métricas en caso de cambio de dimensión del viewport
+    this.lastFrameTime = 0;
+  }
 }
+
+// Función global de retrocompatibilidad
+window.drawKaraokeMonitor = function(currentTime, currentFreq, currentFreq2) {
+  if (window.karaokeRendererInstance) {
+    window.karaokeRendererInstance.render(currentTime, currentFreq, currentFreq2);
+  }
+};
+
+const $ = (id) => document.getElementById(id);
 
 export async function startKaraokeRecording() {
   const track = $("karaokeTrack") || $("trackPlayer");
@@ -360,8 +594,8 @@ export async function startKaraokeRecording() {
       });
     }
 
-    const mic1Id = getSelectedMicId?.(1);
-    const mic2Id = getSelectedMicId?.(2);
+    const mic1Id = typeof getSelectedMicId === "function" ? getSelectedMicId(1) : null;
+    const mic2Id = typeof getSelectedMicId === "function" ? getSelectedMicId(2) : null;
 
     karaokeStream = await navigator.mediaDevices.getUserMedia({
       audio: mic1Id
@@ -418,7 +652,9 @@ export async function startKaraokeRecording() {
         duoIndicator.style.display = "block";
       }
 
-      startKaraokeDuoLevelMonitor?.();
+      if (typeof startKaraokeDuoLevelMonitor === "function") {
+        startKaraokeDuoLevelMonitor();
+      }
     }
 
     const options = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
@@ -453,7 +689,9 @@ export async function startKaraokeRecording() {
         duoIndicator.style.display = "none";
       }
 
-      stopKaraokeDuoLevelMonitor?.();
+      if (typeof stopKaraokeDuoLevelMonitor === "function") {
+        stopKaraokeDuoLevelMonitor();
+      }
     };
 
     karaokeMediaRecorder.start();
@@ -473,22 +711,24 @@ export async function startKaraokeRecording() {
   } catch (err) {
     console.error("Error iniciando grabación karaoke:", err);
 
-    if (karaokeDuoAudioContext) {
+    if (typeof karaokeDuoAudioContext !== "undefined" && karaokeDuoAudioContext) {
       try { await karaokeDuoAudioContext.close(); } catch (e) {}
       karaokeDuoAudioContext = null;
     }
 
-    if (karaokeStream) {
+    if (typeof karaokeStream !== "undefined" && karaokeStream) {
       karaokeStream.getTracks().forEach(t => t.stop());
       karaokeStream = null;
     }
 
-    if (karaokeStream2) {
+    if (typeof karaokeStream2 !== "undefined" && karaokeStream2) {
       karaokeStream2.getTracks().forEach(t => t.stop());
       karaokeStream2 = null;
     }
 
-    stopKaraokeDuoLevelMonitor?.();
+    if (typeof stopKaraokeDuoLevelMonitor === "function") {
+      stopKaraokeDuoLevelMonitor();
+    }
 
     const duoIndicator = $("karaokeDuoIndicator");
     if (duoIndicator) {
@@ -498,25 +738,25 @@ export async function startKaraokeRecording() {
     alert("❌ No se pudo iniciar la grabación de karaoke: " + err.message);
   }
 }
- 
+
 export async function startKaraokePitchDetection() {
   // Limpiar sesión previa
-  if (karaokePitchLoopRafId) {
+  if (typeof karaokePitchLoopRafId !== "undefined" && karaokePitchLoopRafId) {
     cancelAnimationFrame(karaokePitchLoopRafId);
     karaokePitchLoopRafId = null;
   }
 
-  if (karaokePitchWorkletNode) {
+  if (typeof karaokePitchWorkletNode !== "undefined" && karaokePitchWorkletNode) {
     try { karaokePitchWorkletNode.disconnect(); } catch (e) {}
     karaokePitchWorkletNode = null;
   }
 
-  if (karaokePitchSourceNode) {
+  if (typeof karaokePitchSourceNode !== "undefined" && karaokePitchSourceNode) {
     try { karaokePitchSourceNode.disconnect(); } catch (e) {}
     karaokePitchSourceNode = null;
   }
 
-  if (karaokePitchDetectionAudioCtx) {
+  if (typeof karaokePitchDetectionAudioCtx !== "undefined" && karaokePitchDetectionAudioCtx) {
     try {
       if (karaokePitchDetectionAudioCtx.state !== "closed") {
         await karaokePitchDetectionAudioCtx.close();
@@ -525,7 +765,7 @@ export async function startKaraokePitchDetection() {
     karaokePitchDetectionAudioCtx = null;
   }
 
-  if (!karaokeStream) {
+  if (typeof karaokeStream === "undefined" || !karaokeStream) {
     console.warn("⚠️ No hay stream principal para detección de pitch en karaoke.");
     return;
   }
@@ -546,13 +786,15 @@ export async function startKaraokePitchDetection() {
   if ($("vocalProcessorEnabled")?.checked) {
     try {
       const vocalProcessorUrl =
-        window.VOCAL_PROCESSOR_URL ||
+        (typeof VOCAL_PROCESSOR_URL !== "undefined" && VOCAL_PROCESSOR_URL) ||
         new URL("./vocal-processor.js", import.meta.url).href;
 
       await audioCtx.audioWorklet.addModule(vocalProcessorUrl);
 
       karaokePitchWorkletNode = new AudioWorkletNode(audioCtx, "vocal-processor");
-      updateVocalProcessorParams?.(karaokePitchWorkletNode);
+      if (typeof updateVocalProcessorParams === "function") {
+        updateVocalProcessorParams(karaokePitchWorkletNode);
+      }
 
       karaokePitchSourceNode.connect(karaokePitchWorkletNode);
       finalNode = karaokePitchWorkletNode;
@@ -565,9 +807,11 @@ export async function startKaraokePitchDetection() {
 
   finalNode.connect(karaokePitchDetectionAnalyser);
 
-  if (karaokeDuoSplitMode) {
+  if (typeof karaokeDuoSplitMode !== "undefined" && karaokeDuoSplitMode) {
     try {
-      await ensureP2PitchTracking?.();
+      if (typeof ensureP2PitchTracking === "function") {
+        await ensureP2PitchTracking();
+      }
     } catch (e) {
       console.warn("No se pudo inicializar P2 pitch tracking:", e);
     }
@@ -579,7 +823,7 @@ export async function startKaraokePitchDetection() {
 export function loop() {
   const track = $("karaokeTrack") || $("karaokeAudio") || $("audioKaraoke") || $("trackPlayer");
   const currentTime = track ? track.currentTime : 0;
-  const isRecording = !!(karaokeMediaRecorder && karaokeMediaRecorder.state === "recording");
+  const isRecording = !!(typeof karaokeMediaRecorder !== "undefined" && karaokeMediaRecorder && karaokeMediaRecorder.state === "recording");
   const trackEnded = !!(track && track.ended);
 
   let pitch = -1;
@@ -587,11 +831,11 @@ export function loop() {
 
   try {
     if (
-      karaokePitchDetectionAnalyser &&
-      karaokePitchDetectionAudioCtx &&
-      (window.AudioUtils?.detectPitch || AudioUtils?.detectPitch)
+      typeof karaokePitchDetectionAnalyser !== "undefined" && karaokePitchDetectionAnalyser &&
+      typeof karaokePitchDetectionAudioCtx !== "undefined" && karaokePitchDetectionAudioCtx &&
+      typeof AudioUtils !== "undefined" && AudioUtils?.detectPitch
     ) {
-      const detectPitchFn = window.AudioUtils?.detectPitch || AudioUtils.detectPitch;
+      const detectPitchFn = AudioUtils.detectPitch;
 
       const buffer = new Float32Array(karaokePitchDetectionAnalyser.fftSize);
       karaokePitchDetectionAnalyser.getFloatTimeDomainData(buffer);
@@ -604,12 +848,12 @@ export function loop() {
 
   try {
     if (
-      karaokeDuoSplitMode &&
-      karaokeSplitAnalyser2 &&
-      sr2 &&
-      (window.AudioUtils?.detectPitch || AudioUtils?.detectPitch)
+      typeof karaokeDuoSplitMode !== "undefined" && karaokeDuoSplitMode &&
+      typeof karaokeSplitAnalyser2 !== "undefined" && karaokeSplitAnalyser2 &&
+      typeof sr2 !== "undefined" && sr2 &&
+      typeof AudioUtils !== "undefined" && AudioUtils?.detectPitch
     ) {
-      const detectPitchFn = window.AudioUtils?.detectPitch || AudioUtils.detectPitch;
+      const detectPitchFn = AudioUtils.detectPitch;
 
       const buf2 = new Float32Array(karaokeSplitAnalyser2.fftSize);
       karaokeSplitAnalyser2.getFloatTimeDomainData(buf2);
@@ -623,10 +867,14 @@ export function loop() {
   karaokePitchP1 = typeof pitch === "number" ? pitch : -1;
   karaokePitchP2 = typeof pitch2 === "number" ? pitch2 : -1;
 
-  drawKaraokeMonitor(currentTime, karaokePitchP1, karaokePitchP2);
+  if (typeof drawKaraokeMonitor === "function") {
+    drawKaraokeMonitor(currentTime, karaokePitchP1, karaokePitchP2);
+  }
 
   if (!isRecording || trackEnded) {
-    karaokePitchLoopRafId = null;
+    if (typeof karaokePitchLoopRafId !== "undefined") {
+      karaokePitchLoopRafId = null;
+    }
     return;
   }
 
@@ -634,12 +882,12 @@ export function loop() {
 }
 
 export function stopKaraokeRecording() {
-  if (karaokePitchLoopRafId) {
+  if (typeof karaokePitchLoopRafId !== "undefined" && karaokePitchLoopRafId) {
     cancelAnimationFrame(karaokePitchLoopRafId);
     karaokePitchLoopRafId = null;
   }
 
-  if (karaokeMediaRecorder && karaokeMediaRecorder.state !== "inactive") {
+  if (typeof karaokeMediaRecorder !== "undefined" && karaokeMediaRecorder && karaokeMediaRecorder.state !== "inactive") {
     try {
       karaokeMediaRecorder.stop();
     } catch (e) {
@@ -647,48 +895,50 @@ export function stopKaraokeRecording() {
     }
   }
 
-  if (karaokePitchWorkletNode) {
+  if (typeof karaokePitchWorkletNode !== "undefined" && karaokePitchWorkletNode) {
     try { karaokePitchWorkletNode.disconnect(); } catch (e) {}
     karaokePitchWorkletNode = null;
   }
 
-  if (karaokePitchSourceNode) {
+  if (typeof karaokePitchSourceNode !== "undefined" && karaokePitchSourceNode) {
     try { karaokePitchSourceNode.disconnect(); } catch (e) {}
     karaokePitchSourceNode = null;
   }
 
-  if (karaokePitchDetectionAudioCtx && karaokePitchDetectionAudioCtx.state !== "closed") {
+  if (typeof karaokePitchDetectionAudioCtx !== "undefined" && karaokePitchDetectionAudioCtx && karaokePitchDetectionAudioCtx.state !== "closed") {
     try {
       karaokePitchDetectionAudioCtx.close();
     } catch (e) {}
     karaokePitchDetectionAudioCtx = null;
   }
 
-  karaokePitchDetectionAnalyser = null;
+  if (typeof karaokePitchDetectionAnalyser !== "undefined") {
+    karaokePitchDetectionAnalyser = null;
+  }
 
   // Detener Mic 1
-  if (karaokeStream) {
+  if (typeof karaokeStream !== "undefined" && karaokeStream) {
     karaokeStream.getTracks().forEach(t => t.stop());
     karaokeStream = null;
   }
 
   // Detener Mic 2
-  if (karaokeStream2) {
+  if (typeof karaokeStream2 !== "undefined" && karaokeStream2) {
     karaokeStream2.getTracks().forEach(t => t.stop());
     karaokeStream2 = null;
   }
 
   // Cerrar contexto de audio dúo
-  if (karaokeDuoAudioContext) {
+  if (typeof karaokeDuoAudioContext !== "undefined" && karaokeDuoAudioContext) {
     try { karaokeDuoAudioContext.close(); } catch (e) {}
     karaokeDuoAudioContext = null;
   }
 
-  karaokeDuoAnalyser1 = null;
-  karaokeDuoAnalyser2 = null;
+  if (typeof karaokeDuoAnalyser1 !== "undefined") karaokeDuoAnalyser1 = null;
+  if (typeof karaokeDuoAnalyser2 !== "undefined") karaokeDuoAnalyser2 = null;
 
-  stopP2PitchTracking?.();
-  stopKaraokeDuoLevelMonitor?.();
+  if (typeof stopP2PitchTracking === "function") stopP2PitchTracking();
+  if (typeof stopKaraokeDuoLevelMonitor === "function") stopKaraokeDuoLevelMonitor();
 
   const duoIndicator = $("karaokeDuoIndicator");
   if (duoIndicator) {
@@ -714,11 +964,17 @@ export function restartKaraokeRecording() {
     track.currentTime = 0;
   }
 
-  $("karaokeVoicePlayer").src = "";
+  const voicePlayer = $("karaokeVoicePlayer");
+  if (voicePlayer) voicePlayer.src = "";
+
   karaokeChunks = [];
   karaokeRecordedBlob = null;
-  $("karaokeStatus").textContent = "Estado: Esperando para grabar...";
-  $("karaokeStartBtn").disabled = false;
+
+  const status = $("karaokeStatus");
+  if (status) status.textContent = "Estado: Esperando para grabar...";
+
+  const startBtn = $("karaokeStartBtn");
+  if (startBtn) startBtn.disabled = false;
 }
 
 export function syncKaraokeMonitor(currentTime) {
@@ -772,9 +1028,11 @@ function ultrastarToSegments(parsed) {
   
   // Agrupar sílabas en líneas/palabras
   const segments = [];
-  let currentSegment = null;
   let currentWords = [];
   let lastEndBeat = 0;
+
+  const audioUtilsObj = typeof AudioUtils !== "undefined" ? AudioUtils : null;
+  const getNoteFn = typeof getNoteFromFrequency === "function" ? getNoteFromFrequency : () => "";
   
   for (let i = 0; i < parsed.notes.length; i++) {
     const note = parsed.notes[i];
@@ -788,28 +1046,28 @@ function ultrastarToSegments(parsed) {
     
     if (gapFromLast > 8 && currentWords.length > 0) {
       // Guardar segmento anterior
-      if (currentWords.length > 0) {
-        segments.push({
-          start: currentWords[0].start,
-          end: currentWords[currentWords.length - 1].end,
-          text: currentWords.map(w => w.word).join(""),
-          words: currentWords,
-          pitch: currentWords[0].pitch,
-          midi: currentWords[0].midi,
-          note: currentWords[0].note
-        });
-      }
+      segments.push({
+        start: currentWords[0].start,
+        end: currentWords[currentWords.length - 1].end,
+        text: currentWords.map(w => w.word).join(""),
+        words: currentWords,
+        pitch: currentWords[0].pitch,
+        midi: currentWords[0].midi,
+        note: currentWords[0].note
+      });
       currentWords = [];
     }
     
+    const freq = audioUtilsObj?.midiToFrequency ? audioUtilsObj.midiToFrequency(midiNote) : 0;
+
     // Agregar palabra/sílaba
     currentWords.push({
       word: note.syllable,
       start: startTime,
       end: endTime,
-      pitch: AudioUtils.midiToFrequency(midiNote),
+      pitch: freq,
       midi: midiNote,
-      note: getNoteFromFrequency(AudioUtils.midiToFrequency(midiNote))
+      note: getNoteFn(freq)
     });
     
     lastEndBeat = note.startBeat + note.duration;
@@ -896,7 +1154,7 @@ function parseUltrastarTxt(content) {
   };
 }
 
-async function handleUltrastarTxtChange(e) {
+export async function handleUltrastarTxtChange(e) {
   const file = e.target.files?.[0];
   if (!file) return;
 
@@ -904,11 +1162,20 @@ async function handleUltrastarTxtChange(e) {
     const content = await file.text();
     parsedUltrastar = parseUltrastarTxt(content);
 
-    $("ultrastarTitle").innerHTML = `<strong>Título:</strong> ${parsedUltrastar.title}`;
-    $("ultrastarArtist").innerHTML = `<strong>Artista:</strong> ${parsedUltrastar.artist}`;
-    $("ultrastarBpm").innerHTML = `<strong>BPM:</strong> ${parsedUltrastar.bpm}`;
-    $("ultrastarNotes").innerHTML = `<strong>Notas:</strong> ${parsedUltrastar.notes.length} sílabas`;
-    $("ultrastarPreview").style.display = "block";
+    const titleEl = $("ultrastarTitle");
+    if (titleEl) titleEl.innerHTML = `<strong>Título:</strong> ${parsedUltrastar.title}`;
+    
+    const artistEl = $("ultrastarArtist");
+    if (artistEl) artistEl.innerHTML = `<strong>Artista:</strong> ${parsedUltrastar.artist}`;
+    
+    const bpmEl = $("ultrastarBpm");
+    if (bpmEl) bpmEl.innerHTML = `<strong>BPM:</strong> ${parsedUltrastar.bpm}`;
+    
+    const notesEl = $("ultrastarNotes");
+    if (notesEl) notesEl.innerHTML = `<strong>Notas:</strong> ${parsedUltrastar.notes.length} sílabas`;
+    
+    const previewEl = $("ultrastarPreview");
+    if (previewEl) previewEl.style.display = "block";
 
     console.log("📄 UltraStar parseado:", parsedUltrastar);
   } catch (error) {
@@ -917,7 +1184,7 @@ async function handleUltrastarTxtChange(e) {
   }
 }
 
-async function confirmUltrastarImport() {
+export async function confirmUltrastarImport() {
   if (!parsedUltrastar) {
     alert("⚠️ Primero selecciona un archivo .txt de UltraStar");
     return;
@@ -939,44 +1206,50 @@ async function confirmUltrastarImport() {
       return;
     }
 
-    await window.CloudflareStorage.saveLibraryItemToCloudflare({
-      name: `Pista - ${parsedUltrastar.title} (${parsedUltrastar.artist})`,
-      type: "pista",
-      blob: audioFile,
-      date: new Date().toISOString()
-    });
+    if (typeof CloudflareStorage !== "undefined" && CloudflareStorage?.saveLibraryItemToCloudflare) {
+      await CloudflareStorage.saveLibraryItemToCloudflare({
+        name: `Pista - ${parsedUltrastar.title} (${parsedUltrastar.artist})`,
+        type: "pista",
+        blob: audioFile,
+        date: new Date().toISOString()
+      });
 
-    if (vocalsFile) {
-      await window.CloudflareStorage.saveLibraryItemToCloudflare({
-        name: `Voz - ${parsedUltrastar.title} (${parsedUltrastar.artist})`,
-        type: "voz",
-        blob: vocalsFile,
-        transcription: segments
+      if (vocalsFile) {
+        await CloudflareStorage.saveLibraryItemToCloudflare({
+          name: `Voz - ${parsedUltrastar.title} (${parsedUltrastar.artist})`,
+          type: "voz",
+          blob: vocalsFile,
+          transcription: segments
+        });
+      }
+
+      await CloudflareStorage.saveLibraryItemToCloudflare({
+        name: `${parsedUltrastar.title} - ${parsedUltrastar.artist}`,
+        type: "karaoke",
+        blob: audioFile,
+        transcription: segments,
+        metadata: {
+          title: parsedUltrastar.title,
+          artist: parsedUltrastar.artist,
+          bpm: parsedUltrastar.bpm,
+          genre: parsedUltrastar.genre,
+          language: parsedUltrastar.language,
+          year: parsedUltrastar.year,
+          hasVocalsSeparated: !!vocalsFile
+        }
       });
     }
 
-    await window.CloudflareStorage.saveLibraryItemToCloudflare({
-      name: `${parsedUltrastar.title} - ${parsedUltrastar.artist}`,
-      type: "karaoke",
-      blob: audioFile,
-      transcription: segments,
-      metadata: {
-        title: parsedUltrastar.title,
-        artist: parsedUltrastar.artist,
-        bpm: parsedUltrastar.bpm,
-        genre: parsedUltrastar.genre,
-        language: parsedUltrastar.language,
-        year: parsedUltrastar.year,
-        hasVocalsSeparated: !!vocalsFile
-      }
-    });
-
-    await renderLibrary("todos");
+    if (typeof renderLibrary === "function") {
+      await renderLibrary("todos");
+    }
     if (typeof loadMyKaraokeSongs === "function") {
       await loadMyKaraokeSongs();
     }
 
-    closeUltrastarModal?.();
+    if (typeof closeUltrastarModal === "function") {
+      closeUltrastarModal();
+    }
 
     alert(`✅ ¡"${parsedUltrastar.title}" importada exitosamente!\n\nLa encontrarás en "Mis Canciones" lista para cantar.`);
   } catch (error) {
@@ -985,15 +1258,18 @@ async function confirmUltrastarImport() {
   }
 }
 
-let currentKaraokeAudioURL = null; // Mantenemos tu variable de control local
-  
 export async function loadKaraokeSong(id) {
   try {
-    if (typeof limpiarVariablesMonitor === "function") {
-      limpiarVariablesMonitor();
+    limpiarVariablesMonitor();
+
+    const getItemFn = typeof getLibraryItemsByIdFromSupabase === "function" ? getLibraryItemsByIdFromSupabase : null;
+    
+    if (!getItemFn) {
+      alert("⚠️ Función de lectura de base de datos no disponible.");
+      return;
     }
 
-    const item = await getLibraryItemsByIdFromSupabase(id);
+    const item = await getItemFn(id);
     if (!item) {
       alert("⚠️ No se encontró el karaoke.");
       return;
@@ -1008,7 +1284,7 @@ export async function loadKaraokeSong(id) {
     karaokeLoadedItem = item;
     karaokeSelectedTrackBlob = urlAudioCloud;
     karaokeSelectedTrackName = item.name || "Karaoke";
-    window.currentTapSyncModeType = item.tapModeStyle || "linea";
+    currentTapSyncModeType = item.tapModeStyle || "linea";
 
     const track = $("karaokeTrack") || $("karaokeAudio") || $("audioKaraoke") || $("trackPlayer");
     if (track) {
@@ -1049,7 +1325,7 @@ export async function loadKaraokeSong(id) {
       id: item.id,
       name: item.name,
       trackSrc: track?.src,
-      tapModeStyle: window.currentTapSyncModeType,
+      tapModeStyle: currentTapSyncModeType,
       datasetLoaded: track?.dataset?.karaokeLoaded
     });
   } catch (error) {
@@ -1162,7 +1438,11 @@ export async function mixKaraoke() {
     voiceSource.start(0);
 
     const renderedBuffer = await offlineCtx.startRendering();
-    const finalWavBlob = exportStereoWav(renderedBuffer);
+    
+    const exportWavFn = typeof exportStereoWav === "function" ? exportStereoWav : null;
+    if (!exportWavFn) throw new Error("Exportador a WAV no disponible.");
+
+    const finalWavBlob = exportWavFn(renderedBuffer);
     const finalUrl = URL.createObjectURL(finalWavBlob);
 
     if (resultDiv) {
@@ -1183,10 +1463,12 @@ export async function mixKaraoke() {
           saveBtn.textContent = "Guardando...";
           saveBtn.disabled = true;
 
-          await saveToLibrary(finalWavBlob, {
-            name: `Mezcla - ${karaokeSelectedTrackName || "Canción"}`,
-            type: "grabacion"
-          });
+          if (typeof saveToLibrary === "function") {
+            await saveToLibrary(finalWavBlob, {
+              name: `Mezcla - ${karaokeSelectedTrackName || "Canción"}`,
+              type: "grabacion"
+            });
+          }
 
           saveBtn.textContent = "✅ ¡Guardado en Biblioteca!";
         };
@@ -1206,10 +1488,13 @@ export async function mixKaraoke() {
     }
   }
 }
-  
+
 export async function exportKaraokeSong(id) {
   try {
-    const item = await getLibraryItemsByIdFromSupabase(id);
+    const getItemFn = typeof getLibraryItemsByIdFromSupabase === "function" ? getLibraryItemsByIdFromSupabase : null;
+    if (!getItemFn) throw new Error("Función getLibraryItemsByIdFromSupabase no disponible.");
+
+    const item = await getItemFn(id);
     if (!item) {
       alert("⚠️ No se encontró el karaoke");
       return;
@@ -1258,7 +1543,7 @@ export async function exportKaraokeSong(id) {
   }
 }
 
-async function importKaraokeFile(file) {
+export async function importKaraokeFile(file) {
   if (!file) return;
 
   try {
@@ -1285,29 +1570,34 @@ async function importKaraokeFile(file) {
     } else if (data.audio) {
       const audioRecuperadoBlob = dataUrlToBlob(data.audio);
 
-      const { filePath, fileUrl } = await window.CloudflareStorage.uploadFileToCloudflare(
-        audioRecuperadoBlob,
-        `${nuevoItemKaraoke.name}_importado.mp3`,
-        audioRecuperadoBlob.type,
-        "karaoke"
-      );
+      if (typeof CloudflareStorage !== "undefined" && CloudflareStorage?.uploadFileToCloudflare) {
+        const { filePath, fileUrl } = await CloudflareStorage.uploadFileToCloudflare(
+          audioRecuperadoBlob,
+          `${nuevoItemKaraoke.name}_importado.mp3`,
+          audioRecuperadoBlob.type,
+          "karaoke"
+        );
 
-      nuevoItemKaraoke.file_url = fileUrl;
-      nuevoItemKaraoke.file_path = filePath;
+        nuevoItemKaraoke.file_url = fileUrl;
+        nuevoItemKaraoke.file_path = filePath;
+      }
     } else {
       alert("⚠️ El archivo de configuración no contiene rutas de audio válidas.");
       return;
     }
 
-    if (!db) throw new Error("La base de datos no está inicializada.");
+    const dbObj = typeof db !== "undefined" ? db : null;
+    if (!dbObj) throw new Error("La base de datos no está inicializada.");
 
-    const { error } = await db
+    const { error } = await dbObj
       .from("library")
       .insert([nuevoItemKaraoke]);
 
     if (error) throw new Error(error.message);
 
-    await renderLibrary("todos");
+    if (typeof renderLibrary === "function") {
+      await renderLibrary("todos");
+    }
 
     alert(`✅ "${nuevoItemKaraoke.name}" importado con éxito en la Biblioteca`);
   } catch (err) {
@@ -1316,7 +1606,7 @@ async function importKaraokeFile(file) {
   }
 }
 
-function actualizarSelectoresGlobales() {
+export function actualizarSelectoresGlobales() {
   if (typeof loadVoiceOptionsInStudio === "function") loadVoiceOptionsInStudio();
   if (typeof loadTrackOptionsInStudio === "function") loadTrackOptionsInStudio();
   if (typeof loadTrackOptionsInKaraoke === "function") loadTrackOptionsInKaraoke();
