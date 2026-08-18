@@ -535,8 +535,6 @@ window.drawKaraokeMonitor = function(currentTime, currentFreq, currentFreq2) {
   }
 };
 
-const $ = (id) => document.getElementById(id);
-
 export async function startKaraokeRecording() {
   const track = $("karaokeTrack") || $("trackPlayer");
 
