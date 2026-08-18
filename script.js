@@ -22,15 +22,15 @@ export const state = {
   isRecording: false
 };
 
-//window.CLOUDFLARE_R2_BASE_URL = "https://vocal-app-storage-worker.jodatomx.workers.dev";
-
 
 let autoScrollEnabled = true;
 const allKaraokeThemes = ["theme-clasico", "theme-moderno", "theme-disco", "theme-acustico", "theme-fiesta", "theme-retrowave"];
 
+
 // ============================================
 // 🚀 ENRUTADOR DINÁMICO Y DESCARGA BAJO DEMANDA (LAZY IMPORT)
 // ============================================
+
 export async function showTab(tabId) {
   console.log(`\n📌 [Navegación] Solicitando cambio a la pestaña: [${tabId.toUpperCase()}]`);
 
@@ -44,14 +44,15 @@ export async function showTab(tabId) {
     config: "btnConfig",
     biblioteca: "btnBiblioteca",
     estudio: "btnEstudio",
+    cambiarTono: "btnCambiarTono",
     afinador: "btnAfinador",
     karaoke: "btnKaraoke",
-    cambiarTono: "btnCambiarTono"
   };
 
   const activeBtn = document.getElementById(btnMap[tabId]);
   if (activeBtn) activeBtn.classList.add("active");
 
+  // DISPARADORES DE DESCARGA BAJO DEMANDA (ES MODULES LAZY IMPORT)
   try {
     if (tabId === "config") {
       console.log("⚙️ [Lazy Load] Cargando configuraciones de hardware...");
@@ -128,6 +129,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     console.warn("⚠️ Advertencia inicializando Supabase:", err);
   }
 
+  // Verificar en modulo Config
+  function saveSetting(key, element) {
+  if (!element) return;
+  localStorage.setItem(key, element.value);
+  showSaveNotification();
+  }
+  
+  const allKaraokeThemes = ['theme-clasico', 'theme-moderno', 'theme-disco', 'theme-acustico', 'theme-fiesta'];
   const temaGuardado = localStorage.getItem("vocalApp_theme") || "oscuro";
   document.documentElement.setAttribute("data-theme", temaGuardado);
   document.body.setAttribute("data-theme", temaGuardado);
@@ -144,6 +153,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   applyKaraokeTheme();
 
   safeAdd("karaokeThemeSelect", "change", async (e) => {
+    saveSetting("vocalApp_stage", e.target);
     localStorage.setItem("vocalApp_stage", e.target.value);
     applyKaraokeTheme();
   });
@@ -247,13 +257,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (typeof startTapSync === "function") startTapSync();
   });
 
-  safeAdd("tapPartP1Btn", "click", async () => {
+  safeAdd("tapPartC1Btn", "click", async () => {
     const { setCurrentTapPart } = await import("./modules/estudio.js");
-    if (typeof setCurrentTapPart === "function") setCurrentTapPart("P1");
+    if (typeof setCurrentTapPart === "function") setCurrentTapPart("C1");
   });
-  safeAdd("tapPartP2Btn", "click", async () => {
+  safeAdd("tapPartC2Btn", "click", async () => {
     const { setCurrentTapPart } = await import("./modules/estudio.js");
-    if (typeof setCurrentTapPart === "function") setCurrentTapPart("P2");
+    if (typeof setCurrentTapPart === "function") setCurrentTapPart("C2");
   });
   safeAdd("tapPartDuoBtn", "click", async () => {
     const { setCurrentTapPart } = await import("./modules/estudio.js");
