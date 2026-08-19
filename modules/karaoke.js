@@ -364,8 +364,9 @@ export async function startKaraokePitchDetection() {
   if (karaokeDuoSplitMode) {
     await ensureP2PitchTracking();
   }
+}
 
-  function loop() {
+function loop() {
   const track = $("karaokeTrack") || $("karaokeAudio") || $("audioKaraoke") || $("trackPlayer");
   const currentTime = track ? track.currentTime : 0;
 
@@ -795,7 +796,7 @@ async function loadKaraokeSong(id) {
       tapModeStyle: window.currentTapSyncModeType,
       datasetLoaded: track?.dataset?.karaokeLoaded
     });
-
+  
   } catch (error) {
     console.error("Error cargando karaoke:", error);
     alert("❌ Error al cargar el karaoke.");
@@ -1027,7 +1028,6 @@ function toggleKaraokeDuoSplitMode() {
     console.warn("⚠️ El canvas #karaokeCanvas no está disponible. No se puede repintar el monitor.");
     return; // Salimos aquí para evitar el error
   }
-
   // Re-pintar el canvas solo si existe
   if (typeof drawKaraokeMonitor === "function") {
     const track = $("karaokeTrack");
