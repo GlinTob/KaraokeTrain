@@ -733,7 +733,7 @@ async function mixKaraoke() {
 }
 
 // --- Función para cargar una canción de karaoke ---
-export async function loadKaraokeSong(id) {
+async function loadKaraokeSong(id) {
   try {
     // Limpiar variables del monitor
     if (typeof limpiarVariablesMonitor === "function") {
@@ -831,7 +831,7 @@ export function cargarLetrasEnMonitor() {
 }
 
 // --- Función para sincronizar el monitor con el tiempo actual ---
-export function syncKaraokeMonitor(time) {
+function syncKaraokeMonitor(time) {
   const lines = document.querySelectorAll(".karaoke-live-line");
   if (!lines.length || !window.transcriptionSegments) return;
 
