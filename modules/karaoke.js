@@ -846,7 +846,7 @@ function syncKaraokeMonitor(time) {
 }
 
 // --- Función para actualizar el resaltado de las letras ---
-export function updateKaraokeHighlight(time) {
+function updateKaraokeHighlight(time) {
   const container = document.getElementById("karaokeLyrics");
   if (!container || !window.transcriptionSegments) return;
 
@@ -861,7 +861,7 @@ export function updateKaraokeHighlight(time) {
 }
 
 // --- Función para parsear un archivo UltraStar .txt ---
-export function parseUltrastarTxt(content) {
+function parseUltrastarTxt(content) {
   const lines = content.split("\n");
   const metadata = {};
   const notes = [];
