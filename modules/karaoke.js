@@ -366,35 +366,42 @@ export async function startKaraokePitchDetection() {
   }
 
   function loop() {
-    const track = $("karaokeTrack") || $("karaokeAudio") || $("audioKaraoke") || $("trackPlayer");
-    const currentTime = track ? track.currentTime : 0;
+  const track = $("karaokeTrack") || $("karaokeAudio") || $("audioKaraoke") || $("trackPlayer");
+  const currentTime = track ? track.currentTime : 0;
 
-    const buffer = new Float32Array(analyser.fftSize);
-    analyser.getFloatTimeDomainData(buffer);
-    const pitch = autoCorrelate(buffer, audioCtx.sampleRate);
+  const buffer = new Float32Array(analyser.fftSize);
+  analyser.getFloatTimeDomainData(buffer);
+  const pitch = autoCorrelate(buffer, audioCtx.sampleRate);
 
-    // Pitch del Mic 2 (P2) si está disponible
-    let pitch2 = -1;
-    if (karaokeDuoSplitMode && karaokeSplitAnalyser2) {
-      const buf2 = new Float32Array(karaokeSplitAnalyser2.fftSize);
-      karaokeSplitAnalyser2.getFloatTimeDomainData(buf2);
-      pitch2 = autoCorrelate(buf2, karaokeSplitAudioCtx.sampleRate);
-    }
+  let pitch2 = -1;
+  if (karaokeDuoSplitMode && karaokeSplitAnalyser2) {
+    const buf2 = new Float32Array(karaokeSplitAnalyser2.fftSize);
+    karaokeSplitAnalyser2.getFloatTimeDomainData(buf2);
+    pitch2 = autoCorrelate(buf2, karaokeSplitAudioCtx.sampleRate);
+  }
 
-    // Llamar a la función principal de dibujo
-    drawKaraokeMonitor(currentTime, pitch, pitch2);
-
-    // Si la pista terminó, paramos
-    if (track && track.ended) return;
-
-    // Seguimos el loop mientras se graba
+  // --- 🔒 PROTECCIÓN ANTES DE LLAMAR A drawKaraokeMonitor ---
+  const canvas = $("karaokeCanvas");
+  if (!canvas) {
+    console.warn("[Pitch Detection] El canvas #karaokeCanvas no está disponible. Saltando dibujo.");
+    // No llamamos a drawKaraokeMonitor si no hay canvas
     if (karaokeMediaRecorder && karaokeMediaRecorder.state === "recording") {
       requestAnimationFrame(loop);
     }
+    return;
   }
-  loop();
-}
 
+  // Llamar a la función principal de dibujo
+  drawKaraokeMonitor(currentTime, pitch, pitch2);
+
+  // Si la pista terminó, paramos
+  if (track && track.ended) return;
+
+  // Seguimos el loop mientras se graba
+  if (karaokeMediaRecorder && karaokeMediaRecorder.state === "recording") {
+    requestAnimationFrame(loop);
+  }
+}
 // --- Función para asegurar la detección de pitch en el Mic 2 ---
 async function ensureP2PitchTracking() {
   // Reutilizar el analyser de la grabación dúo si está disponible
