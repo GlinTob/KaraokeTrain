@@ -325,7 +325,7 @@ function obtenerPaletaTema() {
       config = { fondo: "#451a03", lineas: "rgba(120, 53, 15, 0.4)", etiquetas: "#fcd34d", barraFutura: "#78350f", bordeFuturo: "#b45309" };
       break;
     case "theme-fiesta":
-      const hue = (Date   case "theme-fiesta":
+      const hue = (Datecase "theme-fiesta":
       const hue = (Date.now() / 20) % 360;
       config = {
         fondo: `hsl(${hue}, 40%, 12%)`,
