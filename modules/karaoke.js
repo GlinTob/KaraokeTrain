@@ -803,7 +803,7 @@ async function loadKaraokeSong(id) {
 }
 
 // --- Función para limpiar las variables del monitor ---
-export function limpiarVariablesMonitor() {
+function limpiarVariablesMonitor() {
   transcriptionSegments = [];
   baseTranscriptionSegments = [];
   textSegments = [];
@@ -812,7 +812,7 @@ export function limpiarVariablesMonitor() {
 }
 
 // --- Función para cargar las letras en el monitor ---
-export function cargarLetrasEnMonitor() {
+function cargarLetrasEnMonitor() {
   const container = document.getElementById("karaokeLiveLyrics");
   if (!container) return;
 
