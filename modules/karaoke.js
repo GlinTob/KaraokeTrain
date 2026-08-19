@@ -448,7 +448,7 @@ function stopP2PitchTracking() {
 }
 
 // --- Función para iniciar la grabación ---
-export async function startKaraokeRecording() {
+async function startKaraokeRecording() {
   const track = $("karaokeTrack") || $("karaokeAudio") || $("audioKaraoke") || $("trackPlayer");
 
   if (!karaokeSelectedTrackBlob || !karaokeLoadedItem) {
@@ -581,7 +581,7 @@ export async function startKaraokeRecording() {
 }
 
 // --- Función para detener la grabación ---
-export function stopKaraokeRecording() {
+function stopKaraokeRecording() {
   if (karaokeMediaRecorder && karaokeMediaRecorder.state !== "inactive") {
     karaokeMediaRecorder.stop();
   }
@@ -624,7 +624,7 @@ export function stopKaraokeRecording() {
 }
 
 // --- Función para reiniciar la grabación ---
-export function restartKaraokeRecording() {
+function restartKaraokeRecording() {
   const track = $("karaokeTrack") || $("karaokeAudio") || $("audioKaraoke") || $("trackPlayer");
 
   if (track) {
