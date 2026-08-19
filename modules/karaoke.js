@@ -1022,13 +1022,13 @@ function toggleKaraokeDuoSplitMode() {
     btn.style.background = karaokeDuoSplitMode ? "#22c55e" : "#3b82f6";
   }
 
-  // --- 🔒 PROTECCIÓN CRÍTICA: NO DIBUJES SI NO EXISTE EL CANVAS ---
-  export const canvas = $("karaokeCanvas");
+  // ✅ CORRECCIÓN: Solo usa const, sin export
+  const canvas = $("karaokeCanvas");
   if (!canvas) {
     console.warn("⚠️ El canvas #karaokeCanvas no está disponible. No se puede repintar el monitor.");
-    return; // Salimos aquí para evitar el error
+    return;
   }
-  // Re-pintar el canvas solo si existe
+
   if (typeof drawKaraokeMonitor === "function") {
     const track = $("karaokeTrack");
     const t = track ? track.currentTime : 0;
