@@ -351,9 +351,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
   // --- EVENTOS KARAOKE ---
-  safeAdd("karaokeDuoSplitToggleBtn", "click", async () => {
-    const { toggleKaraokeDuoSplitMode } = await import("./modules/karaoke.js");
-    if (typeof toggleKaraokeDuoSplitMode === "function") toggleKaraokeDuoSplitMode();
+  safeAdd("karaokeDuoSplitToggleBtn", "click", () => {
+    // Verificar si la función existe en el ámbito global
+    if (typeof toggleKaraokeDuoSplitMode === "function") {
+      toggleKaraokeDuoSplitMode();
+    } else {
+      console.error("❌ toggleKaraokeDuoSplitMode no está disponible. Revisa karaoke.js");
+    }
   });
   safeAdd("karaokeStartBtn", "click", async () => {
     const { startKaraokeRecording } = await import("./modules/karaoke.js");
