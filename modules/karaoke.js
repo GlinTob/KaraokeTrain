@@ -1013,7 +1013,15 @@ export function toggleKaraokeDuoSplitMode() {
     btn.textContent = karaokeDuoSplitMode ? "🎤🎤 Modo Dúo Split: ON" : "🎤🎤 Modo Dúo Split: OFF";
     btn.style.background = karaokeDuoSplitMode ? "#22c55e" : "#3b82f6";
   }
-  // Re-pintar el canvas para reflejar el cambio
+
+  // --- 🔒 PROTECCIÓN CRÍTICA: NO DIBUJES SI NO EXISTE EL CANVAS ---
+  const canvas = $("karaokeCanvas");
+  if (!canvas) {
+    console.warn("⚠️ El canvas #karaokeCanvas no está disponible. No se puede repintar el monitor.");
+    return; // Salimos aquí para evitar el error
+  }
+
+  // Re-pintar el canvas solo si existe
   if (typeof drawKaraokeMonitor === "function") {
     const track = $("karaokeTrack");
     const t = track ? track.currentTime : 0;
