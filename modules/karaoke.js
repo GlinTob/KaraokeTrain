@@ -640,7 +640,7 @@ function restartKaraokeRecording() {
 }
 
 // --- Función para mezclar la voz y la pista ---
-export async function mixKaraoke() {
+async function mixKaraoke() {
   if (!karaokeSelectedTrackBlob || !karaokeRecordedBlob) {
     alert("⚠️ Primero presiona 'Cantar' en un karaoke y luego graba tu voz.");
     return;
