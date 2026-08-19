@@ -102,17 +102,6 @@ export async function showTab(tabId) {
   }
 }
 
-// --- CONTROLADOR COMPARTIDO DEL MONITOR DE KARAOKE GRAPHICS ---
-export async function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2 = 0) {
-  const canvas = $("karaokeCanvas");
-  if (!canvas) return;
-
-  const { drawKaraokeMonitor: renderPincel } = await import('./modules/karaoke.js');
-  if (typeof renderPincel === "function") {
-    renderPincel(currentTime, currentFreq, currentFreq2);
-  }
-}
-
 function iniciarAplicacion() {
   console.log("🏁 [vocalApp] El núcleo del sistema ha arrancado exitosamente.");
   showTab("afinador");
