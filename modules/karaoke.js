@@ -121,7 +121,7 @@ export async function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2,
 }
 
 // --- Función de Dibujo de Región (Single o Dúo) ---
-function drawRegion(ctx, pTop, pBottom, pitchVal, pitchHist, parteFiltro, paleta, lineX, pixelsPerSecond, datos, nombreAvatar, avatarEmoji) {
+export function drawRegion(ctx, pTop, pBottom, pitchVal, pitchHist, parteFiltro, paleta, lineX, pixelsPerSecond, datos, nombreAvatar, avatarEmoji) {
   const pHeight = pBottom - pTop;
   const midiToY = (midi) => {
     const val = (midi && midi > 0) ? midi : 60;
@@ -259,7 +259,7 @@ function drawRegion(ctx, pTop, pBottom, pitchVal, pitchHist, parteFiltro, paleta
 }
 
 // --- Función de Dibujo del Avatar (solo en modo dúo) ---
-function drawAvatarBlock(ctx, pTop, pBottom, nombre, avatarEmoji, paleta) {
+export function drawAvatarBlock(ctx, pTop, pBottom, nombre, avatarEmoji, paleta) {
   const cx = 55;
   const blockTop = pTop + 10;
   const avatarSize = 56;
@@ -310,7 +310,7 @@ function drawAvatarBlock(ctx, pTop, pBottom, nombre, avatarEmoji, paleta) {
 }
 
 // --- Función para obtener la paleta de colores según el tema ---
-function obtenerPaletaTema() {
+export function obtenerPaletaTema() {
   const temaActual = localStorage.getItem("vocalApp_stage") || "theme-clasico";
   // Valor por defecto (theme-clasico o si falla el switch)
   let config = { fondo: "#111827", lineas: "#333333", etiquetas: "#666666", barraFutura: "#1e40af", bordeFuturo: "#3b82f6" };
@@ -344,7 +344,7 @@ function obtenerPaletaTema() {
 }   
 
 // --- Función para iniciar la detección de pitch ---
-async function startKaraokePitchDetection() {
+export async function startKaraokePitchDetection() {
   const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
   // Obtener micrófono seleccionado
