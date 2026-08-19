@@ -312,6 +312,7 @@ function drawAvatarBlock(ctx, pTop, pBottom, nombre, avatarEmoji, paleta) {
 // --- Función para obtener la paleta de colores según el tema ---
 function obtenerPaletaTema() {
   const temaActual = localStorage.getItem("vocalApp_stage") || "theme-clasico";
+  // Valor por defecto (theme-clasico o si falla el switch)
   let config = { fondo: "#111827", lineas: "#333333", etiquetas: "#666666", barraFutura: "#1e40af", bordeFuturo: "#3b82f6" };
 
   switch (temaActual) {
@@ -325,7 +326,7 @@ function obtenerPaletaTema() {
       config = { fondo: "#451a03", lineas: "rgba(120, 53, 15, 0.4)", etiquetas: "#fcd34d", barraFutura: "#78350f", bordeFuturo: "#b45309" };
       break;
     case "theme-fiesta":
-      const hue = (Date.case "theme-fiesta":
+      // Corrección: Solo la lógica válida
       const hue = (Date.now() / 20) % 360;
       config = {
         fondo: `hsl(${hue}, 40%, 12%)`,
@@ -335,9 +336,12 @@ function obtenerPaletaTema() {
         bordeFuturo: `hsl(${(hue + 180) % 360}, 70%, 50%)`
       };
       break;
+    // Opcional: Manejar casos no definidos explícitamente si no se usa el default de arriba
+    default:
+      break; 
   }
   return config;
-}
+}   
 
 // --- Función para iniciar la detección de pitch ---
 async function startKaraokePitchDetection() {
