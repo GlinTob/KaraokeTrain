@@ -1023,7 +1023,7 @@ function toggleKaraokeDuoSplitMode() {
   }
 
   // --- 🔒 PROTECCIÓN CRÍTICA: NO DIBUJES SI NO EXISTE EL CANVAS ---
-  const canvas = $("karaokeCanvas");
+  export const canvas = $("karaokeCanvas");
   if (!canvas) {
     console.warn("⚠️ El canvas #karaokeCanvas no está disponible. No se puede repintar el monitor.");
     return; // Salimos aquí para evitar el error
