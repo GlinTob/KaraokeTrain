@@ -21,7 +21,7 @@ let isPitchDetectionRunning = false;
 // --- Configuración del Canvas ---
 const MIDI_MIN = 36;
 const MIDI_MAX = 84;
-const MAX_PITCH_HISTORY = 90; // ~3 segundos a 30fps
+const MAX_PITCH_HISTORY = 90; 
 
 // --- Función Principal: drawKaraokeMonitor ---
 export async function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2, transcriptionSegments) {
