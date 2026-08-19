@@ -1013,7 +1013,7 @@ async function cargarPistaKaraoke(e) {
 }
 
 // --- Función para alternar el modo dúo split ---
-export function toggleKaraokeDuoSplitMode() {
+function toggleKaraokeDuoSplitMode() {
   karaokeDuoSplitMode = !karaokeDuoSplitMode;
   const btn = $("karaokeDuoSplitToggleBtn");
   if (btn) {
