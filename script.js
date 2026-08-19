@@ -147,6 +147,14 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (typeof window.syncKaraokeMonitor === "function") {
         window.syncKaraokeMonitor(karaokePlayer.currentTime);
       }
+
+      // --- 🔒 PROTECCIÓN ANTES DE LLAMAR A drawKaraokeMonitor ---
+      const canvas = $("karaokeCanvas");
+      if (!canvas) {
+        console.warn("[Timeupdate] El canvas #karaokeCanvas no está disponible. Saltando dibujo.");
+      return;
+      }
+
       if (typeof drawKaraokeMonitor === "function" && (typeof window.karaokeMediaRecorder === "undefined" || window.karaokeMediaRecorder.state !== "recording")) {
         drawKaraokeMonitor(karaokePlayer.currentTime, -1, -1);
       }
