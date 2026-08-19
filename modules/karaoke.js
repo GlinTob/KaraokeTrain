@@ -916,7 +916,7 @@ function parseUltrastarTxt(content) {
 }
 
 // --- Función para convertir un archivo UltraStar a segmentos ---
-export function ultrastarToSegments(parsed) {
+function ultrastarToSegments(parsed) {
   if (!parsed || !parsed.notes || !parsed.notes.length) return [];
 
   const bpm = parsed.bpm;
@@ -977,7 +977,7 @@ export function safeGetNoteName(midi) {
 }
 
 // --- Función para cargar una pista de karaoke desde un archivo ---
-export async function cargarPistaKaraoke(e) {
+async function cargarPistaKaraoke(e) {
   const archivos = e.target.files;
   if (!archivos || archivos.length === 0) return;
 
