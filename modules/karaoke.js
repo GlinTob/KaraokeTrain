@@ -48,7 +48,6 @@ let karaokePitchP1 = [];
 let karaokePitchP2 = [];
 let pitchHistoryP1 = [];
 let pitchHistoryP2 = [];
-let drawTeleprompter = false;
 const MAX_PITCH_HISTORY = 120;
 
 const NOTE_SCALE = ["A4", "G4", "F4", "E4", "D4", "C4", "B3", "A3", "G3", "F3"];
@@ -514,8 +513,29 @@ export function drawKaraokeMonitor(arg1, arg2, arg3, arg4, arg5) {
 
   // Teleprompter Superior
   drawTeleprompter(ctx, lyricsSegments, currentTime, 150, 5, canvas.width - 300, teleprompterHeight);
-}
+  if (Array.isArray(datos) && datos.length > 0) {
+    const idx = datos.findIndex(s => currentTime >= (s.start || 0) && currentTime <= (s.end || (s.start + 1)));
+    if (idx !== -1) {
+      ctx.fillStyle = "rgba(0, 0, 0, 0.8)";
+      ctx.fillRect(0, canvas.height - 100, canvas.width, 100);
 
+      ctx.textAlign = "center";
+      ctx.fillStyle = "white";
+      ctx.font = "bold 30px Arial";
+
+      // En split, mostramos también la parte cantando
+      const parteActual = datos[idx].parte || "P1";
+      const prefijo = karaokeDuoSplitMode ? (parteActual === "DUO" ? "🟪 DÚO · " : (parteActual === "P2" ? "🟧 P2 · " : "🟦 P1 · ")) : "";
+      ctx.fillText(prefijo + (datos[idx].text || ""), canvas.width / 2, canvas.height - 65);
+
+      if (datos[idx + 1]) {
+        ctx.fillStyle = "#94a3b8";
+        ctx.font = "italic 22px Arial";
+        ctx.fillText(datos[idx + 1].text || "", canvas.width / 2, canvas.height - 25);
+      }
+    }
+  }
+}
 export async function startKaraokeRecording() {
   const track = $("karaokeTrack") || $("trackPlayer");
 
