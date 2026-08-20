@@ -348,6 +348,20 @@ function drawNotesAndLyrics(ctx, segments, currentTime, regionX, regionY, region
 // FUNCIÓN PRINCIPAL RENDERIZADORA (COMPATIBLE CON FIRMA ANTIGUA Y NUEVA)
 // ============================================================================
 
+function ensureKaraokeCanvas() {
+  let canvas = document.getElementById('karaokeCanvas');
+  if (!canvas) {
+    const container = document.getElementById('karaokeContainer') || document.body;
+    canvas = document.createElement('canvas');
+    canvas.id = 'karaokeCanvas';
+    // Ajusta resolución según necesites
+    canvas.width = 1280;
+    canvas.height = 480;
+    container.appendChild(canvas);
+    console.info('➕ Canvas karaoke creado dinámicamente');
+  }
+  return canvas;
+}
 
 async function ensureP2PitchTracking() {
   // Reutilizar el analyser de la grabación dúo si está disponible
