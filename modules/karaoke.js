@@ -103,6 +103,7 @@ export function toggleKaraokeDuoSplitMode() {
     drawKaraokeMonitor(t, karaokePitchP1, karaokePitchP2);
   }
 }
+window.toggleKaraokeDuoSplitMode = toggleKaraokeDuoSplitMode;
 
 function loadImage(url) {
   if (!url) return Promise.resolve(null);
@@ -136,6 +137,7 @@ export async function updateMonitorConfig(newConfig = {}) {
     console.warn("⚠️ drawKaraokeMonitor no está definida.");
   }
 }
+window.updateMonitorConfig = updateMonitorConfig;
 
 export function cargarLetrasEnMonitor(segments = []) {
   currentLyricsSegments = Array.isArray(segments) ? segments : [];
@@ -608,6 +610,7 @@ export function drawKaraokeMonitor(arg1, arg2, arg3, arg4, arg5) {
   // Teleprompter Superior
   drawTeleprompter(ctx, lyricsSegments, currentTime, 150, 5, canvas.width - 300, teleprompterHeight);
 }
+window.drawKaraokeMonitor = drawKaraokeMonitor;
 
 export async function startKaraokeRecording() {
   const track = $("karaokeTrack") || $("trackPlayer");
@@ -1086,6 +1089,7 @@ export function syncKaraokeMonitor(currentTime) {
     lastActiveLine = activeLine;
   }
 }
+window.syncKaraokeMonitor = syncKaraokeMonitor;
 
 function ultrastarToSegments(parsed) {
   if (!parsed || !parsed.notes || !parsed.notes.length) {
