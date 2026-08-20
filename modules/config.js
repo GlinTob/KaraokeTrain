@@ -318,8 +318,14 @@ export function selectAvatar(character) {
 
   localStorage.setItem("vocalApp_selectedAvatar", JSON.stringify(character));
 
-  if (typeof window.updateMonitorAvatar === "function") {
-    window.updateMonitorAvatar(character);
+  // ✅ Llamar a updateMonitorConfig directamente
+  if (typeof updateMonitorConfig === "function") {
+    updateMonitorConfig({
+      c1AvatarUrl: character.img,
+      c2AvatarUrl: character.img
+    });
+  } else {
+    console.warn("⚠️ updateMonitorConfig no está definida. Asegúrate de importarla desde karaoke.js.");
   }
 
   window.dispatchEvent(new CustomEvent("avatarChanged", { detail: character }));
