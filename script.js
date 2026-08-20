@@ -149,14 +149,10 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (typeof window.syncKaraokeMonitor === "function") {
         window.syncKaraokeMonitor(karaokePlayer.currentTime);
       }
+      // 🛠️ FIX: Obtenemos las letras desde el estado global del orquestador o del módulo
       if (typeof drawKaraokeMonitor === "function" && (typeof window.karaokeMediaRecorder === "undefined" || window.karaokeMediaRecorder.state !== "recording")) {
-        drawKaraokeMonitor(karaokePlayer.currentTime, -1, -1);
-      }
-    });
-
-    karaokePlayer.addEventListener("ended", () => {
-      if (typeof window.syncKaraokeMonitor === "function") {
-        window.syncKaraokeMonitor(0);
+        // Pasamos state.letraLrc (o la variable donde guardes los segmentos mapeados)
+        drawKaraokeMonitor(karaokePlayer.currentTime, -1, -1, "karaokeCanvas", state.letraLrcSegments || []);
       }
     });
   }
