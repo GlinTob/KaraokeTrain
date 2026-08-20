@@ -2,9 +2,6 @@
 // Incluye: Dibujo del canvas, detección de pitch, grabación y sincronización con el teleprompter.
 
 import { $ } from '../script.js'; // Asegúrate de que esta ruta sea correcta en tu proyecto
-import { AudioProcessorController } from './audio-controller.js';
-
-import { liveAudioService } from './liveAudioService.js';
 
 // ============================================================================
 // MONITOR KARAOKE CANVAS (1800x600px) - MÓDULO ES6 COMPATIBLE
