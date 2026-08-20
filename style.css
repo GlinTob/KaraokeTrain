@@ -1824,3 +1824,74 @@ audio {
   min-width: 200px !important;
   cursor: pointer !important;
 }
+
+/* ==========================================
+   ESTILO AVATARES EN CONFIGURACIÓN (CARD HORIZONTAL)
+========================================== */
+
+/* Contenedor del grid de avatares */
+#avatarGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  justify-content: flex-start;
+  padding: 16px 0;
+}
+
+/* Cada avatar como una tarjeta */
+.avatar-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(30, 41, 59, 0.8);
+  border: 1px solid rgba(255, 110, 199, 0.3);
+  border-radius: 12px;
+  padding: 12px 16px;
+  min-width: 280px;
+  cursor: pointer; /* ✅ Esto hace que el cursor cambie a mano */
+  transition: all 0.2s ease;
+  box-shadow: 0 0 6px rgba(255, 110, 199, 0.1);
+  user-select: none; /* ✅ Evita que se seleccione texto al hacer clic */
+}
+
+.avatar-card:hover {
+  background: rgba(255, 110, 199, 0.1);
+  border-color: rgba(255, 110, 199, 0.5);
+  box-shadow: 0 0 12px rgba(255, 110, 199, 0.2);
+  transform: translateY(-2px);
+}
+
+.avatar-card.selected {
+  border-color: #ff6ec7;
+  box-shadow: 0 0 16px rgba(255, 110, 199, 0.3);
+  background: rgba(255, 110, 199, 0.1);
+}
+
+/* Icono del avatar (emoji) */
+.avatar-card-emoji {
+  font-size: 28px;
+  line-height: 1;
+  width: 40px;
+  text-align: center;
+}
+
+/* Nombre del personaje */
+.avatar-card-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #ffffff;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Categoría del avatar */
+.avatar-card-category {
+  font-size: 12px;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(148, 163, 184, 0.1);
+ 
