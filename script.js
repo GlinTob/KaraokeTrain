@@ -12,24 +12,6 @@ import { syncKaraokeMonitor } from './modules/karaoke.js';
 
 export function $(id) {
   return document.getElementById(id);
-  else if (tabId === "karaoke") {
-      console.log("🎤 [Lazy Load] Inicializando Canvas e Históricos de Canto...");
-
-      const { loadTrackOptionsInKaraoke, loadKaraokeSong } = await import("./modules/karaoke.js");
-      const { inicializarEscenarioDesdeMemoria } = await import("./modules/config.js");
-    
-      if (typeof inicializarEscenarioDesdeMemoria === "function") inicializarEscenarioDesdeMemoria();
-      if (typeof loadTrackOptionsInKaraoke === "function") await loadTrackOptionsInKaraoke();
-    
-      // ✅ 🛠️ Corrección: Verificación de canvas limpia (sin causar error de Strict Mode)
-      const canvas = document.getElementById("karaokeCanvas");
-      if (canvas) {
-        console.log("✅ Canvas de karaoke detectado y listo en el DOM.");
-      } else {
-        console.warn("⚠️ No se encontró el canvas de karaoke.");
-      }
-    const track = $("karaokeTrack");
-  }
 }
 
 export function safeAdd(id, event, handler) {
@@ -113,12 +95,10 @@ export async function showTab(tabId) {
       if (typeof inicializarEscenarioDesdeMemoria === "function") inicializarEscenarioDesdeMemoria();
       if (typeof loadTrackOptionsInKaraoke === "function") await loadTrackOptionsInKaraoke();
     
-      // ✅ Inicializar karaokeCanvas y ctx cuando se cargue la pestaña Karaoke
+      // ✅ 🛠️ Corrección: Verificación de canvas limpia (sin causar error de Strict Mode)
       const canvas = document.getElementById("karaokeCanvas");
       if (canvas) {
-        karaokeCanvas = canvas;
-        ctx = canvas.getContext("2d");
-        console.log("✅ Canvas de karaoke inicializado.");
+        console.log("✅ Canvas de karaoke detectado y listo en el DOM.");
       } else {
         console.warn("⚠️ No se encontró el canvas de karaoke.");
       }
