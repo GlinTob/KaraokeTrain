@@ -41,7 +41,8 @@ let monitorConfig = {
     c2Icon2: null
   }
 };
-
+let karaokeCanvaas = null;
+let ctx = null;
 let karaokeDuoSplitMode = false;
 let currentLyricsSegments = [];
 let karaokePitchP1 = [];
@@ -87,6 +88,16 @@ export async function updateMonitorConfig(newConfig = {}) {
   if (newConfig.c2AvatarUrl) monitorConfig.images.c2Avatar = await loadImage(newConfig.c2AvatarUrl);
   if (newConfig.c2Icon1Url) monitorConfig.images.c2Icon1 = await loadImage(newConfig.c2Icon1Url);
   if (newConfig.c2Icon2Url) monitorConfig.images.c2Icon2 = await loadImage(newConfig.c2Icon2Url);
+
+  // ✅ Llamar a drawKaraokeMonitor para repintar el canvas
+  if (typeof drawKaraokeMonitor === "function" && karaokeCanvas && ctx) {
+    const track = $("karaokeTrack") || $("trackPlayer");
+    const currentTime = track ? track.currentTime : 0;
+    drawKaraokeMonitor(currentTime, karaokePitchP1, karaokePitchP2);
+    console.log("🎨 Monitor de karaoke actualizado con nuevos avatares.");
+  } else {
+    console.warn("⚠️ drawKaraokeMonitor no está definida o el canvas no está inicializado.");
+  }
 }
 
 export function cargarLetrasEnMonitor(segments = []) {
