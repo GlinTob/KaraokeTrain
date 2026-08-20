@@ -96,7 +96,13 @@ export function cargarLetrasEnMonitor(segments = []) {
 export function limpiarVariablesMonitor() {
   pitchHistoryP1 = [];
   pitchHistoryP2 = [];
+  baseTextSegments = [];
+  pitchHistory = [];
   currentLyricsSegments = [];
+  karaokePitchP1 = -1;
+  karaokePitchP2 = -1;
+  karaokeLoadedLyrics = [];
+  console.log("🧼 Variables del monitor de letras y pitch reseteadas");
 }
 
 export const resetMonitorHistories = limpiarVariablesMonitor;
@@ -1304,20 +1310,6 @@ export async function loadKaraokeSong(id) {
     console.error("Error cargando karaoke:", error);
     alert("❌ Error al cargar el karaoke.");
   }
-}
-
-function limpiarVariablesMonitor() {
-  transcriptionSegments = [];
-  baseTranscriptionSegments = [];
-  textSegments = [];
-  baseTextSegments = [];
-  pitchHistory = [];
-  pitchHistoryP1 = [];
-  pitchHistoryP2 = [];
-  karaokePitchP1 = -1;
-  karaokePitchP2 = -1;
-  karaokeLoadedLyrics = [];
-  console.log("🧼 Variables del monitor de letras y pitch reseteadas");
 }
 
 export function blobToBase64Full(blob) {
