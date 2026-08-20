@@ -1,4 +1,4 @@
-export class PitchShifterProcessor extends AudioWorkletProcessor {
+class PitchShifterProcessor extends AudioWorkletProcessor {
   static get parameterDescriptors() {
     return [
       {
