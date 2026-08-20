@@ -2,7 +2,6 @@
  * CORE ORQUESTRADOR PRINCIPAL — vocalApp Brain (script.js)
  * Manejo de Enrutamiento Asíncrono (Lazy Loading) y Eventos Globales de Interfaz
  */
-import { drawKaraokeMonitor } from './modules/karaoke.js'; 
 
 export function $(id) {
   return document.getElementById(id);
@@ -23,15 +22,12 @@ export const state = {
   isRecording: false
 };
 
-
 let autoScrollEnabled = true;
 const allKaraokeThemes = ["theme-clasico", "theme-moderno", "theme-disco", "theme-acustico", "theme-fiesta", "theme-retrowave"];
-
 
 // ============================================
 // 🚀 ENRUTADOR DINÁMICO Y DESCARGA BAJO DEMANDA (LAZY IMPORT)
 // ============================================
-
 export async function showTab(tabId) {
   console.log(`\n📌 [Navegación] Solicitando cambio a la pestaña: [${tabId.toUpperCase()}]`);
 
@@ -45,15 +41,14 @@ export async function showTab(tabId) {
     config: "btnConfig",
     biblioteca: "btnBiblioteca",
     estudio: "btnEstudio",
-    cambiarTono: "btnCambiarTono",
     afinador: "btnAfinador",
     karaoke: "btnKaraoke",
+    cambiarTono: "btnCambiarTono"
   };
 
   const activeBtn = document.getElementById(btnMap[tabId]);
   if (activeBtn) activeBtn.classList.add("active");
 
-  // DISPARADORES DE DESCARGA BAJO DEMANDA (ES MODULES LAZY IMPORT)
   try {
     if (tabId === "config") {
       console.log("⚙️ [Lazy Load] Cargando configuraciones de hardware...");
@@ -82,31 +77,32 @@ export async function showTab(tabId) {
     }
     else if (tabId === "karaoke") {
       console.log("🎤 [Lazy Load] Inicializando Canvas e Históricos de Canto...");
-
       const { loadTrackOptionsInKaraoke, loadKaraokeSong } = await import("./modules/karaoke.js");
       const { inicializarEscenarioDesdeMemoria } = await import("./modules/config.js");
-    
+
       if (typeof inicializarEscenarioDesdeMemoria === "function") inicializarEscenarioDesdeMemoria();
       if (typeof loadTrackOptionsInKaraoke === "function") await loadTrackOptionsInKaraoke();
-    
-      // ✅ 🛠️ Corrección: Verificación de canvas limpia (sin causar error de Strict Mode)
-      const canvas = document.getElementById("karaokeCanvas");
-      if (canvas) {
-        console.log("✅ Canvas de karaoke detectado y listo en el DOM.");
-      } else {
-        console.warn("⚠️ No se encontró el canvas de karaoke.");
-      }
-    
+
       const track = $("karaokeTrack");
       if (track && track.dataset.karaokeId && typeof loadKaraokeSong === "function") {
         await loadKaraokeSong(track.dataset.karaokeId);
       }
     }
-
     console.log(`✅ [Navegación] Pestaña [${tabId.toUpperCase()}] cargada y visualizada.`);
 
   } catch (error) {
     console.error(`❌ [Lazy Load Error] Falló el módulo [${tabId}]:`, error);
+  }
+}
+
+// --- CONTROLADOR COMPARTIDO DEL MONITOR DE KARAOKE GRAPHICS ---
+export async function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2 = 0) {
+  const canvas = $("karaokeCanvas");
+  if (!canvas) return;
+
+  const { drawKaraokeMonitor: renderPincel } = await import('./modules/karaoke.js');
+  if (typeof renderPincel === "function") {
+    renderPincel(currentTime, currentFreq, currentFreq2);
   }
 }
 
@@ -127,7 +123,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     console.warn("⚠️ Advertencia inicializando Supabase:", err);
   }
 
-  // 🛠️ Corrección: Eliminada la constante allKaraokeThemes duplicada aquí, se usa la global.
   const temaGuardado = localStorage.getItem("vocalApp_theme") || "oscuro";
   document.documentElement.setAttribute("data-theme", temaGuardado);
   document.body.setAttribute("data-theme", temaGuardado);
@@ -140,6 +135,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       monitor.classList.add(theme);
     }
   }
+
   applyKaraokeTheme();
 
   safeAdd("karaokeThemeSelect", "change", async (e) => {
@@ -150,32 +146,16 @@ document.addEventListener("DOMContentLoaded", async () => {
   const karaokePlayer = $("karaokeTrack") || $("trackPlayer");
   if (karaokePlayer) {
     karaokePlayer.addEventListener("timeupdate", () => {
-      // 🛠️ Corrección: Respaldo de llamada global usando window para prevenir undefined
-      if (typeof syncKaraokeMonitor === "function") {
-        syncKaraokeMonitor(karaokePlayer.currentTime);
-      } else if (typeof window.syncKaraokeMonitor === "function") {
+      if (typeof window.syncKaraokeMonitor === "function") {
         window.syncKaraokeMonitor(karaokePlayer.currentTime);
       }
-
-      // --- 🔒 PROTECCIÓN ANTES DE LLAMAR A drawKaraokeMonitor ---
-      const canvas = $("karaokeCanvas");
-      if (!canvas) {
-        console.warn("[Timeupdate] El canvas #karaokeCanvas no está disponible. Saltando dibujo.");
-      return;
-      }
-
-      // 🛠️ Corrección: Usar state.isRecording para detener el render duplicado durante la grabación
-      if (typeof drawKaraokeMonitor === "function" && !state.isRecording) {
+      if (typeof drawKaraokeMonitor === "function" && (typeof window.karaokeMediaRecorder === "undefined" || window.karaokeMediaRecorder.state !== "recording")) {
         drawKaraokeMonitor(karaokePlayer.currentTime, -1, -1);
-      } else if (typeof window.drawKaraokeMonitor === "function" && !state.isRecording) {
-        window.drawKaraokeMonitor(karaokePlayer.currentTime, -1, -1);
       }
     });
 
     karaokePlayer.addEventListener("ended", () => {
-      if (typeof syncKaraokeMonitor === "function") {
-        syncKaraokeMonitor(0);
-      } else if (typeof window.syncKaraokeMonitor === "function") {
+      if (typeof window.syncKaraokeMonitor === "function") {
         window.syncKaraokeMonitor(0);
       }
     });
@@ -210,10 +190,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 
   // --- EVENTOS ESTUDIO ---
-  //safeAdd("audioFile", "change", async (e) => 
-    //const { cargarAudioEstudio } = await import("./modules/estudio.js");
-    //if (typeof cargarAudioEstudio === "function") cargarAudioEstudio(e);
-  
+  safeAdd("audioFile", "change", async (e) => {
+    const { cargarAudioEstudio } = await import("./modules/estudio.js");
+    if (typeof cargarAudioEstudio === "function") cargarAudioEstudio(e);
+  });
   safeAdd("loadStudioTrackBtn", "click", async () => {
     const { loadSelectedTrackFromLibraryStudio } = await import("./modules/estudio.js");
     if (typeof loadSelectedTrackFromLibraryStudio === "function") loadSelectedTrackFromLibraryStudio();
@@ -222,12 +202,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     const { loadSelectedVoiceFromLibrary } = await import("./modules/estudio.js");
     if (typeof loadSelectedVoiceFromLibrary === "function") loadSelectedVoiceFromLibrary();
   });
-  /*
   safeAdd("loadSelectedTextBtn", "click", async () => {
     const { loadSelectedTextFromLibrary } = await import("./modules/estudio.js");
     if (typeof loadSelectedTextFromLibrary === "function") loadSelectedTextFromLibrary();
   });
-  */
   safeAdd("applyCorrectedLyricsBtn", "click", async () => {
     const { applyCorrectedLyrics } = await import("./modules/estudio.js");
     if (typeof applyCorrectedLyrics === "function") applyCorrectedLyrics();
@@ -259,18 +237,17 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (typeof finishTapSync === "function") finishTapSync();
   });
   safeAdd("redoTapSyncBtn", "click", async () => {
-    const { cancelTapSync, startTapSync } = await import("./modules/estudio.js");
-    if (typeof cancelTapSync === "function") cancelTapSync();
-    if (typeof startTapSync === "function") startTapSync();
+    const { redoTapSync } = await import("./modules/estudio.js");
+    if (typeof redoTapSync === "function") redoTapSync();
   });
 
-  safeAdd("tapPartC1Btn", "click", async () => {
+  safeAdd("tapPartP1Btn", "click", async () => {
     const { setCurrentTapPart } = await import("./modules/estudio.js");
-    if (typeof setCurrentTapPart === "function") setCurrentTapPart("C1");
+    if (typeof setCurrentTapPart === "function") setCurrentTapPart("P1");
   });
-  safeAdd("tapPartC2Btn", "click", async () => {
+  safeAdd("tapPartP2Btn", "click", async () => {
     const { setCurrentTapPart } = await import("./modules/estudio.js");
-    if (typeof setCurrentTapPart === "function") setCurrentTapPart("C2");
+    if (typeof setCurrentTapPart === "function") setCurrentTapPart("P2");
   });
   safeAdd("tapPartDuoBtn", "click", async () => {
     const { setCurrentTapPart } = await import("./modules/estudio.js");
@@ -279,114 +256,42 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // --- EVENTOS BIBLIOTECA ---
   safeAdd("saveLibraryFileBtn", "click", async () => {
-    console.log("🔵 [DEBUG] Botón Guardar presionado");
-
-    const fileInput = $("libraryFileInput");
-    const typeSelect = $("libraryFileType");
+    const { saveManualFileToLibrary } = await import("./modules/biblioteca.js");
+    if (typeof saveManualFileToLibrary === "function") saveManualFileToLibrary();
+  });
+  safeAdd("libraryFileInput", "change", (e) => {
+    const file = e.target.files[0];
     const nameInput = $("libraryFileName");
-
-    // Verificación 1: ¿Hay archivos?
-    if (!fileInput || fileInput.files.length === 0) {
-        console.error("❌ [ERROR] El input de archivos está vacío.");
-        alert("Error: No hay archivos seleccionados.");
-        return;
+    if (file && nameInput && !nameInput.value.trim()) {
+      nameInput.value = file.name.replace(/\.[^.]+$/, "");
     }
-
-    // Verificación 2: ¿Hay tipo seleccionado?
-    const type = typeSelect ? typeSelect.value : null;
-    console.log("📋 [DEBUG] Tipo seleccionado:", type);
-    if (!type) {
-        console.error("❌ [ERROR] No se ha seleccionado un tipo de archivo.");
-        alert("Error: Selecciona un tipo (Pista, Voz, Texto, etc.) antes de guardar.");
-        return;
-    }
-
-    console.log("📂 [DEBUG] Archivos listos:", fileInput.files.length);
-    
-    try {
-        console.log("⏳ [DEBUG] Importando módulo...");
-        const { saveManualFileToLibrary } = await import("./modules/biblioteca.js");
-        
-        console.log("🚀 [DEBUG] Ejecutando saveManualFileToLibrary...");
-        // Pasamos el nombre personalizado de la caja de texto para que el backend lo respete
-        await saveManualFileToLibrary();
-        
-        console.log("✅ [DEBUG] Función finalizada.");
-    } catch (error) {
-        console.error("🔴 [ERROR CRÍTICO] Excepción en el botón:", error);
-        alert("Error fatal: " + error.message);
-    }
-  });   
-  
-  safeAdd("libraryFileInput", "change", async (e) => {
-    const files = e.target.files;
-    if (files.length === 0) return;
-
-    // 1. MOSTRAR EL MENÚ DE TIPO
-    const uploadOptions = $("uploadOptions");
-    if (uploadOptions) {
-        uploadOptions.style.display = "block"; 
-    }
-
-    // 2. Resto de tu lógica (nombre y lista)
-    const uploadList = $("uploadFilesList");
-    const progressContainer = $("uploadProgressContainer");
-    
-    if (progressContainer) progressContainer.style.display = "block";
-
-    const { addFileToUploadList } = await import("./modules/biblioteca.js");
-
-    for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        if (i === 0) {
-            const nameInput = $("libraryFileName");
-            if (nameInput && !nameInput.value.trim()) {
-                // Removemos la extensión del input visual de la pantalla de forma segura
-                nameInput.value = file.name.replace(/\.[^.]+$/, "");
-            }
-        }
-        if (uploadList) {
-            // Pasamos el índice i para que la barra de carga mantenga sus IDs únicos
-            addFileToUploadList(uploadList, file.name, "pending", i);
-        }
-    }
-  });   
-  
+  });
   safeAdd("libraryFileType", "change", () => {
     const typeSelect = $("libraryFileType");
     const fileInput = $("libraryFileInput");
     if (typeSelect && fileInput) {
-      // Soportar variaciones de nombres técnicos para tus archivos de texto planos manuales
-      if (typeSelect.value === "texto" || typeSelect.value === "letra" || typeSelect.value === "texto_plano") {
+      if (typeSelect.value === "texto") {
         fileInput.setAttribute("accept", ".txt");
       } else {
         fileInput.setAttribute("accept", "audio/*");
       }
     }
   });
+
   // --- EVENTOS KARAOKE ---
-  safeAdd("karaokeDuoSplitToggleBtn", "click", () => {
-    // Verificar si la función existe en el ámbito local o global
-    if (typeof toggleKaraokeDuoSplitMode === "function") {
-      toggleKaraokeDuoSplitMode();
-    } else if (typeof window.toggleKaraokeDuoSplitMode === "function") {
-      window.toggleKaraokeDuoSplitMode();
-    } else {
-      console.error("❌ toggleKaraokeDuoSplitMode no está disponible. Revisa karaoke.js");
-    }
+  safeAdd("karaokeDuoSplitToggleBtn", "click", async () => {
+    const { toggleKaraokeDuoSplitMode } = await import("./modules/karaoke.js");
+    if (typeof toggleKaraokeDuoSplitMode === "function") toggleKaraokeDuoSplitMode();
   });
   safeAdd("karaokeStartBtn", "click", async () => {
-    state.isRecording = true; // 🛠️ Notificamos al sistema que estamos grabando
     const { startKaraokeRecording } = await import("./modules/karaoke.js");
     if (typeof startKaraokeRecording === "function") startKaraokeRecording();
   });
   safeAdd("karaokeStopBtn", "click", async () => {
-    state.isRecording = false; // 🛠️ Restauramos el estado
     const { stopKaraokeRecording } = await import("./modules/karaoke.js");
     if (typeof stopKaraokeRecording === "function") stopKaraokeRecording();
   });
   safeAdd("karaokeRestartBtn", "click", async () => {
-    state.isRecording = false; // 🛠️ Restauramos el estado
     const { restartKaraokeRecording } = await import("./modules/karaoke.js");
     if (typeof restartKaraokeRecording === "function") restartKaraokeRecording();
   });
@@ -409,7 +314,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (typeof playPitchShifted === "function") playPitchShifted();
   });
   safeAdd("pitchPauseBtn", "click", async () => {
-    console.warn("⏸️ pausePitchShifted no está implementado en cambiar-tono.js");
+    const { pausePitchShifted } = await import("./modules/cambiar-tono.js");
+    if (typeof pausePitchShifted === "function") pausePitchShifted();
   });
   safeAdd("pitchStopBtn", "click", async () => {
     const { stopPitchShifted } = await import("./modules/cambiar-tono.js");
