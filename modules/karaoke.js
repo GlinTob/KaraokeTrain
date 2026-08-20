@@ -10,8 +10,6 @@ import { liveAudioService } from './liveAudioService.js';
 // MONITOR KARAOKE CANVAS (1800x600px) - MÓDULO ES6 COMPATIBLE
 // ============================================================================
 
-const $ = (id) => document.getElementById(id);
-
 // --- ESTADO Y CONFIGURACIÓN DEL MONITOR ---
 let monitorConfig = {
   width: 1800,
