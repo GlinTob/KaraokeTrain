@@ -3,12 +3,6 @@
  * Manejo de Enrutamiento Asíncrono (Lazy Loading) y Eventos Globales de Interfaz
  */
 import { drawKaraokeMonitor } from './modules/karaoke.js'; 
-import { toggleKaraokeDuoSplitMode } from './modules/karaoke.js';
-import { updateMonitorConfig } from './modules/karaoke.js';
-import { drawKaraokeMonitor } from './modules/karaoke.js'; 
-import { toggleKaraokeDuoSplitMode } from './modules/karaoke.js';
-import { updateMonitorConfig } from './modules/karaoke.js';
-import { syncKaraokeMonitor } from './modules/karaoke.js'; 
 
 export function $(id) {
   return document.getElementById(id);
@@ -134,12 +128,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     console.warn("⚠️ Advertencia inicializando Supabase:", err);
   }
 
-  / 🛠️ Corrección: Eliminada la constante allKaraokeThemes duplicada aquí, se usa la global.
+  // 🛠️ Corrección: Eliminada la constante allKaraokeThemes duplicada aquí, se usa la global.
   const temaGuardado = localStorage.getItem("vocalApp_theme") || "oscuro";
   document.documentElement.setAttribute("data-theme", temaGuardado);
   document.body.setAttribute("data-theme", temaGuardado);
 
   function applyKaraokeTheme() {
+    const theme = localStorage.getItem("vocalApp_stage") || "theme-clasico";
+    const monitor = $("karaokeLiveLyrics");
     const theme = localStorage.getItem("vocalApp_stage") || "theme-clasico";
     const monitor = $("karaokeLiveLyrics");
     if (monitor) {
@@ -157,9 +153,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   const karaokePlayer = $("karaokeTrack") || $("trackPlayer");
   if (karaokePlayer) {
     karaokePlayer.addEventListener("timeupdate", () => {
-      // 🛠️ Corrección: Llamar a la función importada directamente, no desde window
+      // 🛠️ Corrección: Respaldo de llamada global usando window para prevenir undefined
       if (typeof syncKaraokeMonitor === "function") {
         syncKaraokeMonitor(karaokePlayer.currentTime);
+      } else if (typeof window.syncKaraokeMonitor === "function") {
+        window.syncKaraokeMonitor(karaokePlayer.currentTime);
       }
 
       // --- 🔒 PROTECCIÓN ANTES DE LLAMAR A drawKaraokeMonitor ---
@@ -168,17 +166,24 @@ document.addEventListener("DOMContentLoaded", async () => {
         console.warn("[Timeupdate] El canvas #karaokeCanvas no está disponible. Saltando dibujo.");
       return;
       }
+
       // 🛠️ Corrección: Usar state.isRecording para detener el render duplicado durante la grabación
       if (typeof drawKaraokeMonitor === "function" && !state.isRecording) {
         drawKaraokeMonitor(karaokePlayer.currentTime, -1, -1);
+      } else if (typeof window.drawKaraokeMonitor === "function" && !state.isRecording) {
+        window.drawKaraokeMonitor(karaokePlayer.currentTime, -1, -1);
       }
     });
+
     karaokePlayer.addEventListener("ended", () => {
       if (typeof syncKaraokeMonitor === "function") {
         syncKaraokeMonitor(0);
+      } else if (typeof window.syncKaraokeMonitor === "function") {
+        window.syncKaraokeMonitor(0);
       }
     });
   }
+
   const studioPlayer = $("player");
   if (studioPlayer) {
     studioPlayer.addEventListener("timeupdate", () => {
@@ -364,9 +369,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
   // --- EVENTOS KARAOKE ---
   safeAdd("karaokeDuoSplitToggleBtn", "click", () => {
-    // Verificar si la función existe en el ámbito global
+    // Verificar si la función existe en el ámbito local o global
     if (typeof toggleKaraokeDuoSplitMode === "function") {
       toggleKaraokeDuoSplitMode();
+    } else if (typeof window.toggleKaraokeDuoSplitMode === "function") {
+      window.toggleKaraokeDuoSplitMode();
     } else {
       console.error("❌ toggleKaraokeDuoSplitMode no está disponible. Revisa karaoke.js");
     }
