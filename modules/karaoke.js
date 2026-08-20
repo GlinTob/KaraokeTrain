@@ -378,6 +378,53 @@ function stopP2PitchTracking() {
   pitchHistoryP2 = [];
 }
 
+export function drawTeleprompter(ctx, segments, currentTime, x, y, width, height) {
+  if (!Array.isArray(segments) || segments.length === 0) return;
+
+  ctx.save();
+  
+  // Fondo semitransparente
+  ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+  ctx.fillRect(x, y, width, height);
+
+  // Buscar segmento actual
+  const idx = segments.findIndex(s => 
+    currentTime >= (s.start || 0) && 
+    currentTime <= ((s.end || (s.start + 5)))
+  );
+
+  if (idx === -1) {
+    ctx.restore();
+    return;
+  }
+
+  const currentSeg = segments[idx];
+  const nextSeg = segments[idx + 1];
+
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+
+  // Línea actual
+  ctx.font = "bold 24px Arial";
+  ctx.fillStyle = "#00ffcc";
+  
+  const parteActual = currentSeg.parte || "P1";
+  const prefijo = (typeof karaokeDuoSplitMode !== 'undefined' && karaokeDuoSplitMode) 
+    ? (parteActual === "DUO" ? "🟪 DÚO · " : (parteActual === "P2" ? "🟧 P2 · " : "🟦 P1 · ")) 
+    : "";
+  
+  ctx.fillText(prefijo + (currentSeg.text || ""), x + width / 2, y + height / 2 - 15);
+
+  // Próxima línea
+  if (nextSeg) {
+    ctx.font = "italic 18px Arial";
+    ctx.fillStyle = "#888888";
+    ctx.fillText(nextSeg.text || "", x + width / 2, y + height / 2 + 20);
+  }
+
+  ctx.restore();
+}
+
 export function drawKaraokeMonitor(arg1, arg2, arg3, arg4, arg5) {
   let canvasTarget = null;
   let currentTime = 0;
@@ -513,29 +560,8 @@ export function drawKaraokeMonitor(arg1, arg2, arg3, arg4, arg5) {
 
   // Teleprompter Superior
   drawTeleprompter(ctx, lyricsSegments, currentTime, 150, 5, canvas.width - 300, teleprompterHeight);
-  if (Array.isArray(datos) && datos.length > 0) {
-    const idx = datos.findIndex(s => currentTime >= (s.start || 0) && currentTime <= (s.end || (s.start + 1)));
-    if (idx !== -1) {
-      ctx.fillStyle = "rgba(0, 0, 0, 0.8)";
-      ctx.fillRect(0, canvas.height - 100, canvas.width, 100);
-
-      ctx.textAlign = "center";
-      ctx.fillStyle = "white";
-      ctx.font = "bold 30px Arial";
-
-      // En split, mostramos también la parte cantando
-      const parteActual = datos[idx].parte || "P1";
-      const prefijo = karaokeDuoSplitMode ? (parteActual === "DUO" ? "🟪 DÚO · " : (parteActual === "P2" ? "🟧 P2 · " : "🟦 P1 · ")) : "";
-      ctx.fillText(prefijo + (datos[idx].text || ""), canvas.width / 2, canvas.height - 65);
-
-      if (datos[idx + 1]) {
-        ctx.fillStyle = "#94a3b8";
-        ctx.font = "italic 22px Arial";
-        ctx.fillText(datos[idx + 1].text || "", canvas.width / 2, canvas.height - 25);
-      }
-    }
-  }
 }
+
 export async function startKaraokeRecording() {
   const track = $("karaokeTrack") || $("trackPlayer");
 
