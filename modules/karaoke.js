@@ -3,7 +3,7 @@
 
 import { $ } from '../script.js'; // Asegúrate de que esta ruta sea correcta en tu proyecto
 import { AudioProcessorController } from './audio-controller.js';
-import { getLibraryItemByIdFromSupabase, getLibraryItemByTypeFromSupabase } from './biblioteca.js';
+import { getLElementById, getElementByType } from './biblioteca.js';
 import { liveAudioService } from './liveAudioService.js';
 
 // ============================================================================
