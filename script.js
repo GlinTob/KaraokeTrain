@@ -3,6 +3,7 @@
  * Manejo de Enrutamiento Asíncrono (Lazy Loading) y Eventos Globales de Interfaz
  */
 import { drawKaraokeMonitor } from './modules/karaoke.js'; 
+import { toggleKaraokeDuoSplitMode } from './karaoke.js';
 
 
 export function $(id) {
