@@ -12,12 +12,13 @@ export function $(id) {
 }
 
 export function safeAdd(id, event, handler) {
-  const el = $(id);
-  if (el) {
-    el.addEventListener(event, handler);
-  } else {
-    console.warn(`⚠️ No se encontró el elemento con ID: ${id} para registrar el evento [${event}]`);
+  const el = document.getElementById(id);
+  if (!el) {
+    console.warn(`⚠️ No se encontró el elemento con ID: ${id} para registrar evento ${event}`);
+    return null;
   }
+  el.addEventListener(event, handler);
+  return el;
 }
 
 export const state = {
