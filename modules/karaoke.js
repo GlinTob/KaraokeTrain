@@ -44,6 +44,8 @@ let monitorConfig = {
 
 let karaokeDuoSplitMode = false;
 let currentLyricsSegments = [];
+let karaokePitchP1 = [];
+let karaokePitchP2 = [];
 let pitchHistoryP1 = [];
 let pitchHistoryP2 = [];
 const MAX_PITCH_HISTORY = 120;
