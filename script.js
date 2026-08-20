@@ -120,10 +120,9 @@ function iniciarAplicacion() {
 // ============================================
 document.addEventListener("DOMContentLoaded", async () => {
   try {
-  const { initSupabase } = await import("./modules/biblioteca.js");
-  if (typeof initSupabase === "function") {
-    await initSupabase();
-  }
+    if (typeof window.initSupabase === "function") {
+      await window.initSupabase();
+    }
   } catch (err) {
     console.warn("⚠️ Advertencia inicializando Supabase:", err);
   }
