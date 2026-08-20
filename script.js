@@ -4,6 +4,7 @@
  */
 import { drawKaraokeMonitor } from './modules/karaoke.js'; 
 import { toggleKaraokeDuoSplitMode } from './modules/karaoke.js';
+import { updateMonitorConfig } from './modules/karaoke.js';
 
 
 export function $(id) {
