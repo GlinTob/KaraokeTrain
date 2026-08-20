@@ -41,7 +41,7 @@ let monitorConfig = {
     c2Icon2: null
   }
 };
-let karaokeCanvaas = null;
+let karaokeCanvas = null;
 let ctx = null;
 let karaokeDuoSplitMode = false;
 let currentLyricsSegments = [];
