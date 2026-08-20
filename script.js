@@ -89,13 +89,15 @@ export async function showTab(tabId) {
       const { loadTrackOptionsInKaraoke, loadKaraokeSong } = await import("./modules/karaoke.js");
       const { inicializarEscenarioDesdeMemoria } = await import("./modules/config.js");
       const { drawKaraokeMonitor } = await import("./modules/karaoke.js");
+      const { canvasTarget } = await import("./modules/karaoke.js");
     
       if (typeof inicializarEscenarioDesdeMemoria === "function") inicializarEscenarioDesdeMemoria();
       if (typeof loadTrackOptionsInKaraoke === "function") await loadTrackOptionsInKaraoke();
+      if (typeof drawKaraokeMonitor === "function") await drawKaraokeMonitor();
     
       // ✅ Inicializar karaokeCanvas y ctx cuando se cargue la pestaña Karaoke
       const canvas = document.getElementById("canvasTarget");
-      if (canvas) {
+      if (!canvas) {
         canvasTarget = canvas;
         ctx = canvas.getContext("2d");
         console.log("✅ Canvas de karaoke inicializado.");
