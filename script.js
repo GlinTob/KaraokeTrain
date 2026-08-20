@@ -85,12 +85,23 @@ export async function showTab(tabId) {
     }
     else if (tabId === "karaoke") {
       console.log("🎤 [Lazy Load] Inicializando Canvas e Históricos de Canto...");
+
       const { loadTrackOptionsInKaraoke, loadKaraokeSong } = await import("./modules/karaoke.js");
       const { inicializarEscenarioDesdeMemoria } = await import("./modules/config.js");
-
+    
       if (typeof inicializarEscenarioDesdeMemoria === "function") inicializarEscenarioDesdeMemoria();
       if (typeof loadTrackOptionsInKaraoke === "function") await loadTrackOptionsInKaraoke();
-
+    
+      // ✅ Inicializar karaokeCanvas y ctx cuando se cargue la pestaña Karaoke
+      const canvas = document.getElementById("karaokeCanvas");
+      if (canvas) {
+        karaokeCanvas = canvas;
+        ctx = canvas.getContext("2d");
+        console.log("✅ Canvas de karaoke inicializado.");
+      } else {
+        console.warn("⚠️ No se encontró el canvas de karaoke.");
+      }
+    
       const track = $("karaokeTrack");
       if (track && track.dataset.karaokeId && typeof loadKaraokeSong === "function") {
         await loadKaraokeSong(track.dataset.karaokeId);
