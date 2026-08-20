@@ -2,8 +2,8 @@
  * CORE ORQUESTRADOR PRINCIPAL — vocalApp Brain (script.js)
  * Manejo de Enrutamiento Asíncrono (Lazy Loading) y Eventos Globales de Interfaz
  */
-import { drawKaraokeMonitor } from '../karaoke.js'; 
-import { toggleKaraokeDuoSplitMode } from '../karaoke.js';
+import { drawKaraokeMonitor } from './karaoke.js'; 
+import { toggleKaraokeDuoSplitMode } from './karaoke.js';
 
 
 export function $(id) {
