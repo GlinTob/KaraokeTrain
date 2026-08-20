@@ -3,6 +3,7 @@
 
 import { $ } from '../script.js'; // Asegúrate de que esta ruta sea correcta en tu proyecto
 import { AudioProcessorController } from './audio-controller.js';
+import { getLibraryItemById, getLibraryItemByType } from './biblioteca.js';
 
 
 // --- Estado Global del Monitor ---
