@@ -2,7 +2,6 @@
 // Incluye: Dibujo del canvas, detección de pitch, grabación y sincronización con el teleprompter.
 
 import { $ } from '../script.js'; // Asegúrate de que esta ruta sea correcta en tu proyecto
-import { pitchShifterProcessor } from './pitch-shifter-processor.js';
 
 
 // --- Estado Global del Monitor ---
