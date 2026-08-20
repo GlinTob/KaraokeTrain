@@ -1,5 +1,5 @@
 import { $ } from "../script.js";
-import { updateMonitorConfig  } from "./modules/karaoke.js";
+import { updateMonitorConfig  } from './modules/karaoke.js';
 
 /**
  * MÓDULO CONFIGURACIÓN COMPLETO
