@@ -89,7 +89,7 @@ export async function showTab(tabId) {
       const { loadTrackOptionsInKaraoke, loadKaraokeSong } = await import("./modules/karaoke.js");
       const { inicializarEscenarioDesdeMemoria } = await import("./modules/config.js");
       const { drawKaraokeMonitor } = await import("./modules/karaoke.js");
-      const { canvasTarget } = await import("./modules/karaoke.js");
+      const { karaokeCanvas } = await import("./modules/karaoke.js");
     
       if (typeof inicializarEscenarioDesdeMemoria === "function") inicializarEscenarioDesdeMemoria();
       if (typeof loadTrackOptionsInKaraoke === "function") await loadTrackOptionsInKaraoke();
