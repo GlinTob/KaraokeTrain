@@ -41,51 +41,15 @@ let monitorConfig = {
     c2Icon2: null
   }
 };
-
-// 🛠️ CORRECCIÓN 1 Y 3: Typo arreglado y declaración de todas las variables de estado 
-// necesarias para el Strict Mode de los módulos ES6.
-let karaokeCanvas = null; 
+let karaokeCanvaas = null;
 let ctx = null;
 let karaokeDuoSplitMode = false;
 let currentLyricsSegments = [];
-let karaokePitchP1 = -1;
-let karaokePitchP2 = -1;
+let karaokePitchP1 = [];
+let karaokePitchP2 = [];
 let pitchHistoryP1 = [];
 let pitchHistoryP2 = [];
 const MAX_PITCH_HISTORY = 120;
-
-// Variables de estado del Karaoke y Grabación
-let baseTextSegments = [];
-let pitchHistory = [];
-let karaokeLoadedLyrics = [];
-let karaokeLoadedItem = null;
-let karaokeSelectedTrackBlob = null;
-let karaokeSelectedTrackName = "";
-let currentTapSyncModeType = "";
-let transcriptionSegments = [];
-let textSegments = [];
-let karaokeChunks = [];
-let karaokeRecordedBlob = null;
-let karaokeStream = null;
-let karaokeStream2 = null;
-let finalStream = null;
-let karaokeMediaRecorder = null;
-let karaokeDuoAudioContext = null;
-let karaokeDuoAnalyser1 = null;
-let karaokeDuoAnalyser2 = null;
-let karaokePitchLoopRafId = null;
-let karaokePitchWorkletNode = null;
-let karaokePitchSourceNode = null;
-let karaokePitchDetectionAudioCtx = null;
-let karaokePitchDetectionAnalyser = null;
-let karaokeSplitAnalyser2 = null;
-let karaokeSplitAudioCtx = null;
-let karaokeSplitStream2 = null;
-let parsedUltrastar = null;
-let isPitchDetectionRunning = false;
-let lastActiveLine = null;
-let autoScrollEnabled = true;
-let sr2 = 48000; // Sample rate por defecto para Mic 2
 
 const NOTE_SCALE = ["A4", "G4", "F4", "E4", "D4", "C4", "B3", "A3", "G3", "F3"];
 
@@ -125,15 +89,14 @@ export async function updateMonitorConfig(newConfig = {}) {
   if (newConfig.c2Icon1Url) monitorConfig.images.c2Icon1 = await loadImage(newConfig.c2Icon1Url);
   if (newConfig.c2Icon2Url) monitorConfig.images.c2Icon2 = await loadImage(newConfig.c2Icon2Url);
 
-  // 🛠️ CORRECCIÓN 2: Validar solo que la función exista. 'drawKaraokeMonitor' 
-  // se encarga de buscar el canvas internamente, evitando errores de referencia.
-  if (typeof drawKaraokeMonitor === "function") {
+  // ✅ Llamar a drawKaraokeMonitor para repintar el canvas
+  if (typeof drawKaraokeMonitor === "function" && karaokeCanvas && ctx) {
     const track = $("karaokeTrack") || $("trackPlayer");
     const currentTime = track ? track.currentTime : 0;
     drawKaraokeMonitor(currentTime, karaokePitchP1, karaokePitchP2);
     console.log("🎨 Monitor de karaoke actualizado con nuevos avatares.");
   } else {
-    console.warn("⚠️ drawKaraokeMonitor no está definida.");
+    console.warn("⚠️ drawKaraokeMonitor no está definida o el canvas no está inicializado.");
   }
 }
 
@@ -322,7 +285,7 @@ function drawKaraokeLyrics(ctx, datos, currentTime, x, y, width, height) {
   ctx.restore();
 
   // 6. Efecto Secundario (Mantener lógica de pitch)
-  if (!isPitchDetectionRunning) {
+  if (typeof isPitchDetectionRunning !== 'undefined' && !isPitchDetectionRunning) {
     isPitchDetectionRunning = true;
     if (typeof startKaraokePitchDetection === 'function') {
       startKaraokePitchDetection();
@@ -381,6 +344,7 @@ function drawNotesAndLyrics(ctx, segments, currentTime, regionX, regionY, region
 // ============================================================================
 // FUNCIÓN PRINCIPAL RENDERIZADORA (COMPATIBLE CON FIRMA ANTIGUA Y NUEVA)
 // ============================================================================
+
 
 async function ensureP2PitchTracking() {
   // Reutilizar el analyser de la grabación dúo si está disponible
@@ -456,7 +420,7 @@ export function drawTeleprompter(ctx, segments, currentTime, x, y, width, height
   ctx.fillStyle = "#00ffcc";
   
   const parteActual = currentSeg.parte || "P1";
-  const prefijo = karaokeDuoSplitMode 
+  const prefijo = (typeof karaokeDuoSplitMode !== 'undefined' && karaokeDuoSplitMode) 
     ? (parteActual === "DUO" ? "🟪 DÚO · " : (parteActual === "P2" ? "🟧 P2 · " : "🟦 P1 · ")) 
     : "";
   
@@ -783,17 +747,17 @@ export async function startKaraokeRecording() {
   } catch (err) {
     console.error("Error iniciando grabación karaoke:", err);
 
-    if (karaokeDuoAudioContext) {
+    if (typeof karaokeDuoAudioContext !== "undefined" && karaokeDuoAudioContext) {
       try { await karaokeDuoAudioContext.close(); } catch (e) {}
       karaokeDuoAudioContext = null;
     }
 
-    if (karaokeStream) {
+    if (typeof karaokeStream !== "undefined" && karaokeStream) {
       karaokeStream.getTracks().forEach(t => t.stop());
       karaokeStream = null;
     }
 
-    if (karaokeStream2) {
+    if (typeof karaokeStream2 !== "undefined" && karaokeStream2) {
       karaokeStream2.getTracks().forEach(t => t.stop());
       karaokeStream2 = null;
     }
@@ -813,22 +777,22 @@ export async function startKaraokeRecording() {
 
 export async function startKaraokePitchDetection() {
   // Limpiar sesión previa
-  if (karaokePitchLoopRafId) {
+  if (typeof karaokePitchLoopRafId !== "undefined" && karaokePitchLoopRafId) {
     cancelAnimationFrame(karaokePitchLoopRafId);
     karaokePitchLoopRafId = null;
   }
 
-  if (karaokePitchWorkletNode) {
+  if (typeof karaokePitchWorkletNode !== "undefined" && karaokePitchWorkletNode) {
     try { karaokePitchWorkletNode.disconnect(); } catch (e) {}
     karaokePitchWorkletNode = null;
   }
 
-  if (karaokePitchSourceNode) {
+  if (typeof karaokePitchSourceNode !== "undefined" && karaokePitchSourceNode) {
     try { karaokePitchSourceNode.disconnect(); } catch (e) {}
     karaokePitchSourceNode = null;
   }
 
-  if (karaokePitchDetectionAudioCtx) {
+  if (typeof karaokePitchDetectionAudioCtx !== "undefined" && karaokePitchDetectionAudioCtx) {
     try {
       if (karaokePitchDetectionAudioCtx.state !== "closed") {
         await karaokePitchDetectionAudioCtx.close();
@@ -837,7 +801,7 @@ export async function startKaraokePitchDetection() {
     karaokePitchDetectionAudioCtx = null;
   }
 
-  if (!karaokeStream) {
+  if (typeof karaokeStream === "undefined" || !karaokeStream) {
     console.warn("⚠️ No hay stream principal para detección de pitch en karaoke.");
     return;
   }
@@ -879,7 +843,7 @@ export async function startKaraokePitchDetection() {
 
   finalNode.connect(karaokePitchDetectionAnalyser);
 
-  if (karaokeDuoSplitMode) {
+  if (typeof karaokeDuoSplitMode !== "undefined" && karaokeDuoSplitMode) {
     try {
       if (typeof ensureP2PitchTracking === "function") {
         await ensureP2PitchTracking();
@@ -895,7 +859,7 @@ export async function startKaraokePitchDetection() {
 export function loop() {
   const track = $("karaokeTrack") || $("karaokeAudio") || $("audioKaraoke") || $("trackPlayer");
   const currentTime = track ? track.currentTime : 0;
-  const isRecording = !!(karaokeMediaRecorder && karaokeMediaRecorder.state === "recording");
+  const isRecording = !!(typeof karaokeMediaRecorder !== "undefined" && karaokeMediaRecorder && karaokeMediaRecorder.state === "recording");
   const trackEnded = !!(track && track.ended);
 
   let pitch = -1;
@@ -903,8 +867,8 @@ export function loop() {
 
   try {
     if (
-      karaokePitchDetectionAnalyser &&
-      karaokePitchDetectionAudioCtx &&
+      typeof karaokePitchDetectionAnalyser !== "undefined" && karaokePitchDetectionAnalyser &&
+      typeof karaokePitchDetectionAudioCtx !== "undefined" && karaokePitchDetectionAudioCtx &&
       typeof AudioUtils !== "undefined" && AudioUtils?.detectPitch
     ) {
       const detectPitchFn = AudioUtils.detectPitch;
@@ -920,9 +884,9 @@ export function loop() {
 
   try {
     if (
-      karaokeDuoSplitMode &&
-      karaokeSplitAnalyser2 &&
-      sr2 &&
+      typeof karaokeDuoSplitMode !== "undefined" && karaokeDuoSplitMode &&
+      typeof karaokeSplitAnalyser2 !== "undefined" && karaokeSplitAnalyser2 &&
+      typeof sr2 !== "undefined" && sr2 &&
       typeof AudioUtils !== "undefined" && AudioUtils?.detectPitch
     ) {
       const detectPitchFn = AudioUtils.detectPitch;
@@ -944,7 +908,7 @@ export function loop() {
   }
 
   if (!isRecording || trackEnded) {
-    if (karaokePitchLoopRafId) {
+    if (typeof karaokePitchLoopRafId !== "undefined") {
       karaokePitchLoopRafId = null;
     }
     return;
@@ -954,12 +918,12 @@ export function loop() {
 }
 
 export function stopKaraokeRecording() {
-  if (karaokePitchLoopRafId) {
+  if (typeof karaokePitchLoopRafId !== "undefined" && karaokePitchLoopRafId) {
     cancelAnimationFrame(karaokePitchLoopRafId);
     karaokePitchLoopRafId = null;
   }
 
-  if (karaokeMediaRecorder && karaokeMediaRecorder.state !== "inactive") {
+  if (typeof karaokeMediaRecorder !== "undefined" && karaokeMediaRecorder && karaokeMediaRecorder.state !== "inactive") {
     try {
       karaokeMediaRecorder.stop();
     } catch (e) {
@@ -967,45 +931,47 @@ export function stopKaraokeRecording() {
     }
   }
 
-  if (karaokePitchWorkletNode) {
+  if (typeof karaokePitchWorkletNode !== "undefined" && karaokePitchWorkletNode) {
     try { karaokePitchWorkletNode.disconnect(); } catch (e) {}
     karaokePitchWorkletNode = null;
   }
 
-  if (karaokePitchSourceNode) {
+  if (typeof karaokePitchSourceNode !== "undefined" && karaokePitchSourceNode) {
     try { karaokePitchSourceNode.disconnect(); } catch (e) {}
     karaokePitchSourceNode = null;
   }
 
-  if (karaokePitchDetectionAudioCtx && karaokePitchDetectionAudioCtx.state !== "closed") {
+  if (typeof karaokePitchDetectionAudioCtx !== "undefined" && karaokePitchDetectionAudioCtx && karaokePitchDetectionAudioCtx.state !== "closed") {
     try {
       karaokePitchDetectionAudioCtx.close();
     } catch (e) {}
     karaokePitchDetectionAudioCtx = null;
   }
 
-  karaokePitchDetectionAnalyser = null;
+  if (typeof karaokePitchDetectionAnalyser !== "undefined") {
+    karaokePitchDetectionAnalyser = null;
+  }
 
   // Detener Mic 1
-  if (karaokeStream) {
+  if (typeof karaokeStream !== "undefined" && karaokeStream) {
     karaokeStream.getTracks().forEach(t => t.stop());
     karaokeStream = null;
   }
 
   // Detener Mic 2
-  if (karaokeStream2) {
+  if (typeof karaokeStream2 !== "undefined" && karaokeStream2) {
     karaokeStream2.getTracks().forEach(t => t.stop());
     karaokeStream2 = null;
   }
 
   // Cerrar contexto de audio dúo
-  if (karaokeDuoAudioContext) {
+  if (typeof karaokeDuoAudioContext !== "undefined" && karaokeDuoAudioContext) {
     try { karaokeDuoAudioContext.close(); } catch (e) {}
     karaokeDuoAudioContext = null;
   }
 
-  karaokeDuoAnalyser1 = null;
-  karaokeDuoAnalyser2 = null;
+  if (typeof karaokeDuoAnalyser1 !== "undefined") karaokeDuoAnalyser1 = null;
+  if (typeof karaokeDuoAnalyser2 !== "undefined") karaokeDuoAnalyser2 = null;
 
   if (typeof stopP2PitchTracking === "function") stopP2PitchTracking();
   if (typeof stopKaraokeDuoLevelMonitor === "function") stopKaraokeDuoLevelMonitor();
