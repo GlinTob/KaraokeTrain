@@ -27,19 +27,19 @@
       <nav class="sidebar">
         <h2>🎤 VocalApp</h2>
         
-        <button id="btnConfig" type="button">Config</button>
-        <button id="btnBiblioteca" type="button">Biblioteca</button>
-        <button id="btnEstudio" type="button">Estudio</button>
-        <button id="btnCambiarTono" type="button">Cambiar tono</button>
-        <button id="btnAfinador" type="button">Afinador</button>
-        <button id="btnKaraoke" type="button">Karaoke</button>
+        <button class="tab-btn" data-tab-target="config" id="btnConfig" type="button">Config</button>
+        <button class="tab-btn" data-tab-target="biblioteca" id="btnBiblioteca" type="button">Biblioteca</button>
+        <button class="tab-btn" data-tab-target="estudio" id="btnEstudio" type="button">Estudio</button>
+        <button class="tab-btn" data-tab-target="cambiarTono" id="btnCambiarTono" type="button">Cambiar tono</button>
+        <button class="tab-btn active" data-tab-target="afinador" id="btnAfinador" type="button">Afinador</button>
+        <button class="tab-btn" data-tab-target="karaoke" id="btnKaraoke" type="button">Karaoke</button>
       </nav>
       
       <!-- CONTENIDO -->
       <main class="content">
         
         <!-- AFINADOR -->
-        <section id="afinador" class="tab active">
+        <section id="afinador" class="tab-content active">
           <h1>🎙 AFINADOR: Practica vocal</h1>
           <div id="afinadorHero" class="afinador-hero">
             <canvas id="agujaCanvas" class="aguja-canvas"></canvas>
@@ -118,7 +118,7 @@
         </section>
         
         <!-- ESTUDIO -->
-        <section id="estudio" class="tab">
+        <section id="estudio" class="tab-content" style="display: none;">
           <h1>🔧 ESTUDIO: Mezcla y sincroniza archivos para crear un Karaoke</h1>
           
           <div class="card">
@@ -148,20 +148,6 @@
             <p id="selectedVoiceStatus">Estado: ninguna voz seleccionada</p>
           </div>
 
-          <div class="card">
-            <h3>LETRA: Pega la letra en el editor</h3>
-
-            <!-- Se remueve si no se logra arreglar el cargado de letras
-            <select id="textLibrarySelect">
-              <option value="">Selecciona un archivo</option>
-            </select>
-            <div class="studio-controls">
-              <button id="loadSelectedTextBtn" type="button">↪️ Cargar letra seleccionada ↩️</button>
-            </div>
-            <div id="selectedTextContainer" style="margin: 15px 0;"></div>
-            <p id="selectedTextStatus">Estado: ningún texto seleccionado</p>
-          </div>
-          -->
           <div class="card">
             <h3>EDITOR: Corrije la letra</h3>
             <textarea id="lyricsText" rows="7" placeholder="Pega la letra de la canción..."></textarea>
@@ -222,12 +208,6 @@
                   <button id="tapBeatBtn" type="button" style="width: 100%; padding: 30px; font-size: 24px; background: linear-gradient(135deg, #22c55e, #16a34a); color: white; border-radius: 12px;">
                     TAP (Presiona la barra espaciadora)
                   </button>
-
-                  <!-- Se quita indicador de oprimir la barra espaciadora
-                  <p style="font-size: 12px; color: var(--text-muted); text-align: center; margin-top: 10px;">
-                    ⌨️👇 Usa la barra espaciadora👇⌨️
-                  </p>
-                  -->
                 </div>
                 
                 <div id="tapSyncResult" style="display: none; margin-top: 15px; padding: 15px; background: #14532d; border-radius: 8px; border: 1px solid #22c55e;">
@@ -243,7 +223,7 @@
         </section>
         
         <!-- BIBLIOTECA -->
-        <section id="biblioteca" class="tab">
+        <section id="biblioteca" class="tab-content" style="display: none;">
           <div class="biblioteca-header">
             <h1>🗃 BIBLIOTECA: Guarda archivos desde PC</h1>
             <div class="biblioteca-stats" id="bibliotecaStats"></div>
@@ -255,13 +235,12 @@
             <button class="folder-btn" type="button" onclick="import('./modules/biblioteca.js').then(m => m.renderLibrary('voz'))">Voz</button>
             <button class="folder-btn" type="button" onclick="import('./modules/biblioteca.js').then(m => m.renderLibrary('grabacion'))">Mis grabaciones</button>
             <button class="folder-btn" type="button" onclick="import('./modules/biblioteca.js').then(m => m.renderLibrary('karaoke'))">Proyecto Karaoke</button>
-            <!-- <button class="folder-btn" type="button" onclick="import('./modules/biblioteca.js').then(m => m.renderLibrary('letra'))">📝 Letras</button> -->
           </div>
 
           <div class="card upload-card">
             <h3>📤 Subir archivos desde PC</h3>
 
-            <div id="uploadDropZone" class="upload-dropzone" onclick="document.getElementById('libraryFileInput').click()"> <!-- /*ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleFileDrop(event)">*/ -->
+            <div id="uploadDropZone" class="upload-dropzone" onclick="document.getElementById('libraryFileInput').click()">
               <input type="file" id="libraryFileInput" accept="audio/*,.txt,text/plain" multiple hidden>
               <div class="upload-dropzone-content">
                 <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -284,17 +263,9 @@
               <select id="libraryFileType">
                 <option value="pista">🎵 Pista</option>
                 <option value="voz">🎙️ Voz</option>
-               <!-- <option value="karaoke">🎤 Karaoke</option> Los produce la App -->
-               <!-- <option value="grabacion">💾 Grabación / Mezcla</option> La app los carga -->
-               <!-- <option value="texto">📝 Letras</option> Se deshabilita hasta solucionar cargado de letra -->
               </select>
             </div>
-            <!--
-            <div class="settings-group">
-              <label for="libraryFileName">Nombre personalizado (opcional)</label>
-              <input type="text" id="libraryFileName" placeholder="Ej. Un vestido y un amor - Pista">
-            </div>
-            -->
+            
             <div class="studio-controls">
               <button id="saveLibraryFileBtn" type="button" class="btn-neon">💾 Guardar en la nube</button>
               <button type="button" id="clearUploadBtn" class="btn-neon btn-secondary" style="display: none;">✖ Limpiar selección</button>
@@ -311,20 +282,6 @@
               </svg>
               <input type="text" id="bibliotecaSearch" placeholder="Buscar por nombre, tipo, fecha...">
             </div>
-
-            <!-- Se deshabilita para dar espacio
-            <div class="biblioteca-sort">
-              <label for="bibliotecaSort">Ordenar:</label>
-              <select id="bibliotecaSort">
-                <option value="date-desc">Más recientes</option>
-                <option value="date-asc">Más antiguos</option>
-                <option value="name-asc">Nombre A-Z</option>
-                <option value="name-desc">Nombre Z-A</option>
-                <option value="type">Por tipo</option>
-              </select>
-            </div>
-            -->
-            
           </div>
 
           <div class="card">
@@ -334,7 +291,7 @@
         </section>
         
         <!-- KARAOKE -->
-        <section id="karaoke" class="tab">
+        <section id="karaoke" class="tab-content" style="display: none;">
           <h1>👩🎤🧔 KARAOKE: ERES UNA SÚPER ESTRELLA 🌟🌟🌟</h1>
           
           <div class="card" style="background: #1a1a1a; padding: 0; border: 2px solid var(--border); overflow: hidden;">
@@ -397,7 +354,7 @@
         </section>
 
         <!-- CAMBIAR TONO -->
-        <section id="cambiarTono" class="tab">
+        <section id="cambiarTono" class="tab-content" style="display: none;">
           <h1>🎚️ Cambiar tono</h1>
           
           <div class="card">
@@ -482,7 +439,7 @@
         </section>
         
         <!-- CONFIGURACIÓN -->
-        <section id="config" class="tab">
+        <section id="config" class="tab-content" style="display: none;">
           <div class="config-header">
             <h1>⚙️ Configuración</h1>
             <p class="config-subtitle">Personaliza tu experiencia. Los cambios se guardan automáticamente.</p>
@@ -584,12 +541,12 @@
             </div>
           </div>
 
-          <!-- DIFICULTADES -->
+          <!-- DIFICULTADES Y AJUSTES EXTRA-->
           <div class="config-section">
-            <h2>🎮 Dificultades</h2>
-            <div class="difficulty-grid">
+            <h2>🎮 Dificultades y Entorno</h2>
+            <div class="difficulty-grid" style="display: grid; gap: 15px;">
               <div class="difficulty-card">
-                <label for="difficultyLevel">🎵 Afinador</label>
+                <label for="difficultyLevel">🎵 Dificultad Afinador</label>
                 <select id="difficultyLevel" class="config-select">
                   <option value="facil">🟢 Fácil (±50¢)</option>
                   <option value="medio" selected>🟡 Medio (±30¢)</option>
@@ -598,144 +555,44 @@
                 </select>
               </div>
               <div class="difficulty-card">
-                <label for="pentagramDifficulty">🎼 Pentagrama</label>
+                <label for="pentagramDifficulty">🎼 Dificultad Pentagrama</label>
                 <select id="pentagramDifficulty" class="config-select">
                   <option value="facil">🟢 Fácil</option>
                   <option value="medio" selected>🟡 Medio</option>
                   <option value="dificil">🟠 Difícil</option>
+                  <option value="experto">🔴 Experto</option>
                 </select>
               </div>
             </div>
           </div>
 
-          <!-- THEME SWITCHER -->
+          <!-- APARIENCIA Y TEMAS -->
           <div class="config-section">
-            <h2>🎨 Temas Visuales</h2>
-            <p class="section-desc">Elige la estética de la app, monitores y karaoke</p>
-            <div class="theme-grid" id="themeGrid"></div>
-          </div>
-
-          <!-- ESCENARIO KARAOKE -->
-          <div class="config-section">
-            <h2>🎭 Escenario de Karaoke</h2>
-            <div class="theme-grid" id="karaokeThemeGrid"></div>
-          </div>
-
-          <!-- VOCAL PROCESSOR -->
-          <div class="config-section vocal-processor-section">
-            <div class="vocal-processor-header">
-              <div class="vp-icon">🎚️</div>
-              <div>
-                <h2>🎚️ Procesador Vocal Integrado</h2>
-                <p class="section-desc">Procesamiento en tiempo real al mezclar tu voz con la pista.</p>
-              </div>
+            <h2>🎨 Apariencia Visual</h2>
+            
+            <div class="settings-group">
+              <label for="themeSelect">Tema de la interfaz</label>
+              <select id="themeSelect" class="config-select">
+                <option value="oscuro">🌙 Oscuro (Predeterminado)</option>
+                <option value="claro">☀️ Claro</option>
+              </select>
             </div>
-
-            <div class="vp-toggle">
-              <label class="vp-toggle-label">
-                <input type="checkbox" id="vocalProcessorEnabled">
-                <span class="vp-toggle-slider"></span>
-                <span class="vp-toggle-text">
-                  <strong>🎚️ Activar Procesador Vocal Inteligente</strong>
-                  <span class="vp-desc">Limpieza, nivelación y compresión automática al mezclar voz + pista</span>
-                </span>
-              </label>
-            </div>
-
-            <div id="vocalProcessorSettings" style="display: none;">
-              <div class="vp-preset-group">
-                <label for="vocalPreset">🎛️ Preset de Procesamiento</label>
-                <select id="vocalPreset" class="config-select">
-                  <option value="auto">🤖 Automático (Recomendado)</option>
-                  <option value="warm">🔥 Cálido (Voces graves)</option>
-                  <option value="bright">✨ Brillante (Voces agudas)</option>
-                  <option value="presence">🎤 Presencia (Cortar mezcla)</option>
-                  <option value="clean">🧹 Limpieza (Reducir ruido/respiraciones)</option>
-                  <option value="custom">⚙️ Personalizado</option>
-                </select>
-              </div>
-
-              <div id="vocalCustomEq" style="display: none;">
-                <h4>🎛️ Ecualizador Personalizado</h4>
-                <div class="eq-row">
-                  <label for="eqLow">🔊 Graves (100Hz): <span id="eqLowVal">-2</span> dB</label>
-                  <input type="range" id="eqLow" min="-12" max="12" value="-2" step="1">
-                </div>
-                <div class="eq-row">
-                  <label for="eqMid">🎤 Medios-Presencia (3kHz): <span id="eqMidVal">5</span> dB</label>
-                  <input type="range" id="eqMid" min="-12" max="12" value="5" step="1">
-                </div>
-                <div class="eq-row">
-                  <label for="eqHigh">✨ Agudos-Aire (8kHz): <span id="eqHighVal">4</span> dB</label>
-                  <input type="range" id="eqHigh" min="-12" max="12" value="4" step="1">
-                </div>
-              </div>
-
-              <h4>🔧 Procesamiento Dinámico</h4>
-              <div class="vp-controls-grid">
-                <div class="vp-control">
-                  <label for="noiseGateThresh">🔇 Noise Gate: <span id="noiseGateThreshVal">-40</span> dB</label>
-                  <input type="range" id="noiseGateThresh" min="-60" max="0" value="-40" step="1">
-                </div>
-                <div class="vp-control">
-                  <label for="hpFreq">🎚️ High-Pass Filter: <span id="hpFreqVal">120</span> Hz</label>
-                  <input type="range" id="hpFreq" min="20" max="300" value="120" step="10">
-                </div>
-                <div class="vp-control">
-                  <label for="compThresh">📉 Compresor Threshold: <span id="compThreshVal">-18</span> dB</label>
-                  <input type="range" id="compThresh" min="-40" max="0" value="-18" step="1">
-                </div>
-                <div class="vp-control">
-                  <label for="compRatio">📈 Compresor Ratio: <span id="compRatioVal">3:1</span></label>
-                  <input type="range" id="compRatio" min="1" max="10" value="3" step="1">
-                </div>
-                <div class="vp-control">
-                  <label for="outputGain">🔊 Gain Salida: <span id="outputGainVal">3</span> dB</label>
-                  <input type="range" id="outputGain" min="-24" max="24" value="3" step="1">
-                </div>
-                <div class="vp-control">
-                  <label for="compAttack">⚡ Attack: <span id="compAttackVal">10</span> ms</label>
-                  <input type="range" id="compAttack" min="1" max="100" value="10" step="1">
-                </div>
-                <div class="vp-control">
-                  <label for="compRelease">🕐 Release: <span id="compReleaseVal">100</span> ms</label>
-                  <input type="range" id="compRelease" min="10" max="1000" value="100" step="10">
-                </div>
-              </div>
-
-              <div class="vp-dual-mic">
-                <label class="vp-checkbox-label">
-                  <input type="checkbox" id="dualMicSameReceiver">
-                  <span class="vp-checkbox-slider"></span>
-                  <span>⚠️ Mis 2 mics usan el MISMO receptor (CH01)</span>
-                </label>
-                <p class="vp-hint">Si tus 2 mics inalámbricos usan el mismo receptor (aparecen como un solo dispositivo "CH01"), actívalo para separar voces automáticamente.</p>
-              </div>
-
-              <div class="vp-actions">
-                <button type="button" id="testVocalProcessorBtn" class="btn-neon">🔊 Probar Procesador (5 seg)</button>
-                <button type="button" id="resetVocalProcessorBtn" class="btn-neon btn-secondary">↩️ Resetear Valores</button>
-              </div>
+            
+            <div class="settings-group" style="margin-top: 15px;">
+              <label for="stageSelect">Estilo del monitor de Karaoke</label>
+              <select id="stageSelect" class="config-select">
+                <option value="theme-clasico">📺 Clásico</option>
+                <option value="theme-neon">🌟 Neón</option>
+                <option value="theme-concierto">🎸 Concierto Retro</option>
+              </select>
             </div>
           </div>
 
-          <div class="config-actions">
-            <button type="button" id="exportConfigBtn" class="btn-neon btn-secondary">📤 Exportar Configuración</button>
-            <button type="button" id="importConfigBtn" class="btn-neon btn-secondary">📥 Importar Configuración</button>
-            <button type="button" id="resetAllConfigBtn" class="btn-neon btn-danger">🗑️ Resetear Todo</button>
-          </div>
-
-          <p id="saveNotification" class="save-notification">✅ Configuración guardada</p>
         </section>
-    </main>
+      </main>
     </div>
-    <script>
-    window.__PITCH_WORKLET_URL__ = "/pitch-shifter-processor.js";
-    window.__VOCAL_PROCESSOR_URL__ = "/vocal-processor.js";
-    </script>
-    <script src="cloudflare-storage.js" type="module"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script type="module" src="supabase-config.js"></script>
-    <script src="script.js" type="module"></script>
-</body>
+    
+    <!-- Enlace al Javascript que controla toda la app -->
+    <script type="module" src="script.js"></script>
+  </body>
 </html>
