@@ -24,575 +24,573 @@
     <div class="app">
       
       <!-- SIDEBAR -->
-      <nav class="sidebar">
-        <h2>🎤 VocalApp</h2>
-        
-        <button class="tab-btn" data-tab-target="config" id="btnConfig" type="button">Config</button>
-        <button class="tab-btn" data-tab-target="biblioteca" id="btnBiblioteca" type="button">Biblioteca</button>
-        <button class="tab-btn" data-tab-target="estudio" id="btnEstudio" type="button">Estudio</button>
-        <button class="tab-btn" data-tab-target="cambiarTono" id="btnCambiarTono" type="button">Cambiar tono</button>
-        <button class="tab-btn active" data-tab-target="afinador" id="btnAfinador" type="button">Afinador</button>
-        <button class="tab-btn" data-tab-target="karaoke" id="btnKaraoke" type="button">Karaoke</button>
-      </nav>
+  <nav class="sidebar">
+    <h2>🎤 VocalApp</h2>
+    
+    <button class="tab-btn" data-tab-target="config" id="btnConfig" type="button">Config</button>
+    <button class="tab-btn" data-tab-target="biblioteca" id="btnBiblioteca" type="button">Biblioteca</button>
+    <button class="tab-btn" data-tab-target="estudio" id="btnEstudio" type="button">Estudio</button>
+    <button class="tab-btn" data-tab-target="cambiarTono" id="btnCambiarTono" type="button">Cambiar tono</button>
+    <button class="tab-btn active" data-tab-target="afinador" id="btnAfinador" type="button">Afinador</button>
+    <button class="tab-btn" data-tab-target="karaoke" id="btnKaraoke" type="button">Karaoke</button>
+  </nav>
+  
+  <!-- CONTENIDO -->
+  <main class="content">
+    
+    <!-- AFINADOR -->
+    <section id="afinador" class="tab-content active">
+      <h1>🎙 AFINADOR: Practica vocal</h1>
+      <div id="afinadorHero" class="afinador-hero">
+        <canvas id="agujaCanvas" class="aguja-canvas"></canvas>
+
+        <div class="afinador-overlay">
+          <header class="afinador-header">
+            <div class="target-note-selector">
+              <label for="targetNote" class="sr-only">Nota objetivo</label>
+              <select id="targetNote" aria-label="Nota objetivo">
+                <option value="C2">Do 2 (C2)</option>
+                <option value="C#2">Do# 2 (C#2)</option>
+                <option value="D2">Re 2 (D2)</option>
+                <option value="D#2">Re# 2 (D#2)</option>
+                <option value="E2" selected>Mi 2 (E2)</option>
+                <option value="F2">Fa 2 (F2)</option>
+                <option value="F#2">Fa# 2 (F#2)</option>
+                <option value="G2">Sol 2 (G2)</option>
+                <option value="G#2">Sol# 2 (G#2)</option>
+                <option value="A2">La 2 (A2)</option>
+                <option value="A#2">La# 2 (A#2)</option>
+                <option value="B2">Si 2 (B2)</option>
+
+                <option value="C3">Do 3 (C3)</option>
+                <option value="C#3">Do# 3 (C#3)</option>
+                <option value="D3">Re 3 (D3)</option>
+                <option value="D#3">Re# 3 (D#3)</option>
+                <option value="E3">Mi 3 (E3)</option>
+                <option value="F3">Fa 3 (F3)</option>
+                <option value="F#3">Fa# 3 (F#3)</option>
+                <option value="G3">Sol 3 (G3)</option>
+                <option value="G#3">Sol# 3 (G#3)</option>
+                <option value="A3">La 3 (A3)</option>
+                <option value="A#3">La# 3 (A#3)</option>
+                <option value="B3">Si 3 (B3)</option>
+
+                <option value="C4">Do 4 (C4)</option>
+                <option value="C#4">Do# 4 (C#4)</option>
+                <option value="D4">Re 4 (D4)</option>
+                <option value="D#4">Re# 4 (D#4)</option>
+                <option value="E4">Mi 4 (E4)</option>
+                <option value="F4">Fa 4 (F4)</option>
+                <option value="F#4">Fa# 4 (F#4)</option>
+                <option value="G4">Sol 4 (G4)</option>
+                <option value="G#4">Sol# 4 (G#4)</option>
+                <option value="A4">La 4 (A4)</option>
+                <option value="A#4">La# 4 (A#4)</option>
+                <option value="B4">Si 4 (B4)</option>
+              </select>
+            </div>
+
+            <div class="difficulty-selector">
+              <label for="afinadorDifficulty" class="sr-only">Dificultad</label>
+              <select id="afinadorDifficulty" aria-label="Dificultad del afinador">
+                <option value="facil">Fácil (±50¢)</option>
+                <option value="medio" selected>Medio (±30¢)</option>
+                <option value="dificil">Difícil (±15¢)</option>
+                <option value="experto">Experto (±5¢)</option>
+              </select>
+            </div>
+          </header>
+
+          <div class="afinador-center">
+            <div id="currentNoteDisplay" class="current-note" aria-live="polite">--</div>
+            <div id="centsDisplay" class="cents-display" aria-hidden="true"></div>
+            <div id="guideText" class="guide-text" aria-live="polite">Esperando voz...</div>
+          </div>
+
+          <footer class="afinador-footer">
+            <button id="recordBtn" class="btn-record" aria-pressed="false">
+              <span class="btn-icon">🎤</span>
+              <span class="btn-text">Iniciar</span>
+            </button>
+          </footer>
+        </div>
+      </div>
+    </section>
+    
+    <!-- ESTUDIO -->
+    <section id="estudio" class="tab-content" style="display: none;">
+      <h1>🔧 ESTUDIO: Mezcla y sincroniza archivos para crear un Karaoke</h1>
       
-      <!-- CONTENIDO -->
-      <main class="content">
+      <div class="card">
+        <h3>PISTA: Exporta desde Biblioteca</h3>
+        <select id="studioTrackSelect">
+          <option value="">Selecciona un archivo</option>
+        </select>
         
-        <!-- AFINADOR -->
-        <section id="afinador" class="tab-content active">
-          <h1>🎙 AFINADOR: Practica vocal</h1>
-          <div id="afinadorHero" class="afinador-hero">
-            <canvas id="agujaCanvas" class="aguja-canvas"></canvas>
+        <div class="studio-controls" style="margin-bottom: 20px;">
+          <button id="loadStudioTrackBtn" type="button" style="margin-top: 15px">↪️ Cargar pista ↩️</button>
+        </div>
+        
+        <audio id="player" controls crossorigin="anonymous"></audio>
+        <p id="studioStatus" style="color: var(--text-muted); margin-top: 15px; font-weight: bold;"></p>
+      </div>
+      
+      <div class="card">
+        <h3>VOZ: Exporta desde Biblioteca</h3>
+        
+        <select id="voiceLibrarySelect">
+          <option value="">Selecciona un archivo</option>
+        </select>
+        <div class="studio-controls">
+          <button id="loadSelectedVoiceBtn" type="button" style="margin-top: 15px">↪️ Cargar voz ↩️</button>
+        </div>
+        <audio id="selectedVoicePlayer" controls crossorigin="anonymous"></audio>
+        <p id="selectedVoiceStatus">Estado: ninguna voz seleccionada</p>
+      </div>
 
-            <div class="afinador-overlay">
-              <header class="afinador-header">
-                <div class="target-note-selector">
-                  <label for="targetNote" class="sr-only">Nota objetivo</label>
-                  <select id="targetNote" aria-label="Nota objetivo">
-                    <option value="C2">Do 2 (C2)</option>
-                    <option value="C#2">Do# 2 (C#2)</option>
-                    <option value="D2">Re 2 (D2)</option>
-                    <option value="D#2">Re# 2 (D#2)</option>
-                    <option value="E2" selected>Mi 2 (E2)</option>
-                    <option value="F2">Fa 2 (F2)</option>
-                    <option value="F#2">Fa# 2 (F#2)</option>
-                    <option value="G2">Sol 2 (G2)</option>
-                    <option value="G#2">Sol# 2 (G#2)</option>
-                    <option value="A2">La 2 (A2)</option>
-                    <option value="A#2">La# 2 (A#2)</option>
-                    <option value="B2">Si 2 (B2)</option>
+      <div class="card">
+        <h3>EDITOR: Corrije la letra</h3>
+        <textarea id="lyricsText" rows="7" placeholder="Pega la letra de la canción..."></textarea>
+        <div class="studio-controls">
+          <button id="applyCorrectedLyricsBtn" type="button" style="margin-top: 15px">📝 Aplicar cambios 📝</button>
+        </div>
 
-                    <option value="C3">Do 3 (C3)</option>
-                    <option value="C#3">Do# 3 (C#3)</option>
-                    <option value="D3">Re 3 (D3)</option>
-                    <option value="D#3">Re# 3 (D#3)</option>
-                    <option value="E3">Mi 3 (E3)</option>
-                    <option value="F3">Fa 3 (F3)</option>
-                    <option value="F#3">Fa# 3 (F#3)</option>
-                    <option value="G3">Sol 3 (G3)</option>
-                    <option value="G#3">Sol# 3 (G#3)</option>
-                    <option value="A3">La 3 (A3)</option>
-                    <option value="A#3">La# 3 (A#3)</option>
-                    <option value="B3">Si 3 (B3)</option>
-
-                    <option value="C4">Do 4 (C4)</option>
-                    <option value="C#4">Do# 4 (C#4)</option>
-                    <option value="D4">Re 4 (D4)</option>
-                    <option value="D#4">Re# 4 (D#4)</option>
-                    <option value="E4">Mi 4 (E4)</option>
-                    <option value="F4">Fa 4 (F4)</option>
-                    <option value="F#4">Fa# 4 (F#4)</option>
-                    <option value="G4">Sol 4 (G4)</option>
-                    <option value="G#4">Sol# 4 (G#4)</option>
-                    <option value="A4">La 4 (A4)</option>
-                    <option value="A#4">La# 4 (A#4)</option>
-                    <option value="B4">Si 4 (B4)</option>
-                  </select>
-                </div>
-
-                <div class="difficulty-selector">
-                  <label for="afinadorDifficulty" class="sr-only">Dificultad</label>
-                  <select id="afinadorDifficulty" aria-label="Dificultad del afinador">
-                    <option value="facil">Fácil (±50¢)</option>
-                    <option value="medio" selected>Medio (±30¢)</option>
-                    <option value="dificil">Difícil (±15¢)</option>
-                    <option value="experto">Experto (±5¢)</option>
-                  </select>
-                </div>
-              </header>
-
-              <div class="afinador-center">
-                <div id="currentNoteDisplay" class="current-note" aria-live="polite">--</div>
-                <div id="centsDisplay" class="cents-display" aria-hidden="true"></div>
-                <div id="guideText" class="guide-text" aria-live="polite">Esperando voz...</div>
-              </div>
-
-              <footer class="afinador-footer">
-                <button id="recordBtn" class="btn-record" aria-pressed="false">
-                  <span class="btn-icon">🎤</span>
-                  <span class="btn-text">Iniciar</span>
-                </button>
-              </footer>
-            </div>
+        <!-- SINCRONIZACIÓN MANUAL CON TAPS -->
+        <div id="tapSyncSection" style="margin-top: 20px; padding: 15px; background: linear-gradient(135deg, #1e3a5f, #1e293b); border-radius: 8px; border: 2px solid #3b82f6;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <h4 style="margin: 0; color: #60a5fa;">🎯 Sincronización manual con taps 🎯</h4>
+            <button id="toggleAutoScrollBtn" type="button" style="background: #f59e0b; font-size: 12px; padding: 5px 10px;">🔒 Auto-scroll: ON</button>
           </div>
-        </section>
-        
-        <!-- ESTUDIO -->
-        <section id="estudio" class="tab-content" style="display: none;">
-          <h1>🔧 ESTUDIO: Mezcla y sincroniza archivos para crear un Karaoke</h1>
-          
-          <div class="card">
-            <h3>PISTA: Exporta desde Biblioteca</h3>
-            <select id="studioTrackSelect">
-              <option value="">Selecciona un archivo</option>
+          <div style="margin-bottom: 20px;">
+            <label for="tapSyncMethodSelect" style="font-size: 18px; color: #60a5fa; display: block; margin-bottom: 5px; font-weight: bold;">
+              ✍🏼 Opciones de sincronización manual:
+            </label>
+            <select id="tapSyncMethodSelect" style="width: 100%; padding: 8px; background: var(--bg-main); border: 1px solid #3b82f6; color: white; border-radius: 4px;">
+              <option value="linea"> Línea por línea: (Recomendada)</option>
+              <option value="palabra"> Palabra por palabra: (Para canciones lentas)</option>
             </select>
-            
+            <p style="font-size: 19px; color: var(--text-muted); margin-bottom: 15px; font-weight: bold;"> 
+              Usa la barra espaciadora para hacer TAP.
+            </p>
             <div class="studio-controls" style="margin-bottom: 20px;">
-              <button id="loadStudioTrackBtn" type="button" style="margin-top: 15px">↪️ Cargar pista ↩️</button>
-            </div>
-            
-            <audio id="player" controls crossorigin="anonymous"></audio>
-            <p id="studioStatus" style="color: var(--text-muted); margin-top: 15px; font-weight: bold;"></p>
-          </div>
-          
-          <div class="card">
-            <h3>VOZ: Exporta desde Biblioteca</h3>
-            
-            <select id="voiceLibrarySelect">
-              <option value="">Selecciona un archivo</option>
-            </select>
-            <div class="studio-controls">
-              <button id="loadSelectedVoiceBtn" type="button" style="margin-top: 15px">↪️ Cargar voz ↩️</button>
-            </div>
-            <audio id="selectedVoicePlayer" controls crossorigin="anonymous"></audio>
-            <p id="selectedVoiceStatus">Estado: ninguna voz seleccionada</p>
-          </div>
-
-          <div class="card">
-            <h3>EDITOR: Corrije la letra</h3>
-            <textarea id="lyricsText" rows="7" placeholder="Pega la letra de la canción..."></textarea>
-            <div class="studio-controls">
-              <button id="applyCorrectedLyricsBtn" type="button" style="margin-top: 15px">📝 Aplicar cambios 📝</button>
+              <button id="startTapSyncBtn" type="button" style="background: #3b82f6; color: white;">▶️ Iniciar Sincronización◀️</button>
+              <button id="cancelTapSyncBtn" type="button" style="background: #6b7280; display: none;">❌ Cancelar❌</button>
             </div>
 
-            <!-- SINCRONIZACIÓN MANUAL CON TAPS -->
-            <div id="tapSyncSection" style="margin-top: 20px; padding: 15px; background: linear-gradient(135deg, #1e3a5f, #1e293b); border-radius: 8px; border: 2px solid #3b82f6;">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                <h4 style="margin: 0; color: #60a5fa;">🎯 Sincronización manual con taps 🎯</h4>
-                <button id="toggleAutoScrollBtn" type="button" style="background: #f59e0b; font-size: 12px; padding: 5px 10px;">🔒 Auto-scroll: ON</button>
-              </div>
-              <div style="margin-bottom: 20px;">
-                <label for="tapSyncMethodSelect" style="font-size: 18px; color: #60a5fa; display: block; margin-bottom: 5px; font-weight: bold;">
-                  ✍🏼 Opciones de sincronización manual:
-                </label>
-                <select id="tapSyncMethodSelect" style="width: 100%; padding: 8px; background: var(--bg-main); border: 1px solid #3b82f6; color: white; border-radius: 4px;">
-                  <option value="linea"> Línea por línea: (Recomendada)</option>
-                  <option value="palabra"> Palabra por palabra: (Para canciones lentas)</option>
-                </select>
-                <p style="font-size: 19px; color: var(--text-muted); margin-bottom: 15px; font-weight: bold;"> 
-                  Usa la barra espaciadora para hacer TAP.
+            <!-- Modo de sincronización -->
+            <div id="tapSyncActive" style="display: none;">
+              <!-- Selector: ¿Quién canta qué? -->
+              <div style="padding: 12px; background: var(--bg-main); border-radius: 8px; margin-bottom: 12px; border: 1px solid #3b82f6;">
+                <p style="margin: 0 0 8px 0; font-size: 13px; color: #60a5fa; font-weight: bold;">
+                  Elige: ¿Quién canta qué?
                 </p>
-                <div class="studio-controls" style="margin-bottom: 20px;">
-                  <button id="startTapSyncBtn" type="button" style="background: #3b82f6; color: white;">▶️ Iniciar Sincronización◀️</button>
-                  <button id="cancelTapSyncBtn" type="button" style="background: #6b7280; display: none;">❌ Cancelar❌</button>
-                </div>
-
-                <!-- Modo de sincronización -->
-                <div id="tapSyncActive" style="display: none;">
-                  <!-- Selector: ¿Quién canta qué? -->
-                  <div style="padding: 12px; background: var(--bg-main); border-radius: 8px; margin-bottom: 12px; border: 1px solid #3b82f6;">
-                    <p style="margin: 0 0 8px 0; font-size: 13px; color: #60a5fa; font-weight: bold;">
-                      Elige: ¿Quién canta qué?
-                    </p>
-                    <div class="studio-controls" style="display: flex; gap: 8px; flex-wrap: wrap;">
-                      <button id="tapPartC1Btn" type="button" data-testid="tap-part-c1" style="flex:1; min-width:90px; background:#3b82f6; color:white; padding:8px 12px; border-radius:6px; border:none; cursor:pointer; font-weight:bold;">
-                        🟦 Cantante 1 (Micrófono 1)
-                      </button>
-                      <button id="tapPartC2Btn" type="button" data-testid="tap-part-c2" style="flex:1; min-width:90px; background:#374151; color:white; padding:8px 12px; border-radius:6px; border:none; cursor:pointer; font-weight:bold;">
-                        🟧 Cantante 2 (Micrófono 2)
-                      </button>
-                      <button id="tapPartDuoBtn" type="button" data-testid="tap-part-duo" style="flex:1; min-width:90px; background:#374151; color:white; padding:8px 12px; border-radius:6px; border:none; cursor:pointer; font-weight:bold;">
-                        🟪 DÚO (Ambos)
-                      </button>
-                    </div>
-                    <p style="font-size: 15px; color: var(--text-muted); margin: 8px 0 0 0;">
-                      ⌨️ Teclado: <b>1</b> = C1 · <b>2</b> = C2 · <b>3</b> = DÚO
-                    </p>
-                  </div>
-                  <div style="text-align: center; padding: 20px; background: var(--bg-main); border-radius: 8px; margin-bottom: 15px;">
-                    <p style="font-size: 15px; color: var(--text-muted); margin: 0 0 10px 0;">Elemento actual:</p>
-                    <p id="tapCurrentLine" style="font-size: 20px; font-weight: bold; color: #facc15; margin: 0 0 15px 0;">---</p>
-                    <p style="font-size: 14px; color: var(--text-muted); margin: 0 0 5px 0;">Progreso:</p>
-                    <p id="tapProgress" style="font-size: 16px; color: #22c55e; margin: 0;">0 / 0 elementos</p>
-                  </div>
-                  <button id="tapBeatBtn" type="button" style="width: 100%; padding: 30px; font-size: 24px; background: linear-gradient(135deg, #22c55e, #16a34a); color: white; border-radius: 12px;">
-                    TAP (Presiona la barra espaciadora)
+                <div class="studio-controls" style="display: flex; gap: 8px; flex-wrap: wrap;">
+                  <button id="tapPartC1Btn" type="button" data-testid="tap-part-c1" style="flex:1; min-width:90px; background:#3b82f6; color:white; padding:8px 12px; border-radius:6px; border:none; cursor:pointer; font-weight:bold;">
+                    🟦 Cantante 1 (Micrófono 1)
+                  </button>
+                  <button id="tapPartC2Btn" type="button" data-testid="tap-part-c2" style="flex:1; min-width:90px; background:#374151; color:white; padding:8px 12px; border-radius:6px; border:none; cursor:pointer; font-weight:bold;">
+                    🟧 Cantante 2 (Micrófono 2)
+                  </button>
+                  <button id="tapPartDuoBtn" type="button" data-testid="tap-part-duo" style="flex:1; min-width:90px; background:#374151; color:white; padding:8px 12px; border-radius:6px; border:none; cursor:pointer; font-weight:bold;">
+                    🟪 DÚO (Ambos)
                   </button>
                 </div>
-                
-                <div id="tapSyncResult" style="display: none; margin-top: 15px; padding: 15px; background: #14532d; border-radius: 8px; border: 1px solid #22c55e;">
-                  <p style="color: #22c55e; font-weight: bold; margin: 0 0 10px 0;">✅ ¡Los TAPS han sido guardados!</p>
-                  <div class="studio-controls">
-                    <button id="applyTapSyncBtn" type="button" style="background: #22c55e;">🗳 Aplicar TAPS para terminar la sincronización 🗳</button>
-                    <button id="redoTapSyncBtn" type="button" style="background: #f59e0b;">🔄 Volver a intentar 🔄</button>
-                  </div>
-                </div>
+                <p style="font-size: 15px; color: var(--text-muted); margin: 8px 0 0 0;">
+                  ⌨️ Teclado: <b>1</b> = C1 · <b>2</b> = C2 · <b>3</b> = DÚO
+                </p>
               </div>
-            </div>
-          </div>
-        </section>
-        
-        <!-- BIBLIOTECA -->
-        <section id="biblioteca" class="tab-content" style="display: none;">
-          <div class="biblioteca-header">
-            <h1>🗃 BIBLIOTECA: Guarda archivos desde PC</h1>
-            <div class="biblioteca-stats" id="bibliotecaStats"></div>
-          </div>
-
-          <div class="folder-controls">
-            <button class="folder-btn" type="button" onclick="import('./modules/biblioteca.js').then(m => m.renderLibrary('todos'))">Todos</button>
-            <button class="folder-btn" type="button" onclick="import('./modules/biblioteca.js').then(m => m.renderLibrary('pista'))">Pista</button>
-            <button class="folder-btn" type="button" onclick="import('./modules/biblioteca.js').then(m => m.renderLibrary('voz'))">Voz</button>
-            <button class="folder-btn" type="button" onclick="import('./modules/biblioteca.js').then(m => m.renderLibrary('grabacion'))">Mis grabaciones</button>
-            <button class="folder-btn" type="button" onclick="import('./modules/biblioteca.js').then(m => m.renderLibrary('karaoke'))">Proyecto Karaoke</button>
-          </div>
-
-          <div class="card upload-card">
-            <h3>📤 Subir archivos desde PC</h3>
-
-            <div id="uploadDropZone" class="upload-dropzone" onclick="document.getElementById('libraryFileInput').click()">
-              <input type="file" id="libraryFileInput" accept="audio/*,.txt,text/plain" multiple hidden>
-              <div class="upload-dropzone-content">
-                <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                  <polyline points="17 8 12 3 7 8"></polyline>
-                  <line x1="12" y1="3" x2="12" v2="15"></line>
-                </svg>
-                <p class="upload-text-main">Haz clic para seleccionar</p>
-                <p class="upload-text-hint">Archivos: MP3, WAV, OGG, MP4, M4A</p>
+              <div style="text-align: center; padding: 20px; background: var(--bg-main); border-radius: 8px; margin-bottom: 15px;">
+                <p style="font-size: 15px; color: var(--text-muted); margin: 0 0 10px 0;">Elemento actual:</p>
+                <p id="tapCurrentLine" style="font-size: 20px; font-weight: bold; color: #facc15; margin: 0 0 15px 0;">---</p>
+                <p style="font-size: 14px; color: var(--text-muted); margin: 0 0 5px 0;">Progreso:</p>
+                <p id="tapProgress" style="font-size: 16px; color: #22c55e; margin: 0;">0 / 0 elementos</p>
               </div>
-              <div id="uploadProgressContainer" class="upload-progress-container" style="display: none;">
-                <div class="upload-progress-bar" id="uploadProgressBar"></div>
-                <div class="upload-progress-text" id="uploadProgressText">Preparando subida...</div>
-                <div class="upload-files-list" id="uploadFilesList"></div>
-              </div>
-            </div>
-
-            <div class="settings-group" id="uploadOptions" style="display: none;">
-              <label for="libraryFileType">Tipo de archivo</label>
-              <select id="libraryFileType">
-                <option value="pista">🎵 Pista</option>
-                <option value="voz">🎙️ Voz</option>
-              </select>
-            </div>
-            
-            <div class="studio-controls">
-              <button id="saveLibraryFileBtn" type="button" class="btn-neon">💾 Guardar en la nube</button>
-              <button type="button" id="clearUploadBtn" class="btn-neon btn-secondary" style="display: none;">✖ Limpiar selección</button>
-            </div>
-
-            <p id="uploadStatus" class="upload-status" style="display: none;"></p>
-          </div>
-
-          <div class="biblioteca-filters">
-            <div class="biblioteca-search">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                <circle cx="11" cy="11" r="8"></circle>
-                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-              </svg>
-              <input type="text" id="bibliotecaSearch" placeholder="Buscar por nombre, tipo, fecha...">
-            </div>
-          </div>
-
-          <div class="card">
-            <h3>Archivos guardados (<span id="libraryCount">0</span>)</h3>
-            <div id="libraryList"></div>
-          </div>
-        </section>
-        
-        <!-- KARAOKE -->
-        <section id="karaoke" class="tab-content" style="display: none;">
-          <h1>👩🎤🧔 KARAOKE: ERES UNA SÚPER ESTRELLA 🌟🌟🌟</h1>
-          
-          <div class="card" style="background: #1a1a1a; padding: 0; border: 2px solid var(--border); overflow: hidden;">
-            <div style="padding: 10px 12px; background: #0f172a; border-bottom: 1px solid var(--border); display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-              <button id="karaokeDuoSplitToggleBtn" type="button" data-testid="karaoke-duo-split-toggle" style="background: #3b82f6; color: white; padding: 8px 14px; border-radius: 6px; border: none; cursor: pointer; font-weight: bold;">
-                👩🎤🧔 Modo Dúo Split: Inactivo. Haz click aquí para activarlo.
+              <button id="tapBeatBtn" type="button" style="width: 100%; padding: 30px; font-size: 24px; background: linear-gradient(135deg, #22c55e, #16a34a); color: white; border-radius: 12px;">
+                TAP (Presiona la barra espaciadora)
               </button>
-              <span id="karaokeDuoSplitHint" style="color: var(--text-muted); font-size: 12px;">
-                Monitor dividido.
-              </span>
-            </div>
-            <div class="card monitor-karaoke" style="background: #1a1a1a; padding: 0; border: 2px solid var(--border); overflow: hidden;">
-              <canvas id="karaokeCanvas" width="1800" height="600" style="width: 100%; display: block; border-radius: 12px; min-height: 500px;"></canvas>
-            </div>
-
-            <div id="karaokeLyrics" class="karaoke-lyrics" style="display: none;"></div>
-            <div id="karaokeLiveLyrics" class="karaoke-lyrics" style="display: none;"></div>
-          </div>
-          
-          <div class="card">
-            <h3>👄🎙️Grabación Sincronizada🎙️👄</h3>
-            <p id="karaokeStatus" style="color: var(--text-muted); margin-bottom: 15px;">Estado: selecciona un karaoke de la lista y presiona Cantar.</p>
-
-            <audio id="karaokeTrack" preload="auto" crossorigin="anonymous" style="display:none;"></audio>
-
-            <div id="karaokeDuoIndicator" style="display: none; margin-bottom: 15px; padding: 15px; background: var(--bg-main); border-radius: 8px; border: 1px solid var(--border);">
-              <p style="margin: 0 0 10px 0; font-weight: bold; color: var(--accent);">🎤🎤 Modo Dúo Activo</p>
-              <div style="display: flex; gap: 20px;">
-                <div style="flex: 1;">
-                  <small>Mic 1:</small>
-                  <div class="mic-level-bar"><div id="karaokeDuoMic1Level" class="mic-level-fill"></div></div>
-                </div>
-                <div style="flex: 1;">
-                  <small>Mic 2:</small>
-                  <div class="mic-level-bar"><div id="karaokeDuoMic2Level" class="mic-level-fill"></div></div>
-                </div>
-              </div>
             </div>
             
-            <div class="studio-controls">
-              <button id="karaokeStartBtn" class="btn-danger" type="button">▶️ Iniciar Grabación</button>
-              <button id="karaokeStopBtn" type="button">⏹️ Detener</button>
-              <button id="karaokeRestartBtn" type="button">🔄 Volver a intentar</button>
-            </div>
-          </div>
-
-          <div class="card">
-            <h4 style="margin-top: 20px;">🗣️ Tu voz grabada: Escucha tu voz sin la pista</h4>
-            <audio id="karaokeVoicePlayer" controls crossorigin="anonymous"></audio>
-          </div>
-
-          <div class="card">
-            <h3>🗣️🎚️💿 Mezcla Final 💿🎚️🗣️</h3>
-            <p style="color: var(--text-muted); margin-bottom: 15px;">Tu voz y la pista en un solo archivo.</p>
-            <div class="studio-controls">
-              <button id="karaokeMixBtn" type="button" style="background: #a855f7; color: white;">⚙️🔄 Mezclar 🔄⚙️</button>
-            </div>
-            <div id="karaokeMixResult" style="margin-top: 15px;"></div>
-          </div>
-        </section>
-
-        <!-- CAMBIAR TONO -->
-        <section id="cambiarTono" class="tab-content" style="display: none;">
-          <h1>🎚️ Cambiar tono</h1>
-          
-          <div class="card">
-            <h3>1. Seleccionar archivo Karaoke desde Biblioteca</h3>
-            <div class="studio-controls">
-              <button id="refreshPitchKaraokeListBtn" type="button">🔄 Actualizar lista</button>
-            </div>
-            <select id="pitchKaraokeSelect" style="width:100%; margin:10px 0;">
-              <option value="">Selecciona un archivo karaoke</option>
-            </select>
-            <div class="studio-controls" style="margin-bottom: 15px;">
-              <button id="loadPitchKaraokeBtn" type="button" style="background:#3b82f6; color:white;">📥 Cargar archivo karaoke</button>
-            </div>
-            <p id="pitchLoadStatus" style="color: var(--text-muted);">Estado: ningún archivo cargado</p>
-          </div>
-          
-          <div class="card">
-            <h3>2. Cambio de tono (medios tonos)</h3>
-            <div style="display: flex; gap: 20px; flex-wrap: wrap;">
-              <div class="settings-group" style="flex:1; min-width:200px;">
-                <label for="pitchUpSelect">⬆️ Subir tono</label>
-                <select id="pitchUpSelect">
-                  <option value="0">— Sin subir —</option>
-                  <option value="1">+1 semitono</option>
-                  <option value="2">+2 semitonos</option>
-                  <option value="3">+3 semitonos</option>
-                  <option value="4">+4 semitonos</option>
-                  <option value="5">+5 semitonos</option>
-                  <option value="6">+6 semitonos</option>
-                  <option value="7">+7 semitonos</option>
-                  <option value="8">+8 semitonos</option>
-                  <option value="9">+9 semitonos</option>
-                  <option value="10">+10 semitonos</option>
-                  <option value="11">+11 semitonos</option>
-                  <option value="12">+12 semitonos (1 octava)</option>
-                </select>
-              </div>
-              <div class="settings-group" style="flex:1; min-width:200px;">
-                <label for="pitchDownSelect">⬇️ Bajar tono</label>
-                <select id="pitchDownSelect">
-                  <option value="0">— Sin bajar —</option>
-                  <option value="1">-1 semitono</option>
-                  <option value="2">-2 semitonos</option>
-                  <option value="3">-3 semitonos</option>
-                  <option value="4">-4 semitonos</option>
-                  <option value="5">-5 semitonos</option>
-                  <option value="6">-6 semitonos</option>
-                  <option value="7">-7 semitonos</option>
-                  <option value="8">-8 semitonos</option>
-                  <option value="9">-9 semitonos</option>
-                  <option value="10">-10 semitonos</option>
-                  <option value="11">-11 semitonos</option>
-                  <option value="12">-12 semitonos (1 octava)</option>
-                </select>
-              </div>
-            </div>
-            <p id="pitchCurrentDisplay" style="color: var(--accent); font-weight: bold; margin-top: 10px;">Cambio actual: 0 semitonos</p>
-          </div>
-          
-          <div class="card">
-            <h3>3. Reproducción de prueba (con tono cambiado en vivo)</h3>
-            <div class="studio-controls">
-              <button id="pitchPlayBtn" type="button" style="background:#22c55e; color:white;">▶️ Reproducir</button>
-              <button id="pitchPauseBtn" type="button">⏸️ Pausar</button>
-              <button id="pitchStopBtn" type="button">⏹️ Detener</button>
-            </div>
-            <p id="pitchPlayStatus" style="color: var(--text-muted); margin-top: 10px;">Estado: detenido</p>
-          </div>
-          
-          <div class="card">
-            <h3>4. Guardar en Biblioteca</h3>
-            <div class="settings-group">
-              <label for="pitchSaveName">Nombre (opcional)</label>
-              <input type="text" id="pitchSaveName" placeholder="Ej. Mi cancion (+2 semitonos)" style="width:100%;">
-            </div>
-            <div class="studio-controls" style="flex-wrap: wrap;">
-              <button id="pitchSaveBtn" type="button" style="background:#a855f7; color:white;">💾 Guardar archivo con tono cambiado</button>
-              <button id="pitchSendToKaraokeBtn" type="button" style="background:#3b82f6; color:white;" disabled>📤 Enviar al monitor karaoke</button>
-            </div>
-            <p id="pitchSaveStatus" style="color: var(--text-muted); margin-top: 10px;">Estado: listo para guardar</p>
-          </div>
-        </section>
-        
-        <!-- CONFIGURACIÓN -->
-        <section id="config" class="tab-content" style="display: none;">
-          <div class="config-header">
-            <h1>⚙️ Configuración</h1>
-            <p class="config-subtitle">Personaliza tu experiencia. Los cambios se guardan automáticamente.</p>
-          </div>
-
-          <!-- AVATAR -->
-          <div class="config-section">
-            <h2>👤 Avatar / Personaje en Monitor</h2>
-            <p class="section-desc">Elige tu avatar para el monitor de karaoke.</p>
-            <div class="avatar-category-tabs" id="avatarCategoryTabs"></div>
-            <div class="avatar-grid" id="avatarGrid"></div>
-            <p class="avatar-selected-info" id="avatarSelectedInfo">Ningún avatar seleccionado (se usará avatar por defecto)</p>
-          </div>
-
-          <!-- MICROFONOS -->
-          <div class="config-section">
-            <h2>🎙️ Micrófonos</h2>
-
-            <div class="settings-group">
-              <label for="micCount">🔊 Cantidad de micrófonos</label>
-              <select id="micCount" class="config-select">
-                <option value="1">1 Micrófono (Solo)</option>
-                <option value="2">2 Micrófonos (Dúo)</option>
-              </select>
-            </div>
-
-            <!-- MIC 1 -->
-            <div class="mic-tester-card" id="mic1Card">
-              <div class="mic-tester-header">
-                <span class="mic-icon">🎙️</span>
-                <h4>Micrófono Principal</h4>
-                <span class="mic-required">Requerido</span>
-              </div>
-              <div class="mic-selector">
-                <select id="mic1Select" class="config-select">
-                  <option value="">🔍 Detectando micrófonos...</option>
-                </select>
-              </div>
-              <div class="mic-tester-circle" id="mic1Tester">
-                <div class="mic-ring" id="mic1Ring"></div>
-                <div class="mic-center">
-                  <svg class="mic-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z"></path>
-                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-                    <line x1="12" y1="19" x2="12" y2="22"></line>
-                    <line x1="8" y1="22" x2="16" y2="22"></line>
-                  </svg>
-                </div>
-                <div class="mic-ring-outer" id="mic1RingOuter"></div>
-                <span class="mic-status" id="mic1Status">Haz clic para probar</span>
-              </div>
-              <div class="mic-test-buttons" style="display: flex; gap: 8px; margin-top: 12px; justify-content: center;">
-                <button type="button" id="testMic1Btn" class="btn-neon btn-secondary" style="padding: 8px 16px; font-size: 12px;">🔊 Probar Mic 1</button>
-                <button type="button" id="stopMic1TestBtn" class="btn-neon btn-secondary" style="display: none;">⏹️ Detener</button>
-              </div>
-              <div class="mic-level-wrapper">
-                <div class="mic-level-bar" id="mic1LevelBar"><div class="mic-level-fill" id="mic1LevelFill"></div></div>
-              </div>
-            </div>
-
-            <!-- MIC 2 -->
-            <div id="mic2Group" style="display: none;">
-              <div class="mic-tester-card" id="mic2Card">
-                <div class="mic-tester-header">
-                  <span class="mic-icon">🎙️</span>
-                  <h4>Micrófono Secundario (Dúo)</h4>
-                  <span class="mic-optional">Opcional</span>
-                </div>
-                <div class="mic-selector">
-                  <select id="mic2Select" class="config-select">
-                    <option value="">Cargando dispositivos...</option>
-                  </select>
-                </div>
-                <div class="mic-tester-circle" id="mic2Tester">
-                  <div class="mic-ring" id="mic2Ring"></div>
-                  <div class="mic-center">
-                    <svg class="mic-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z"></path>
-                      <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-                      <line x1="12" y1="19" x2="12" y2="22"></line>
-                      <line x1="8" y1="22" x2="16" y2="22"></line>
-                    </svg>
-                  </div>
-                  <div class="mic-ring-outer" id="mic2RingOuter"></div>
-                  <span class="mic-status" id="mic2Status">Haz clic para probar</span>
-                </div>
-                <div class="mic-test-buttons" style="display: flex; gap: 8px; margin-top: 12px; justify-content: center;">
-                  <button type="button" id="testMic2Btn" class="btn-neon btn-secondary" style="padding: 8px 16px; font-size: 12px;">🔊 Probar Mic 2</button>
-                  <button type="button" id="stopMic2TestBtn" class="btn-neon btn-secondary" style="display: none;">⏹️ Detener</button>
-                </div>
-                <div class="mic-level-wrapper">
-                  <div class="mic-level-bar" id="mic2LevelBar"><div class="mic-level-fill" id="mic2LevelFill"></div></div>
-                </div>
-              </div>
-            </div>
-
-            <div class="settings-group" style="margin-top: 15px;">
-              <button type="button" id="refreshMicsBtn" class="btn-neon btn-secondary">🔄 Actualizar lista de micrófonos</button>
-            </div>
-          </div>
-
-          <!-- DIFICULTADES Y AJUSTES EXTRA-->
-          <div class="config-section">
-            <h2>🎮 Dificultades y Entorno</h2>
-            <div class="difficulty-grid" style="display: grid; gap: 15px;">
-              <div class="difficulty-card">
-                <label for="difficultyLevel">🎵 Dificultad Afinador</label>
-                <select id="difficultyLevel" class="config-select">
-                  <option value="facil">🟢 Fácil (±50¢)</option>
-                  <option value="medio" selected>🟡 Medio (±30¢)</option>
-                  <option value="dificil">🟠 Difícil (±15¢)</option>
-                  <option value="experto">🔴 Experto (±5¢)</option>
-                </select>
-              </div>
-              <div class="difficulty-card">
-                <label for="pentagramDifficulty">🎼 Dificultad Pentagrama</label>
-                <select id="pentagramDifficulty" class="config-select">
-                  <option value="facil">🟢 Fácil</option>
-                  <option value="medio" selected>🟡 Medio</option>
-                  <option value="dificil">🟠 Difícil</option>
-                  <option value="experto">🔴 Experto</option>
-                </select>
+            <div id="tapSyncResult" style="display: none; margin-top: 15px; padding: 15px; background: #14532d; border-radius: 8px; border: 1px solid #22c55e;">
+              <p style="color: #22c55e; font-weight: bold; margin: 0 0 10px 0;">✅ ¡Los TAPS han sido guardados!</p>
+              <div class="studio-controls">
+                <button id="applyTapSyncBtn" type="button" style="background: #22c55e;">🗳 Aplicar TAPS para terminar la sincronización 🗳</button>
+                <button id="redoTapSyncBtn" type="button" style="background: #f59e0b;">🔄 Volver a intentar 🔄</button>
               </div>
             </div>
           </div>
-
-          <!-- APARIENCIA Y TEMAS -->
-          <div class="config-section">
-            <h2>🎨 Apariencia Visual</h2>
-            
-            <div class="settings-group">
-              <label for="themeSelect">Tema de la interfaz</label>
-              <select id="themeSelect" class="config-select">
-                <option value="oscuro">🌙 Oscuro (Predeterminado)</option>
-                <option value="claro">☀️ Claro</option>
-              </select>
-            </div>
-            
-            <div class="settings-group" style="margin-top: 15px;">
-              <label for="stageSelect">Estilo del monitor de Karaoke</label>
-              <select id="stageSelect" class="config-select">
-                <option value="theme-clasico">📺 Clásico</option>
-                <option value="theme-neon">🌟 Neón</option>
-                <option value="theme-concierto">🎸 Concierto Retro</option>
-              </select>
-            </div>
-          </div>
-
-        </section>
-      </main>
-    </div>
+        </div>
+      </div>
+    </section>
     
-    <!-- Enlace al Javascript que controla toda la app -->
+    <!-- BIBLIOTECA -->
+    <section id="biblioteca" class="tab-content" style="display: none;">
+      <div class="biblioteca-header">
+        <h1>🗃 BIBLIOTECA: Guarda archivos desde PC</h1>
+        <div class="biblioteca-stats" id="bibliotecaStats"></div>
+      </div>
+
+      <div class="folder-controls">
+        <button class="folder-btn" type="button" id="btnFilterTodos">Todos</button>
+        <button class="folder-btn" type="button" id="btnFilterPista">Pista</button>
+        <button class="folder-btn" type="button" id="btnFilterVoz">Voz</button>
+        <button class="folder-btn" type="button" id="btnFilterGrabaciones">Mis grabaciones</button>
+        <button class="folder-btn" type="button" id="btnFilterKaraoke">Proyecto Karaoke</button>
+      </div>
+
+      <div class="card upload-card">
+        <h3>📤 Subir archivos desde PC</h3>
+
+        <div id="uploadDropZone" class="upload-dropzone">
+          <input type="file" id="libraryFileInput" accept="audio/*,.txt,text/plain" multiple hidden>
+          <div class="upload-dropzone-content">
+            <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="17 8 12 3 7 8"></polyline>
+              <line x1="12" y1="3" x2="12" v2="15"></line>
+            </svg>
+            <p class="upload-text-main">Haz clic para seleccionar</p>
+            <p class="upload-text-hint">Archivos: MP3, WAV, OGG, MP4, M4A</p>
+          </div>
+          <div id="uploadProgressContainer" class="upload-progress-container" style="display: none;">
+            <div class="upload-progress-bar" id="uploadProgressBar"></div>
+            <div class="upload-progress-text" id="uploadProgressText">Preparando subida...</div>
+            <div class="upload-files-list" id="uploadFilesList"></div>
+          </div>
+        </div>
+
+        <div class="settings-group" id="uploadOptions" style="display: none;">
+          <label for="libraryFileType">Tipo de archivo</label>
+          <select id="libraryFileType">
+            <option value="pista">🎵 Pista</option>
+            <option value="voz">🎙️ Voz</option>
+          </select>
+        </div>
+        
+        <div class="studio-controls">
+          <button id="saveLibraryFileBtn" type="button" class="btn-neon">💾 Guardar en la nube</button>
+          <button type="button" id="clearUploadBtn" class="btn-neon btn-secondary" style="display: none;">✖ Limpiar selección</button>
+        </div>
+
+        <p id="uploadStatus" class="upload-status" style="display: none;"></p>
+      </div>
+
+      <div class="biblioteca-filters">
+        <div class="biblioteca-search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          <input type="text" id="bibliotecaSearch" placeholder="Buscar por nombre, tipo, fecha...">
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Archivos guardados (<span id="libraryCount">0</span>)</h3>
+        <div id="libraryList"></div>
+      </div>
+    </section>
+    
+    <!-- KARAOKE -->
+    <section id="karaoke" class="tab-content" style="display: none;">
+      <h1>👩🎤🧔 KARAOKE: ERES UNA SÚPER ESTRELLA 🌟🌟🌟</h1>
+      
+      <div class="card" style="background: #1a1a1a; padding: 0; border: 2px solid var(--border); overflow: hidden;">
+        <div style="padding: 10px 12px; background: #0f172a; border-bottom: 1px solid var(--border); display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+          <button id="karaokeDuoSplitToggleBtn" type="button" data-testid="karaoke-duo-split-toggle" style="background: #22c55e; color: white; padding: 8px 14px; border-radius: 6px; border: none; cursor: pointer; font-weight: bold;">
+            🎤🎤 Modo Dúo Split: ON
+          </button>
+          <span id="karaokeDuoSplitHint" style="color: var(--text-muted); font-size: 12px;">
+            Monitor dividido.
+          </span>
+        </div>
+        <div class="card monitor-karaoke" style="background: #1a1a1a; padding: 0; border: 2px solid var(--border); overflow: hidden;">
+          <canvas id="karaokeCanvas" width="1800" height="600" style="width: 100%; display: block; border-radius: 12px; min-height: 500px;"></canvas>
+        </div>
+
+        <div id="karaokeLyrics" class="karaoke-lyrics" style="display: none;"></div>
+        <div id="karaokeLiveLyrics" class="karaoke-lyrics" style="display: none;"></div>
+      </div>
+      
+      <div class="card">
+        <h3>👄🎙️Grabación Sincronizada🎙️👄</h3>
+        <p id="karaokeStatus" style="color: var(--text-muted); margin-bottom: 15px;">Estado: selecciona un karaoke de la lista y presiona Cantar.</p>
+
+        <audio id="karaokeTrack" preload="auto" crossorigin="anonymous" style="display:none;"></audio>
+
+        <div id="karaokeDuoIndicator" style="display: none; margin-bottom: 15px; padding: 15px; background: var(--bg-main); border-radius: 8px; border: 1px solid var(--border);">
+          <p style="margin: 0 0 10px 0; font-weight: bold; color: var(--accent);">🎤🎤 Modo Dúo Activo</p>
+          <div style="display: flex; gap: 20px;">
+            <div style="flex: 1;">
+              <small>Mic 1:</small>
+              <div class="mic-level-bar"><div id="karaokeDuoMic1Level" class="mic-level-fill"></div></div>
+            </div>
+            <div style="flex: 1;">
+              <small>Mic 2:</small>
+              <div class="mic-level-bar"><div id="karaokeDuoMic2Level" class="mic-level-fill"></div></div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="studio-controls">
+          <button id="karaokeStartBtn" class="btn-danger" type="button">▶️ Iniciar Grabación</button>
+          <button id="karaokeStopBtn" type="button">⏹️ Detener</button>
+          <button id="karaokeRestartBtn" type="button">🔄 Volver a intentar</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h4 style="margin-top: 20px;">🗣️ Tu voz grabada: Escucha tu voz sin la pista</h4>
+        <audio id="karaokeVoicePlayer" controls crossorigin="anonymous"></audio>
+      </div>
+
+      <div class="card">
+        <h3>🗣️🎚️💿 Mezcla Final 💿🎚️🗣️</h3>
+        <p style="color: var(--text-muted); margin-bottom: 15px;">Tu voz y la pista en un solo archivo.</p>
+        <div class="studio-controls">
+          <button id="karaokeMixBtn" type="button" style="background: #a855f7; color: white;">⚙️🔄 Mezclar 🔄⚙️</button>
+        </div>
+        <div id="karaokeMixResult" style="margin-top: 15px;"></div>
+      </div>
+    </section>
+
+    <!-- CAMBIAR TONO -->
+    <section id="cambiarTono" class="tab-content" style="display: none;">
+      <h1>🎚️ Cambiar tono</h1>
+      
+      <div class="card">
+        <h3>1. Seleccionar archivo Karaoke desde Biblioteca</h3>
+        <div class="studio-controls">
+          <button id="refreshPitchKaraokeListBtn" type="button">🔄 Actualizar lista</button>
+        </div>
+        <select id="pitchKaraokeSelect" style="width:100%; margin:10px 0;">
+          <option value="">Selecciona un archivo karaoke</option>
+        </select>
+        <div class="studio-controls" style="margin-bottom: 15px;">
+          <button id="loadPitchKaraokeBtn" type="button" style="background:#3b82f6; color:white;">📥 Cargar archivo karaoke</button>
+        </div>
+        <p id="pitchLoadStatus" style="color: var(--text-muted);">Estado: ningún archivo cargado</p>
+      </div>
+      
+      <div class="card">
+        <h3>2. Cambio de tono (medios tonos)</h3>
+        <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+          <div class="settings-group" style="flex:1; min-width:200px;">
+            <label for="pitchUpSelect">⬆️ Subir tono</label>
+            <select id="pitchUpSelect">
+              <option value="0">— Sin subir —</option>
+              <option value="1">+1 semitono</option>
+              <option value="2">+2 semitonos</option>
+              <option value="3">+3 semitonos</option>
+              <option value="4">+4 semitonos</option>
+              <option value="5">+5 semitonos</option>
+              <option value="6">+6 semitonos</option>
+              <option value="7">+7 semitonos</option>
+              <option value="8">+8 semitonos</option>
+              <option value="9">+9 semitonos</option>
+              <option value="10">+10 semitonos</option>
+              <option value="11">+11 semitonos</option>
+              <option value="12">+12 semitonos (1 octava)</option>
+            </select>
+          </div>
+          <div class="settings-group" style="flex:1; min-width:200px;">
+            <label for="pitchDownSelect">⬇️ Bajar tono</label>
+            <select id="pitchDownSelect">
+              <option value="0">— Sin bajar —</option>
+              <option value="1">-1 semitono</option>
+              <option value="2">-2 semitonos</option>
+              <option value="3">-3 semitonos</option>
+              <option value="4">-4 semitonos</option>
+              <option value="5">-5 semitonos</option>
+              <option value="6">-6 semitonos</option>
+              <option value="7">-7 semitonos</option>
+              <option value="8">-8 semitonos</option>
+              <option value="9">-9 semitonos</option>
+              <option value="10">-10 semitonos</option>
+              <option value="11">-11 semitonos</option>
+              <option value="12">-12 semitonos (1 octava)</option>
+            </select>
+          </div>
+        </div>
+        <p id="pitchCurrentDisplay" style="color: var(--accent); font-weight: bold; margin-top: 10px;">Cambio actual: 0 semitonos</p>
+      </div>
+      
+      <div class="card">
+        <h3>3. Reproducción de prueba (con tono cambiado en vivo)</h3>
+        <div class="studio-controls">
+          <button id="pitchPlayBtn" type="button" style="background:#22c55e; color:white;">▶️ Reproducir</button>
+          <button id="pitchPauseBtn" type="button">⏸️ Pausar</button>
+          <button id="pitchStopBtn" type="button">⏹️ Detener</button>
+        </div>
+        <p id="pitchPlayStatus" style="color: var(--text-muted); margin-top: 10px;">Estado: detenido</p>
+      </div>
+      
+      <div class="card">
+        <h3>4. Guardar en Biblioteca</h3>
+        <div class="settings-group">
+          <label for="pitchSaveName">Nombre (opcional)</label>
+          <input type="text" id="pitchSaveName" placeholder="Ej. Mi cancion (+2 semitonos)" style="width:100%;">
+        </div>
+        <div class="studio-controls" style="flex-wrap: wrap;">
+          <button id="pitchSaveBtn" type="button" style="background:#a855f7; color:white;">💾 Guardar archivo con tono cambiado</button>
+          <button id="pitchSendToKaraokeBtn" type="button" style="background:#3b82f6; color:white;" disabled>📤 Enviar al monitor karaoke</button>
+        </div>
+        <p id="pitchSaveStatus" style="color: var(--text-muted); margin-top: 10px;">Estado: listo para guardar</p>
+      </div>
+    </section>
+    
+    <!-- CONFIGURACIÓN -->
+    <section id="config" class="tab-content" style="display: none;">
+      <div class="config-header">
+        <h1>⚙️ Configuración</h1>
+        <p class="config-subtitle">Personaliza tu experiencia. Los cambios se guardan automáticamente.</p>
+      </div>
+
+      <!-- AVATAR -->
+      <div class="config-section">
+        <h2>👤 Avatar / Personaje en Monitor</h2>
+        <p class="section-desc">Elige tu avatar para el monitor de karaoke.</p>
+        <div class="avatar-category-tabs" id="avatarCategoryTabs"></div>
+        <div class="avatar-grid" id="avatarGrid"></div>
+        <p class="avatar-selected-info" id="avatarSelectedInfo">Ningún avatar seleccionado (se usará avatar por defecto)</p>
+      </div>
+
+      <!-- MICROFONOS -->
+      <div class="config-section">
+        <h2>🎙️ Micrófonos</h2>
+
+        <div class="settings-group">
+          <label for="micCount">🔊 Cantidad de micrófonos</label>
+          <select id="micCount" class="config-select">
+            <option value="1">1 Micrófono (Solo)</option>
+            <option value="2">2 Micrófonos (Dúo)</option>
+          </select>
+        </div>
+
+        <!-- MIC 1 -->
+        <div class="mic-tester-card" id="mic1Card">
+          <div class="mic-tester-header">
+            <span class="mic-icon">🎙️</span>
+            <h4>Micrófono Principal</h4>
+            <span class="mic-required">Requerido</span>
+          </div>
+          <div class="mic-selector">
+            <select id="mic1Select" class="config-select">
+              <option value="">🔍 Detectando micrófonos...</option>
+            </select>
+          </div>
+          <div class="mic-tester-circle" id="mic1Tester">
+            <div class="mic-ring" id="mic1Ring"></div>
+            <div class="mic-center">
+              <svg class="mic-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z"></path>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                <line x1="12" y1="19" x2="12" y2="22"></line>
+                <line x1="8" y1="22" x2="16" y2="22"></line>
+              </svg>
+            </div>
+            <div class="mic-ring-outer" id="mic1RingOuter"></div>
+            <span class="mic-status" id="mic1Status">Haz clic para probar</span>
+          </div>
+          <div class="mic-test-buttons" style="display: flex; gap: 8px; margin-top: 12px; justify-content: center;">
+            <button type="button" id="testMic1Btn" class="btn-neon btn-secondary" style="padding: 8px 16px; font-size: 12px;">🔊 Probar Mic 1</button>
+            <button type="button" id="stopMic1TestBtn" class="btn-neon btn-secondary" style="display: none;">⏹️ Detener</button>
+          </div>
+          <div class="mic-level-wrapper">
+            <div class="mic-level-bar" id="mic1LevelBar"><div class="mic-level-fill" id="mic1LevelFill"></div></div>
+          </div>
+        </div>
+
+        <!-- MIC 2 -->
+        <div id="mic2Group" style="display: none;">
+          <div class="mic-tester-card" id="mic2Card">
+            <div class="mic-tester-header">
+              <span class="mic-icon">🎙️</span>
+              <h4>Micrófono Secundario (Dúo)</h4>
+              <span class="mic-optional">Opcional</span>
+            </div>
+            <div class="mic-selector">
+              <select id="mic2Select" class="config-select">
+                <option value="">Cargando dispositivos...</option>
+              </select>
+            </div>
+            <div class="mic-tester-circle" id="mic2Tester">
+              <div class="mic-ring" id="mic2Ring"></div>
+              <div class="mic-center">
+                <svg class="mic-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z"></path>
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                  <line x1="12" y1="19" x2="12" y2="22"></line>
+                  <line x1="8" y1="22" x2="16" y2="22"></line>
+                </svg>
+              </div>
+              <div class="mic-ring-outer" id="mic2RingOuter"></div>
+              <span class="mic-status" id="mic2Status">Haz clic para probar</span>
+            </div>
+            <div class="mic-test-buttons" style="display: flex; gap: 8px; margin-top: 12px; justify-content: center;">
+              <button type="button" id="testMic2Btn" class="btn-neon btn-secondary" style="padding: 8px 16px; font-size: 12px;">🔊 Probar Mic 2</button>
+              <button type="button" id="stopMic2TestBtn" class="btn-neon btn-secondary" style="display: none;">⏹️ Detener</button>
+            </div>
+            <div class="mic-level-wrapper">
+              <div class="mic-level-bar" id="mic2LevelBar"><div class="mic-level-fill" id="mic2LevelFill"></div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-group" style="margin-top: 15px;">
+          <button type="button" id="refreshMicsBtn" class="btn-neon btn-secondary">🔄 Actualizar lista de micrófonos</button>
+        </div>
+      </div>
+
+      <!-- DIFICULTADES Y AJUSTES EXTRA-->
+      <div class="config-section">
+        <h2>🎮 Dificultades y Entorno</h2>
+        <div class="difficulty-grid" style="display: grid; gap: 15px;">
+          <div class="difficulty-card">
+            <label for="difficultyLevel">🎵 Dificultad Afinador</label>
+            <select id="difficultyLevel" class="config-select">
+              <option value="facil">🟢 Fácil (±50¢)</option>
+              <option value="medio" selected>🟡 Medio (±30¢)</option>
+              <option value="dificil">🟠 Difícil (±15¢)</option>
+              <option value="experto">🔴 Experto (±5¢)</option>
+            </select>
+          </div>
+          <div class="difficulty-card">
+            <label for="pentagramDifficulty">🎼 Dificultad Pentagrama</label>
+            <select id="pentagramDifficulty" class="config-select">
+              <option value="facil">🟢 Fácil</option>
+              <option value="medio" selected>🟡 Medio</option>
+              <option value="dificil">🟠 Difícil</option>
+              <option value="experto">🔴 Experto</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- APARIENCIA Y TEMAS -->
+      <div class="config-section">
+        <h2>🎨 Apariencia Visual</h2>
+        
+        <div class="settings-group">
+          <label for="themeSelect">Tema de la interfaz</label>
+          <select id="themeSelect" class="config-select">
+            <option value="oscuro">🌙 Oscuro (Predeterminado)</option>
+            <option value="claro">☀️ Claro</option>
+          </select>
+        </div>
+        
+        <div class="settings-group" style="margin-top: 15px;">
+          <label for="stageSelect">Estilo del monitor de Karaoke</label>
+          <select id="stageSelect" class="config-select">
+            <option value="theme-clasico">📺 Clásico</option>
+            <option value="theme-neon">🌟 Neón</option>
+            <option value="theme-concierto">🎸 Concierto Retro</option>
+          </select>
+        </div>
+      </div>
+
+    </section>
+  </main>
+</div>
     <script type="module" src="script.js"></script>
   </body>
 </html>
