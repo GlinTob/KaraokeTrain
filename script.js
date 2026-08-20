@@ -352,7 +352,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
   // --- EVENTOS KARAOKE ---
-  safeAdd("karaokeDuoSplitModeToggleBtn", "click", () => {
+  safeAdd("karaokeDuoSplitToggleBtn", "click", () => {
     // Verificar si la función existe en el ámbito global
     if (typeof toggleKaraokeDuoSplitMode === "function") {
       toggleKaraokeDuoSplitMode();
