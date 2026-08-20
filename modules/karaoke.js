@@ -42,7 +42,7 @@ let monitorConfig = {
   }
 };
 
-let toggleKaraokeDuoSplitMode = false;
+let karaokeDuoSplitMode = false;
 let currentLyricsSegments = [];
 let pitchHistoryP1 = [];
 let pitchHistoryP2 = [];
