@@ -136,8 +136,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   function applyKaraokeTheme() {
     const theme = localStorage.getItem("vocalApp_stage") || "theme-clasico";
     const monitor = $("karaokeLiveLyrics");
-    const theme = localStorage.getItem("vocalApp_stage") || "theme-clasico";
-    const monitor = $("karaokeLiveLyrics");
     if (monitor) {
       monitor.classList.remove(...allKaraokeThemes);
       monitor.classList.add(theme);
