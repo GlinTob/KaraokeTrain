@@ -49,7 +49,7 @@ const MAX_PITCH_HISTORY = 120;
 
 const NOTE_SCALE = ["A4", "G4", "F4", "E4", "D4", "C4", "B3", "A3", "G3", "F3"];
 
-function toggleKaraokeDuoSplitMode() {
+export function toggleKaraokeDuoSplitMode() {
   karaokeDuoSplitMode = !karaokeDuoSplitMode;
   const btn = $("karaokeDuoSplitToggleBtn");
   if (btn) {
