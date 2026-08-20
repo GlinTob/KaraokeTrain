@@ -43,7 +43,6 @@ let monitorConfig = {
 };
 let karaokeCanvaas = null;
 let ctx = null;
-let drawKaraokeMonitor = null;
 let karaokeDuoSplitMode = false;
 let currentLyricsSegments = [];
 let karaokePitchP1 = [];
