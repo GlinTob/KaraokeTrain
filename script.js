@@ -98,7 +98,7 @@ export async function showTab(tabId) {
       // ✅ Inicializar karaokeCanvas y ctx cuando se cargue la pestaña Karaoke
       const canvas = document.getElementById("canvasTarget");
       if (canvas) {
-        canvasTarget = canvas;
+        karaokeCanvas = canvas;
         ctx = canvas.getContext("2d");
         console.log("✅ Canvas de karaoke inicializado.");
       } else {
