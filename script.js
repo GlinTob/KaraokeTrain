@@ -94,6 +94,7 @@ export async function showTab(tabId) {
       if (typeof inicializarEscenarioDesdeMemoria === "function") inicializarEscenarioDesdeMemoria();
       if (typeof loadTrackOptionsInKaraoke === "function") await loadTrackOptionsInKaraoke();
       if (typeof drawKaraokeMonitor === "function") await drawKaraokeMonitor();
+      if (typeof karaokeCanvas ==== "function") await karaokeCanvas();
     
       // ✅ Inicializar karaokeCanvas y ctx cuando se cargue la pestaña Karaoke
       const canvas = document.getElementById("canvasTarget");
