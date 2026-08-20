@@ -89,15 +89,18 @@ export async function updateMonitorConfig(newConfig = {}) {
   if (newConfig.c2Icon1Url) monitorConfig.images.c2Icon1 = await loadImage(newConfig.c2Icon1Url);
   if (newConfig.c2Icon2Url) monitorConfig.images.c2Icon2 = await loadImage(newConfig.c2Icon2Url);
 
-  // ✅ Llamar a drawKaraokeMonitor para repintar el canvas
-  if (typeof drawKaraokeMonitor === "function" && karaokeCanvas && ctx) {
-    const track = $("karaokeTrack") || $("trackPlayer");
-    const currentTime = track ? track.currentTime : 0;
-    drawKaraokeMonitor(currentTime, karaokePitchP1, karaokePitchP2);
-    console.log("🎨 Monitor de karaoke actualizado con nuevos avatares.");
-  } else {
-    console.warn("⚠️ drawKaraokeMonitor no está definida o el canvas no está inicializado.");
+  // 🛠️ FIX 1: Hacemos la función accesible globalmente para que pestañas externas como config.js puedan verla
+  if (typeof window !== "undefined" && !window.drawKaraokeMonitor) {
+    window.drawKaraokeMonitor = drawKaraokeMonitor;
   }
+
+  // 🛠️ FIX 2: Simplificamos la validación defensiva usando la firma flexible de drawKaraokeMonitor
+  const track = $("karaokeTrack") || $("trackPlayer");
+  const currentTime = track ? track.currentTime : 0;
+
+  // Llamamos directamente a la función; si el canvas no existe en el DOM actual, ella misma retornará limpiamente sin romper nada
+  drawKaraokeMonitor(currentTime, karaokePitchP1, karaokePitchP2);
+  console.log("🎨 Monitor de karaoke actualizado con nuevos avatares.");
 }
 
 export function cargarLetrasEnMonitor(segments = []) {
@@ -567,6 +570,9 @@ export function drawKaraokeMonitor(arg1, arg2, arg3, arg4, arg5) {
       monitorConfig.pitchLineColorP1,
       monitorConfig.pitchDotColorP1
     );
+  }
+  if (typeof window !== "undefined") {
+    window.drawKaraokeMonitor = drawKaraokeMonitor;
   }
 
   // Teleprompter Superior
