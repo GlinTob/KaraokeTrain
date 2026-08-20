@@ -1,4 +1,5 @@
 import { $ } from "../script.js";
+import { updateMonitorConfig } from './modules/karaoke.js';
 
 /**
  * MÓDULO CONFIGURACIÓN COMPLETO
@@ -547,17 +548,3 @@ export async function testMicrophone(micNumber) {
     alert("❌ No se pudo acceder al micrófono seleccionado. Verifica los permisos.");
   }
 }
-// Agrega esto en script.js
-window.updateMonitorAvatar = function (avatar) {
-  if (!avatar) return;
-
-  // Actualizar las URLs de los avatares en el monitor
-  if (typeof window.updateMonitorConfig === 'function') {
-    window.updateMonitorConfig({
-      c1AvatarUrl: avatar.img, // Este avatar se usará para C1
-      c2AvatarUrl: avatar.img  // Este avatar se usará para C2 (puedes cambiarlo si quieres avatares distintos)
-    });
-  }
-
-  console.log("✅ Avatar del monitor actualizado:", avatar.name);
-};
