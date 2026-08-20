@@ -5,10 +5,31 @@
 import { drawKaraokeMonitor } from './modules/karaoke.js'; 
 import { toggleKaraokeDuoSplitMode } from './modules/karaoke.js';
 import { updateMonitorConfig } from './modules/karaoke.js';
-
+import { drawKaraokeMonitor } from './modules/karaoke.js'; 
+import { toggleKaraokeDuoSplitMode } from './modules/karaoke.js';
+import { updateMonitorConfig } from './modules/karaoke.js';
+import { syncKaraokeMonitor } from './modules/karaoke.js'; 
 
 export function $(id) {
   return document.getElementById(id);
+  else if (tabId === "karaoke") {
+      console.log("🎤 [Lazy Load] Inicializando Canvas e Históricos de Canto...");
+
+      const { loadTrackOptionsInKaraoke, loadKaraokeSong } = await import("./modules/karaoke.js");
+      const { inicializarEscenarioDesdeMemoria } = await import("./modules/config.js");
+    
+      if (typeof inicializarEscenarioDesdeMemoria === "function") inicializarEscenarioDesdeMemoria();
+      if (typeof loadTrackOptionsInKaraoke === "function") await loadTrackOptionsInKaraoke();
+    
+      // ✅ 🛠️ Corrección: Verificación de canvas limpia (sin causar error de Strict Mode)
+      const canvas = document.getElementById("karaokeCanvas");
+      if (canvas) {
+        console.log("✅ Canvas de karaoke detectado y listo en el DOM.");
+      } else {
+        console.warn("⚠️ No se encontró el canvas de karaoke.");
+      }
+    const track = $("karaokeTrack");
+  }
 }
 
 export function safeAdd(id, event, handler) {
@@ -133,7 +154,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     console.warn("⚠️ Advertencia inicializando Supabase:", err);
   }
 
-  const allKaraokeThemes = ['theme-clasico', 'theme-moderno', 'theme-disco', 'theme-acustico', 'theme-fiesta'];
+  / 🛠️ Corrección: Eliminada la constante allKaraokeThemes duplicada aquí, se usa la global.
   const temaGuardado = localStorage.getItem("vocalApp_theme") || "oscuro";
   document.documentElement.setAttribute("data-theme", temaGuardado);
   document.body.setAttribute("data-theme", temaGuardado);
@@ -146,7 +167,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       monitor.classList.add(theme);
     }
   }
-
   applyKaraokeTheme();
 
   safeAdd("karaokeThemeSelect", "change", async (e) => {
@@ -157,8 +177,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   const karaokePlayer = $("karaokeTrack") || $("trackPlayer");
   if (karaokePlayer) {
     karaokePlayer.addEventListener("timeupdate", () => {
-      if (typeof window.syncKaraokeMonitor === "function") {
-        window.syncKaraokeMonitor(karaokePlayer.currentTime);
+      // 🛠️ Corrección: Llamar a la función importada directamente, no desde window
+      if (typeof syncKaraokeMonitor === "function") {
+        syncKaraokeMonitor(karaokePlayer.currentTime);
       }
 
       // --- 🔒 PROTECCIÓN ANTES DE LLAMAR A drawKaraokeMonitor ---
@@ -167,19 +188,17 @@ document.addEventListener("DOMContentLoaded", async () => {
         console.warn("[Timeupdate] El canvas #karaokeCanvas no está disponible. Saltando dibujo.");
       return;
       }
-
-      if (typeof drawKaraokeMonitor === "function" && (typeof window.karaokeMediaRecorder === "undefined" || window.karaokeMediaRecorder.state !== "recording")) {
+      // 🛠️ Corrección: Usar state.isRecording para detener el render duplicado durante la grabación
+      if (typeof drawKaraokeMonitor === "function" && !state.isRecording) {
         drawKaraokeMonitor(karaokePlayer.currentTime, -1, -1);
       }
     });
-
     karaokePlayer.addEventListener("ended", () => {
-      if (typeof window.syncKaraokeMonitor === "function") {
-        window.syncKaraokeMonitor(0);
+      if (typeof syncKaraokeMonitor === "function") {
+        syncKaraokeMonitor(0);
       }
     });
   }
-
   const studioPlayer = $("player");
   if (studioPlayer) {
     studioPlayer.addEventListener("timeupdate", () => {
@@ -373,14 +392,17 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
   safeAdd("karaokeStartBtn", "click", async () => {
+    state.isRecording = true; // 🛠️ Notificamos al sistema que estamos grabando
     const { startKaraokeRecording } = await import("./modules/karaoke.js");
     if (typeof startKaraokeRecording === "function") startKaraokeRecording();
   });
   safeAdd("karaokeStopBtn", "click", async () => {
+    state.isRecording = false; // 🛠️ Restauramos el estado
     const { stopKaraokeRecording } = await import("./modules/karaoke.js");
     if (typeof stopKaraokeRecording === "function") stopKaraokeRecording();
   });
   safeAdd("karaokeRestartBtn", "click", async () => {
+    state.isRecording = false; // 🛠️ Restauramos el estado
     const { restartKaraokeRecording } = await import("./modules/karaoke.js");
     if (typeof restartKaraokeRecording === "function") restartKaraokeRecording();
   });
