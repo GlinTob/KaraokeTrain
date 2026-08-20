@@ -2,9 +2,10 @@
  * AgujaViva — Hero-mode tuner needle with particle trail
  * Canvas 2D renderer, 60fps, theme-aware, no dependencies
  */
+import { drawKaraokeMonitor, $ } from '../script.js';
+import { audio-controller }, from './audio-controller.js';
 
-// Utilidad abreviada para buscar elementos del DOM
-const $ = (id) => document.getElementById(id); 
+
 
 // Estado de grabación global de la pestaña Afinador
 const state = {
