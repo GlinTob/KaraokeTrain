@@ -65,16 +65,16 @@ export async function switchTab(tabId) {
 // Exportar globalmente para que otras vistas puedan cambiar pestañas
 window.switchTab = switchTab;
 
-document.addEventListener("DOMContentLoaded", async () => {
-  // 1. Inicializar Base de Datos (Supabase)
-  try {
-    const { initSupabase } = await import("./modules/biblioteca.js");
-    if (typeof initSupabase === "function") {
-      await initSupabase();
-    }
-  } catch (err) {
-    console.warn("⚠️ Advertencia inicializando Supabase:", err);
-  }
+document.addEventListener("DOMContentLoaded", () => {
+  // 1. Asignar Eventos de las Pestañas de Navegación INMEDIATAMENTE
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const tabTarget = e.currentTarget.dataset.tabTarget;
+      if (tabTarget) {
+        switchTab(tabTarget);
+      }
+    });
+  });
 
   // 2. Aplicar Tema (Oscuro/Claro y Estilo de Escenario)
   const temaGuardado = localStorage.getItem("vocalApp_theme") || "oscuro";
@@ -90,10 +90,21 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
   applyKaraokeTheme();
 
-  // 3. Configurar Reproductor de Karaoke
+  // 3. Inicializar Base de Datos (Supabase) de forma asíncrona sin bloquear la UI
+  (async () => {
+    try {
+      const { initSupabase } = await import("./modules/biblioteca.js");
+      if (typeof initSupabase === "function") {
+        await initSupabase();
+      }
+    } catch (err) {
+      console.warn("⚠️ Advertencia inicializando Supabase:", err);
+    }
+  })();
+
+  // 4. Configurar Reproductor de Karaoke
   const karaokePlayer = $("karaokeTrack") || $("trackPlayer");
   if (karaokePlayer) {
-    
     karaokePlayer.addEventListener("timeupdate", () => {
       // Sincronizar el teleprompter de letras llamando la función global
       if (typeof window.syncKaraokeMonitor === "function") {
@@ -118,7 +129,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
     });
   }
-
   
   // Botón de alternar Modo Dúo Split
   safeAdd("karaokeDuoSplitToggleBtn", "click", async () => {
