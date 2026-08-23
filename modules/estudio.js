@@ -81,7 +81,7 @@ export async function loadTrackOptionsInStudio() {
   }
 }
 
-function cargarAudioEstudio(e) {
+export function cargarAudioEstudio(e) {
   const file = e.target.files?.[0];
   if (!file) return;
 
