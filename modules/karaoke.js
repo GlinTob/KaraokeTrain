@@ -7,6 +7,33 @@ let karaokePitchLoopRafId = null;
 let karaokePitchSourceNode = null;
 let karaokePitchWorkletNode = null;
 
+export function toggleKaraokeDuoSplitMode() {
+  karaokeDuoSplitMode = !karaokeDuoSplitMode;
+
+  const btn = $("karaokeDuoSplitToggleBtn");
+  if (btn) {
+    btn.textContent = karaokeDuoSplitMode
+      ? "👩‍🎤🎤👨 Modo Dúo Split: Activo. Haz click para desactivarlo."
+      : "👩‍🎤🎤👨 Modo Dúo Split: Inactivo. Haz click aquí para activarlo.";
+  }
+
+  // Si quieres, cambia también color visual
+  if (btn) {
+    btn.style.background = karaokeDuoSplitMode ? "#16a34a" : "#3b82f6";
+  }
+
+  // Reset de históricos para evitar arrastre visual raro
+  pitchHistory = [];
+  pitchHistoryP1 = [];
+  pitchHistoryP2 = [];
+
+  // Redibujar inmediatamente aunque no haya grabación en curso
+  const track = $("karaokeTrack") || $("karaokeAudio") || $("audioKaraoke") || $("trackPlayer");
+  const currentTime = track ? track.currentTime : 0;
+
+  drawKaraokeMonitor(currentTime, karaokePitchP1 || -1, karaokePitchP2 || -1);
+}
+
 export function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2) {
   const canvas = $("karaokeCanvas");
   if (!canvas) return;
