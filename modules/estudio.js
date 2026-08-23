@@ -646,7 +646,6 @@ export async function finishTapSync() {
       `Actualmente: ${tapSyncTimestamps.length} / ${tapSyncLines.length} ${tipoUnidad}\n\n` +
       `¿Deseas aplicar de todos modos?`
     )) {
-      
       cancelTapSync();
       return;
     }
@@ -684,7 +683,7 @@ export async function finishTapSync() {
     const esPalabraPorPalabra = (window.currentTapSyncModeType === "palabra");
 
     if (esPalabraPorPalabra) {
-      // 1. Sincronización precisa palabra por palabra (Nativa)
+      // 1. Sincronización precisa palabra por palabra
       finalSegments = (item.lyrics || []).map((word, index) => {
         const startTime = tapSyncTimestamps[index] || 0;
         return {
@@ -696,7 +695,7 @@ export async function finishTapSync() {
         };
       });
     } else {
-      // 2. Sincronización por renglón/frase completa con interpolación de palabras
+      // 2. Sincronización por línea/frase con interpolación de palabras
       let globalWordId = 1;
 
       tapSyncLines.forEach((lineText, lineIndex) => {
@@ -728,22 +727,30 @@ export async function finishTapSync() {
     textSegments = finalSegments;
     baseTextSegments = finalSegments;
 
-    // Actualización limpia en Supabase usando únicamente la columna 'lyrics'
+    const trackItem = studioTrackId
+      ? await getLibraryItemsByIdFromSupabase(studioTrackId)
+      : null;
+
     await updateLibraryItemsFromSupabase(currentId, {
       name: `${item.name.replace(" - [KARAOKE]", "")} - [KARAOKE]`,
       type: "karaoke",
       lyrics: finalSegments,
       isSincronizada: true,
       tapModeStyle: window.currentTapSyncModeType,
-      file_url: item.file_url || item.audioUrl || item.audioBlob || null,
-      file_path: item.file_path || null
+      file_url: trackItem?.file_url || item.file_url || item.audioUrl || item.audioBlob || null,
+      file_path: trackItem?.file_path || item.file_path || null
     });
 
-    if (status) status.textContent = "Estado: ¡Archivo transformado en Karaoke y guardado con éxito! ✅";
+    if (status) {
+      status.textContent = "Estado: ¡Archivo transformado en Karaoke y guardado con éxito! ✅";
+    }
     
-    // Refrescamos la cuadrícula de la biblioteca
     await renderLibrary("todos");
-    alert("✅ ¡Sincronización por taps guardada con éxito!\n\nTu archivo ha sido transformado en un Karaoke y ya está disponible en su respectiva carpeta.");
+
+    alert(
+      "✅ ¡Sincronización por taps guardada con éxito!\n\n" +
+      "Tu archivo ha sido transformado en un Karaoke y ya está disponible en su respectiva carpeta."
+    );
 
   } catch (error) {
     console.error("Error al finalizar sincronización:", error);
