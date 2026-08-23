@@ -1,5 +1,8 @@
 import { $, safeAdd } from "../script.js";
 
+let textSegments = [];
+let baseTextSegments = [];
+let karaokeLoadedLyrics = [];
 let pitchHistory = [];
 let karaokePitchDetectionAudioCtx = null;
 let karaokePitchDetectionAnalyser = null;
