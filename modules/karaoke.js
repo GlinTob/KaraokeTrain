@@ -24,11 +24,11 @@ let karaokePitchP2 = -1;
 let karaokeChunks = [];
 let karaokeRecordedBlob = null;
 let karaokeMediaRecorder = null;
-
+let getSelectedMic = null;
 let karaokeStream = null;
 let karaokeStream2 = null;
 let finalStream = null;
-
+let stopKaraokeDuoLevelMonitor = null;
 let karaokeDuoAudioContext = null;
 let karaokeDuoAnalyser1 = null;
 let karaokeDuoAnalyser2 = null;
