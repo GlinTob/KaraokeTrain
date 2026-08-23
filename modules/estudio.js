@@ -364,7 +364,7 @@ export async function loadSelectedTextFromLibrary() {
 
     selectedTextId = item.id;
     selectedVoiceId = item.id;
-    studioTextFileName = item.name;
+    //studioTextFileName = item.name;
     studioTextBlob = item.file_url || null;
 
     if (Array.isArray(item.lyrics) && item.lyrics.length > 0) {
