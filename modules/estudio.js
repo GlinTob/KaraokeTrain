@@ -192,7 +192,7 @@ export async function loadSelectedTrackFromLibraryStudio() {
 
       console.log("📡 Descargando binario con bypass de caché:", urlConCacheBuster);
       
-      const response = await fetch(urlConCacheBuster);
+      //const response = await fetch(urlConCacheBuster);
       studioTrackBlob = await response.blob();
     } else if (urlOrBlob instanceof Blob) {
       studioTrackBlob = urlOrBlob;
