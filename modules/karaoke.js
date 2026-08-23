@@ -1,6 +1,7 @@
 import { $, safeAdd } from "../script.js";
 import { getLibraryItemsByIdFromSupabase } from "./biblioteca.js";
-import { getAudioController, destroyAudioController } from "./audio-controller.js";
+import { getAudioController, destroyAudioController, exportStereoWav } from "./audio-controller.js";
+
 
 let textSegments = [];
 let baseTextSegments = [];
