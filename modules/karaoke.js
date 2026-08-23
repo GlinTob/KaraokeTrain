@@ -21,6 +21,17 @@ let pitchHistoryP1 = [];
 let pitchHistoryP2 = [];
 let karaokePitchP1 = -1;
 let karaokePitchP2 = -1;
+let karaokeChunks = [];
+let karaokeRecordedBlob = null;
+let karaokeMediaRecorder = null;
+
+let karaokeStream = null;
+let karaokeStream2 = null;
+let finalStream = null;
+
+let karaokeDuoAudioContext = null;
+let karaokeDuoAnalyser1 = null;
+let karaokeDuoAnalyser2 = null;
 
 export function toggleKaraokeDuoSplitMode() {
   karaokeDuoSplitMode = !karaokeDuoSplitMode;
