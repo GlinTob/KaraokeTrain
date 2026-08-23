@@ -509,6 +509,13 @@ export async function startKaraokeRecording() {
       karaokeStream2 = null;
     }
 
+    karaokeLoopBusy = false;
+
+    if (karaokeAudioController) {
+      destroyAudioController();
+      karaokeAudioController = null;
+    }
+
     stopKaraokeDuoLevelMonitor?.();
 
     const duoIndicator = $("karaokeDuoIndicator");
@@ -594,6 +601,9 @@ export async function startKaraokePitchDetection() {
     }
   }
 
+  karaokeAudioController = getAudioController();
+  karaokeLoopBusy = false;
+
   loop();
 }
 
@@ -618,6 +628,7 @@ export async function loop() {
       ) {
         const buffer = new Float32Array(karaokePitchDetectionAnalyser.fftSize);
         karaokePitchDetectionAnalyser.getFloatTimeDomainData(buffer);
+
         pitch = await karaokeAudioController.detectPitch(
           buffer,
           karaokePitchDetectionAudioCtx.sampleRate
@@ -637,6 +648,7 @@ export async function loop() {
       ) {
         const buf2 = new Float32Array(karaokeSplitAnalyser2.fftSize);
         karaokeSplitAnalyser2.getFloatTimeDomainData(buf2);
+
         pitch2 = await karaokeAudioController.detectPitch(buf2, sr2);
       }
     } catch (error) {
@@ -695,19 +707,16 @@ export function stopKaraokeRecording() {
 
   karaokePitchDetectionAnalyser = null;
 
-  // Detener Mic 1
   if (karaokeStream) {
     karaokeStream.getTracks().forEach(t => t.stop());
     karaokeStream = null;
   }
 
-  // Detener Mic 2
   if (karaokeStream2) {
     karaokeStream2.getTracks().forEach(t => t.stop());
     karaokeStream2 = null;
   }
 
-  // Cerrar contexto de audio dúo
   if (karaokeDuoAudioContext) {
     try { karaokeDuoAudioContext.close(); } catch (e) {}
     karaokeDuoAudioContext = null;
@@ -715,6 +724,13 @@ export function stopKaraokeRecording() {
 
   karaokeDuoAnalyser1 = null;
   karaokeDuoAnalyser2 = null;
+
+  karaokeLoopBusy = false;
+
+  if (karaokeAudioController) {
+    destroyAudioController();
+    karaokeAudioController = null;
+  }
 
   stopP2PitchTracking?.();
   stopKaraokeDuoLevelMonitor?.();
