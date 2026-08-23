@@ -11,6 +11,9 @@ let karaokeLoopBusy = false;
 let karaokePitchDetectionAudioCtx = null;
 let karaokePitchDetectionAnalyser = null;
 let karaokeSplitAnalyser2 = null;
+let karaokeSplitAudioCtx2 = null;
+let karaokeSplitSource2 = null;
+let sr2 = null;
 let karaokePitchLoopRafId = null;
 let karaokePitchSourceNode = null;
 let karaokePitchWorkletNode = null;
@@ -363,7 +366,6 @@ export async function startKaraokeRecording() {
       voicePlayer.src = "";
     }
 
-    // Cargar pista si hace falta
     if (!track.src || track.src !== karaokeSelectedTrackBlob) {
       track.pause();
       track.currentTime = 0;
@@ -530,6 +532,7 @@ export async function startKaraokeRecording() {
       karaokeAudioController = null;
     }
 
+    await stopP2PitchTracking().catch(() => {});
     stopKaraokeDuoLevelMonitor?.();
 
     const duoIndicator = $("karaokeDuoIndicator");
@@ -609,7 +612,7 @@ export async function startKaraokePitchDetection() {
 
   if (karaokeDuoSplitMode) {
     try {
-      await ensureP2PitchTracking?.();
+      await ensureP2PitchTracking();
     } catch (e) {
       console.warn("No se pudo inicializar P2 pitch tracking:", e);
     }
@@ -619,6 +622,58 @@ export async function startKaraokePitchDetection() {
   karaokeLoopBusy = false;
 
   loop();
+}
+
+export async function ensureP2PitchTracking() {
+  if (!karaokeStream2) {
+    console.warn("⚠️ No hay karaokeStream2 para analizar pitch de P2.");
+    return;
+  }
+
+  if (karaokeSplitAudioCtx2 && karaokeSplitSource2 && karaokeSplitAnalyser2 && sr2) {
+    return;
+  }
+
+  await stopP2PitchTracking();
+
+  karaokeSplitAudioCtx2 = new (window.AudioContext || window.webkitAudioContext)();
+
+  if (karaokeSplitAudioCtx2.state === "suspended") {
+    await karaokeSplitAudioCtx2.resume();
+  }
+
+  karaokeSplitSource2 = karaokeSplitAudioCtx2.createMediaStreamSource(karaokeStream2);
+  karaokeSplitAnalyser2 = karaokeSplitAudioCtx2.createAnalyser();
+  karaokeSplitAnalyser2.fftSize = 2048;
+
+  karaokeSplitSource2.connect(karaokeSplitAnalyser2);
+  sr2 = karaokeSplitAudioCtx2.sampleRate;
+
+  console.log("🎙️ P2 pitch tracking inicializado correctamente.", {
+    sampleRate: sr2,
+    fftSize: karaokeSplitAnalyser2.fftSize
+  });
+}
+
+export async function stopP2PitchTracking() {
+  if (karaokeSplitSource2) {
+    try { karaokeSplitSource2.disconnect(); } catch (e) {}
+    karaokeSplitSource2 = null;
+  }
+
+  karaokeSplitAnalyser2 = null;
+  sr2 = null;
+
+  if (karaokeSplitAudioCtx2) {
+    try {
+      if (karaokeSplitAudioCtx2.state !== "closed") {
+        await karaokeSplitAudioCtx2.close();
+      }
+    } catch (e) {}
+    karaokeSplitAudioCtx2 = null;
+  }
+
+  console.log("🛑 P2 pitch tracking detenido.");
 }
 
 export async function loop() {
@@ -746,7 +801,7 @@ export function stopKaraokeRecording() {
     karaokeAudioController = null;
   }
 
-  stopP2PitchTracking?.();
+  Promise.resolve(stopP2PitchTracking()).catch(() => {});
   stopKaraokeDuoLevelMonitor?.();
 
   const duoIndicator = $("karaokeDuoIndicator");
