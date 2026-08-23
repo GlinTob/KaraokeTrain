@@ -6,6 +6,7 @@ import {
   updateLibraryItemsFromSupabase,
   renderLibrary
 } from './biblioteca.js';
+import { noteToFrequency, frequencyToMidi, midiToNoteName, frequencyToNoteName } from "./afinador.js";
 
 /** 
  * MÓDULO ESTUDIO — Sincronizador de Letras (Tap-Sync), Segmentación de Renglones e Inyección a Supabase
