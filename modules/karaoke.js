@@ -3,6 +3,7 @@ import { getLibraryItemsByIdFromSupabase } from "./biblioteca.js";
 import { getAudioController, destroyAudioController, exportStereoWav, interleave } from "./audio-controller.js";
 import { startLiveAudio, stopLiveAudio, getLiveAudioState, setMonitoringEnabled } from "./liveAudioService.js";
 import { noteToFrequency, frequencyToMidi, midiToNoteName, frequencyToNoteName } from "./afinador.js";
+import { VocalProcessor } from "./vocal-processor.js";
 
 
 let textSegments = [];
