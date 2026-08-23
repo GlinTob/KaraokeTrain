@@ -17,12 +17,15 @@ import { getAudioController, destroyAudioController, exportStereoWav, interleave
 let textSegments = [];
 let baseTextSegments = [];
 let autoScrollEnabled = true;
-let studioTrackFileName = "";
+let studioTrackFileName = null;
 let studioTrackBlob = null;
+let studioSelectedTrackBlob = null;
 let studioTrackId = null;
+let studioSelectedTrackId = null;
 let selectedVoiceBlob = null;
+let studioChunks = [];
 let selectedVoiceId = null;
-let studioTextFileName = "";
+let studioSelectedTrackName = null;
 let selectedTextId = null;
 let studioTextBlob = null;
 let selectedTextBlob = null; 
@@ -32,6 +35,7 @@ let tapSyncMode = false;
 let tapSyncLines = [];
 let tapSyncTimestamps = [];
 let tapSyncCurrentIndex = 0;
+let tapSyncSplitMode = "linea";
 let tapSyncParts = [];
 let currentTapPart = "P1"; 
 
@@ -49,6 +53,44 @@ export function initEstudio() {
   loadVoiceOptionsInStudio();
   loadTextOptionsInStudio(); // Alimenta el selector azul 'textLibrarySelect'
 } 
+
+function buildWordTimingFromSegment(seg) {
+  if (!seg.words || seg.words.length === 0) {
+    const wordsArr = (seg.text || "").split(" ").filter(Boolean);
+    const duration = (seg.end || 0) - (seg.start || 0);
+    const wordDuration = duration / Math.max(1, wordsArr.length);
+    seg.words = wordsArr.map((word, i) => ({
+      word: word,
+      start: seg.start + i * wordDuration,
+      end: seg.start + (i + 1) * wordDuration,
+      pitch: 0,
+      note: "C4"
+    }));
+  }
+  return seg;
+}
+
+function splitSegmentsIntoKaraokeLines(segments, maxWordsPerLine = 6) {
+  let output = [];
+  segments.forEach(seg => {
+    const words = seg.words || [];
+    if (words.length <= maxWordsPerLine) {
+      output.push(seg);
+      return;
+    }
+    for (let i = 0; i < words.length; i += maxWordsPerLine) {
+      const chunkWords = words.slice(i, i + maxWordsPerLine);
+      const textLine = chunkWords.map(w => w.word).join(" ");
+      output.push({
+        start: chunkWords[0].start,
+        end: chunkWords[chunkWords.length - 1].end,
+        text: textLine,
+        words: chunkWords
+      });
+    }
+  });
+  return output;
+}
 
 function getMediaErrorDesc(code) {
   const errors = { 1: "MEDIA_ERR_ABORTED", 2: "MEDIA_ERR_NETWORK", 3: "MEDIA_ERR_DECODE", 4: "MEDIA_ERR_SRC_NOT_SUPPORTED" };
@@ -597,30 +639,15 @@ function updateTapPartButtonsUI() {
 }
 
 export function recordTap() {
-  if (!tapSyncMode) return;
-  const player = window.activeTapPlayer || $("selectedVoicePlayer");
-  if (!player || player.paused || player.ended || player.readyState < 2) return;
-
-  const currentTime = player.currentTime;
-  tapSyncTimestamps.push(currentTime);
-  tapSyncParts.push(currentTapPart);
+  const player = $("selectedVoicePlayer"); if (!tapSyncMode || !player) return;
+  tapSyncTimestamps.push(player.currentTime);
+  console.log(`🎵 [estudio.js] TAP REGISTRADO -> Línea ${tapSyncCurrentIndex + 1}: "${tapSyncLines[tapSyncCurrentIndex]}" a los ${player.currentTime.toFixed(2)}s`);
   tapSyncCurrentIndex++;
-
-  const tapBtn = $("tapBeatBtn");
-  if (tapBtn) {
-    tapBtn.style.transform = "scale(0.95)";
-    tapBtn.style.background = "linear-gradient(135deg, #16a34a, #14532d)";
-    setTimeout(() => {
-      tapBtn.style.transform = "scale(1)";
-      tapBtn.style.background = "linear-gradient(135deg, #22c55e, #16a34a)";
-    }, 100);
-  }
-
+  
   if (tapSyncCurrentIndex >= tapSyncLines.length) {
-    finishTapSync();
-  } else {
-    updateTapSyncDisplay();
-  }
+    tapSyncMode = false; player.pause(); document.removeEventListener("keydown", handleTapSyncKeypress);
+    $("tapSyncActive").style.display = "none"; $("tapSyncResult").style.display = "block"; $("cancelTapSyncBtn").style.display = "none";
+  } else updateTapSyncDisplay();
 }
 
 function updateTapSyncDisplay() {
@@ -678,6 +705,42 @@ function convertirWordsASegmentos(words) {
   }
 
   return segmentos.sort((a, b) => (a.start || 0) - (b.start || 0));
+}
+
+export async function applyTapSync() {
+  const player = $("selectedVoicePlayer"), total = player ? player.duration : 0;
+  const segments = tapSyncLines.map((line, i) => {
+    const start = tapSyncTimestamps[i] || 0;
+    let end = tapSyncTimestamps[i+1] || total || start + (tapSyncSplitMode === "palabra" ? 0.6 : 3);
+    // Heurística por modo
+    const numPalabras = line.split(/\s+/).filter(Boolean).length;
+    if (tapSyncSplitMode === "linea" && end - start > 1.2) {
+      end = start + Math.min(end - start, numPalabras * 0.45);
+    } else if (tapSyncSplitMode === "palabra" && end - start > 0.8) {
+      end = start + 0.8;
+    }
+    return buildWordTimingFromSegment({ start, end, text: line });
+  });
+
+  baseTextSegments = segments;
+  textSegments = segments;
+
+  const pistaInstrumentalActiva = studioSelectedTrackBlob || studioTrackBlob;
+  const nombrePistaActiva = studioSelectedTrackName || studioTrackFileName || "Canción Sincronizada";
+
+  if (pistaInstrumentalActiva) {
+    try {
+      console.log(`💾 [estudio.js] Guardando proyecto unificado: "Karaoke - ${nombrePistaActiva}" con base instrumental pura.`);
+      await addLibraryItem({ 
+        name: `Karaoke - ${nombrePistaActiva}`, 
+        type: "karaoke", 
+        audioBlob: pistaInstrumentalActiva, 
+        date: new Date().toLocaleString("es-ES"), 
+        transcription: segments, 
+        metadata: { title: nombrePistaActiva, origen: "Estudio Sync Master" } 
+      });
+    } catch (err) { console.error("❌ Error guardando karaoke:", err); }
+  }
 }
 
 export async function finishTapSync() {
