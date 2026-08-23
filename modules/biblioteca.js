@@ -600,38 +600,44 @@ export async function enviarAlMonitorKaraoke(karaokeItem) {
   if (!karaokeItem) return;
 
   try {
-    // 1. Buscamos el reproductor final del monitor de karaoke en el HTML
-    // Revisa si este es el ID de la pestaña de karaoke de tu proyecto
-    const playerFinal = document.getElementById("karaokeAudioPlayer") || document.getElementById("player"); 
-    
-    if (playerFinal && karaokeItem.file_url) {
-      playerFinal.crossOrigin = "anonymous";
-      playerFinal.src = karaokeItem.file_url;
-      playerFinal.load();
+    // Usar el reproductor real del módulo Karaoke
+    const track = document.getElementById("karaokeTrack");
+
+    if (track && karaokeItem.file_url) {
+      track.crossOrigin = "anonymous";
+      track.src = karaokeItem.file_url;
+      track.dataset.karaokeId = String(karaokeItem.id);
+      track.dataset.karaokeLoaded = "1";
+      track.load();
     }
 
-    // 2. Guardamos las letras con milisegundos en el entorno global para que el Canvas las pinte
-    window.currentKaraokeLyrics = karaokeItem.lyrics || [];
-    window.currentKaraokeName = karaokeItem.name;
+    // Guardar datos globales para el monitor
+    window.currentKaraokeLyrics = karaokeItem.lyrics || karaokeItem.transcription || [];
+    window.currentKaraokeName = karaokeItem.name || "";
+    window.currentKaraokeItemId = karaokeItem.id;
 
-    // 3. CAMBIO DE PESTAÑA AUTOMÁTICO EN TU INTERFAZ NEÓN
-    // Llamamos a la función global 'showTab' que maneja tu script.js
+    // Cambiar a la pestaña karaoke
     if (typeof window.showTab === "function") {
-      window.showTab("KARAOKE"); // Pestaña destino en mayúsculas tal como lo registran tus logs
+      await window.showTab("karaoke");
     } else {
-      // Intento de respaldo por simulación de clic en tu menú lateral
-      const navBtn = document.querySelector("[data-tab='karaoke']") || document.getElementById("btn-nav-karaoke");
+      const navBtn =
+        document.querySelector("[data-tab='karaoke']") ||
+        document.getElementById("btn-nav-karaoke");
       if (navBtn) navBtn.click();
     }
 
-    console.log("✅ Datos transferidos al Monitor de Canto. Pestaña cambiada a [KARAOKE].");
+    // Una vez abierta la pestaña, forzar carga completa del karaoke
+    const karaokeModule = await import("./karaoke.js");
+    if (typeof karaokeModule.loadKaraokeSong === "function") {
+      await karaokeModule.loadKaraokeSong(karaokeItem.id);
+    }
 
+    console.log("✅ Datos transferidos al Monitor de Canto. Pestaña cambiada a [KARAOKE].");
   } catch (err) {
     console.error("❌ Error en la pasarela de exportación al monitor:", err);
     alert("No se pudo transferir el karaoke al monitor de canto.");
   }
 }
-
 export function clearUploadSelection() {
   const fileInput = document.getElementById("libraryFileInput");
   const nameInput = document.getElementById("libraryFileName");
