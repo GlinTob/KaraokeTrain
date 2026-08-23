@@ -81,6 +81,7 @@ export async function loadTrackOptionsInStudio() {
   }
 }
 
+/*
 export function cargarAudioEstudio(e) {
   const file = e.target.files?.[0];
   if (!file) return;
@@ -99,6 +100,7 @@ export function cargarAudioEstudio(e) {
     status.textContent = `Estado: pista cargada (${file.name})`;
   }
 }
+*/
 
 export async function loadSelectedTrackFromLibraryStudio() {
   const select = $("studioTrackSelect");
