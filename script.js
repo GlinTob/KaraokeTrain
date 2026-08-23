@@ -56,12 +56,12 @@ export async function showTab(tabId) {
   if (activeBtn) activeBtn.classList.add("active");
 
   try {
-    if (tabId === "config") {
+    if (normalizedTabId === "config") {
       console.log("⚙️ [Lazy Load] Cargando configuraciones de hardware...");
       const { initSettings, loadAvailableMics } = await import("./modules/config.js");
       if (typeof initSettings === "function") initSettings();
       if (typeof loadAvailableMics === "function") await loadAvailableMics();
-    } else if (tabId === "biblioteca") {
+    } else if (normalizedTabId === "biblioteca") {
       console.log("📁 [Lazy Load] Cargando visor de Base de Datos...");
       const { initBiblioteca, renderLibrary } = await import("./modules/biblioteca.js");
       if (typeof initBiblioteca === "function") {
@@ -70,19 +70,19 @@ export async function showTab(tabId) {
       if (typeof renderLibrary === "function") {
         await renderLibrary("todos");
       }
-    } else if (tabId === "estudio") {
+    } else if (normalizedTabId === "estudio") {
       console.log("🎧 [Lazy Load] Cargando entorno de sincronización y listados...");
       const { initEstudio } = await import("./modules/estudio.js");
       if (typeof initEstudio === "function") {
         await initEstudio();
       }
-    } else if (tabId === "afinador") {
+    } else if (normalizedTabId === "afinador") {
       console.log("🎵 [Lazy Load] Módulo Afinador Vocal listo.");
-    } else if (tabId === "cambiarTono") {
+    } else if (normalizedTabId === "cambiarTono") {
       console.log("🧭 [Lazy Load] Cargando herramientas de cambio de tono...");
       const { loadPitchKaraokeOptions } = await import("./modules/cambiar-tono.js");
       if (typeof loadPitchKaraokeOptions === "function") await loadPitchKaraokeOptions();
-    } else if (tabId === "karaoke") {
+    } else if (normalizedTabId === "karaoke") {
       console.log("🎤 [Lazy Load] Inicializando Canvas e Históricos de Canto...");
       const { loadTrackOptionsInKaraoke, loadKaraokeSong } = await import("./modules/karaoke.js");
       const { inicializarEscenarioDesdeMemoria } = await import("./modules/config.js");
@@ -96,9 +96,9 @@ export async function showTab(tabId) {
       }
     }
 
-    console.log(`✅ [Navegación] Pestaña [${tabId.toUpperCase()}] cargada y visualizada.`);
+    console.log(`✅ [Navegación] Pestaña [${normalizedTabId.toUpperCase()}] cargada y visualizada.`);
   } catch (error) {
-    console.error(`❌ [Lazy Load Error] Falló el módulo [${tabId}]:`, error);
+    console.error(`❌ [Lazy Load Error] Falló el módulo [${normalizedTabId}]:`, error);
   }
 }
 
