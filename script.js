@@ -61,9 +61,10 @@ export async function showTab(tabId) {
       }
     } else if (tabId === "estudio") {
       console.log("🎧 [Lazy Load] Cargando entorno de sincronización y listados...");
-      const { loadTrackOptionsInStudio, loadVoiceOptionsInStudio } = await import("./modules/estudio.js");
-      if (typeof loadTrackOptionsInStudio === "function") await loadTrackOptionsInStudio();
-      if (typeof loadVoiceOptionsInStudio === "function") await loadVoiceOptionsInStudio();
+      const { initEstudio } = await import("./modules/estudio.js");
+      if (typeof initEstudio === "function") {
+        await initEstudio();
+      }
     } else if (tabId === "afinador") {
       console.log("🎵 [Lazy Load] Módulo Afinador Vocal listo.");
     } else if (tabId === "cambiarTono") {
