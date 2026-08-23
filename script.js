@@ -24,24 +24,27 @@ const allKaraokeThemes = ["theme-clasico", "theme-moderno", "theme-disco", "them
 // 🚀 ENRUTADOR DINÁMICO Y DESCARGA BAJO DEMANDA (LAZY IMPORT)
 // ============================================
 export async function showTab(tabId) {
-  console.log(`\n📌 [Navegación] Solicitando cambio a la pestaña: [${tabId.toUpperCase()}])`);
+  const normalizedTabId = String(tabId).toLowerCase();
 
-  document.querySelectorAll(".tab").forEach(tab => tab.classList.remove("active"));
-  const target = $(tabId);
-  if (target) target.classList.add("active");
+  document.querySelectorAll(".tab").forEach(tab => {
+    tab.classList.remove("active");
+  });
 
-  document.querySelectorAll(".sidebar button").forEach(btn => btn.classList.remove("active"));
+  document.querySelectorAll(".sidebar button").forEach(btn => {
+    btn.classList.remove("active");
+  });
 
-  const btnMap = {
-    config: "btnConfig",
-    biblioteca: "btnBiblioteca",
-    estudio: "btnEstudio",
-    afinador: "btnAfinador",
-    karaoke: "btnKaraoke",
-    cambiarTono: "btnCambiarTono"
-  };
+  const targetTab = document.getElementById(normalizedTabId);
+  if (targetTab) {
+    targetTab.classList.add("active");
+  } else {
+    console.warn(`No existe la pestaña: ${normalizedTabId}`);
+    return;
+  }
 
-  const activeBtn = $(btnMap[tabId]);
+  const activeBtn =
+    document.querySelector(`.sidebar button[data-tab="${normalizedTabId}"]`) ||
+    document.getElementById(`btn-${normalizedTabId}`);
   if (activeBtn) activeBtn.classList.add("active");
 
   try {
