@@ -252,7 +252,7 @@ export async function loadSelectedVoiceFromLibrary() {
   const select = $("voiceLibrarySelect");
   const player = $("selectedVoicePlayer");
   const status = $("selectedVoiceStatus");
-  //const lyricsText = $("lyricsText");
+  const lyricsText = $("lyricsText");
 
   if (!select || !player || !status) return;
 
@@ -269,8 +269,6 @@ export async function loadSelectedVoiceFromLibrary() {
       return;
     }
 
-    // ✅ LIMPIEZA: Se eliminó el bloque 'if (item.type === "texto")' de aquí adentro.
-    // Ahora esta función procesa puramente audio de voz/grabación de forma veloz.
     selectedVoiceBlob = item.file_url || item.audioBlob;
     selectedVoiceId = item.id;
     player.src = item.file_url || item.audioBlob || "";
@@ -279,7 +277,7 @@ export async function loadSelectedVoiceFromLibrary() {
     if (lyricsText && item.textoPlano) {
       lyricsText.value = item.textoPlano;
     }
-    
+
     if (typeof window.cargarLetrasEnMonitor === "function") {
       window.cargarLetrasEnMonitor();
     }
@@ -639,15 +637,30 @@ function updateTapPartButtonsUI() {
 }
 
 export function recordTap() {
-  const player = $("selectedVoicePlayer"); if (!tapSyncMode || !player) return;
+  const player = window.activeTapPlayer || $("selectedVoicePlayer") || $("player");
+  if (!tapSyncMode || !player) return;
+
   tapSyncTimestamps.push(player.currentTime);
-  console.log(`🎵 [estudio.js] TAP REGISTRADO -> Línea ${tapSyncCurrentIndex + 1}: "${tapSyncLines[tapSyncCurrentIndex]}" a los ${player.currentTime.toFixed(2)}s`);
+  tapSyncParts.push(currentTapPart);
+
+  console.log(
+    `🎵 [estudio.js] TAP REGISTRADO -> Línea ${tapSyncCurrentIndex + 1}: "${tapSyncLines[tapSyncCurrentIndex]}" a los ${player.currentTime.toFixed(2)}s [${currentTapPart}]`
+  );
+
   tapSyncCurrentIndex++;
-  
+
   if (tapSyncCurrentIndex >= tapSyncLines.length) {
-    tapSyncMode = false; player.pause(); document.removeEventListener("keydown", handleTapSyncKeypress);
-    $("tapSyncActive").style.display = "none"; $("tapSyncResult").style.display = "block"; $("cancelTapSyncBtn").style.display = "none";
-  } else updateTapSyncDisplay();
+    tapSyncMode = false;
+    player.pause();
+    document.removeEventListener("keydown", handleTapSyncKeypress, { capture: true });
+
+    if ($("tapSyncActive")) $("tapSyncActive").style.display = "none";
+    if ($("tapSyncResult")) $("tapSyncResult").style.display = "block";
+    if ($("cancelTapSyncBtn")) $("cancelTapSyncBtn").style.display = "none";
+    if ($("startTapSyncBtn")) $("startTapSyncBtn").style.display = "inline-block";
+  } else {
+    updateTapSyncDisplay();
+  }
 }
 
 function updateTapSyncDisplay() {
@@ -682,16 +695,18 @@ function convertirWordsASegmentos(words) {
     const sorted = [...lineWords].sort((a, b) => (a.startTime || 0) - (b.startTime || 0));
 
     const wordsNormalizadas = sorted.map((w, idx) => {
-      const start = w.startTime || 0;
+      const start = Number.isFinite(w.start) ? w.start : (w.startTime || 0);
       const next = sorted[idx + 1];
-      const end = next ? (next.startTime || start + 0.6) : start + 0.6;
+      const end = Number.isFinite(w.end)
+        ? w.end
+        : (next ? (next.startTime || start + 0.6) : start + 0.6);
 
       return {
-        word: w.text || "",
-        text: w.text || "",
+        word: w.word || w.text || "",
+        text: w.text || w.word || "",
         start,
         end,
-        midi: w.midi || 60
+        midi: Number.isFinite(w.midi) ? w.midi : null
       };
     });
 
@@ -700,7 +715,8 @@ function convertirWordsASegmentos(words) {
       end: wordsNormalizadas[wordsNormalizadas.length - 1]?.end || 0,
       text: wordsNormalizadas.map(w => w.word).join(" "),
       parte: sorted[0]?.parte || "P1",
-      words: wordsNormalizadas
+      words: wordsNormalizadas,
+      midi: Number.isFinite(wordsNormalizadas[0]?.midi) ? wordsNormalizadas[0].midi : null
     });
   }
 
@@ -708,18 +724,33 @@ function convertirWordsASegmentos(words) {
 }
 
 export async function applyTapSync() {
-  const player = $("selectedVoicePlayer"), total = player ? player.duration : 0;
+  const player = $("selectedVoicePlayer") || $("player");
+  const total = player ? player.duration : 0;
+  const syncMode = window.currentTapSyncModeType || "linea";
+
   const segments = tapSyncLines.map((line, i) => {
     const start = tapSyncTimestamps[i] || 0;
-    let end = tapSyncTimestamps[i+1] || total || start + (tapSyncSplitMode === "palabra" ? 0.6 : 3);
-    // Heurística por modo
+    let end = tapSyncTimestamps[i + 1] || total || start + (syncMode === "palabra" ? 0.6 : 3);
+
     const numPalabras = line.split(/\s+/).filter(Boolean).length;
-    if (tapSyncSplitMode === "linea" && end - start > 1.2) {
+
+    if (syncMode === "linea" && end - start > 1.2) {
       end = start + Math.min(end - start, numPalabras * 0.45);
-    } else if (tapSyncSplitMode === "palabra" && end - start > 0.8) {
+    } else if (syncMode === "palabra" && end - start > 0.8) {
       end = start + 0.8;
     }
-    return buildWordTimingFromSegment({ start, end, text: line });
+
+    const seg = buildWordTimingFromSegment({ start, end, text: line });
+
+    if (Array.isArray(seg.words)) {
+      seg.words = seg.words.map(w => ({
+        ...w,
+        midi: Number.isFinite(w.midi) ? w.midi : null
+      }));
+    }
+
+    seg.midi = Number.isFinite(seg.midi) ? seg.midi : null;
+    return seg;
   });
 
   baseTextSegments = segments;
@@ -731,15 +762,17 @@ export async function applyTapSync() {
   if (pistaInstrumentalActiva) {
     try {
       console.log(`💾 [estudio.js] Guardando proyecto unificado: "Karaoke - ${nombrePistaActiva}" con base instrumental pura.`);
-      await addLibraryItem({ 
-        name: `Karaoke - ${nombrePistaActiva}`, 
-        type: "karaoke", 
-        audioBlob: pistaInstrumentalActiva, 
-        date: new Date().toLocaleString("es-ES"), 
-        transcription: segments, 
-        metadata: { title: nombrePistaActiva, origen: "Estudio Sync Master" } 
+      await addLibraryItem({
+        name: `Karaoke - ${nombrePistaActiva}`,
+        type: "karaoke",
+        audioBlob: pistaInstrumentalActiva,
+        date: new Date().toLocaleString("es-ES"),
+        transcription: segments,
+        metadata: { title: nombrePistaActiva, origen: "Estudio Sync Master" }
       });
-    } catch (err) { console.error("❌ Error guardando karaoke:", err); }
+    } catch (err) {
+      console.error("❌ Error guardando karaoke:", err);
+    }
   }
 }
 
@@ -759,7 +792,7 @@ export async function finishTapSync() {
       return;
     }
   }
-  
+
   const activePlayer = window.activeTapPlayer || $("selectedVoicePlayer") || $("player");
   if (activePlayer) {
     try { activePlayer.pause(); } catch (e) {}
@@ -806,7 +839,7 @@ export async function finishTapSync() {
           renglon: word.renglon || 1,
           startTime,
           parte: tapSyncParts[index] || "P1",
-          midi: word.midi || 60
+          midi: Number.isFinite(word.midi) ? word.midi : null
         };
       });
     } else {
@@ -833,7 +866,7 @@ export async function finishTapSync() {
             renglon: lineIndex + 1,
             startTime: wordStart,
             parte: parteLinea,
-            midi: 60
+            midi: null
           });
         });
       });
