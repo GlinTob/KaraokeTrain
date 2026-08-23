@@ -506,21 +506,30 @@ function handleFileSelection(e) {
   const files = e.target.files;
   if (!files || files.length === 0) return;
 
+  const uploadOptions = $("uploadOptions");
+  const typeSelect = $("libraryFileType");
   const uploadProgressContainer = $("uploadProgressContainer");
   const uploadFilesList = $("uploadFilesList");
   const clearBtn = $("clearUploadBtn");
+
+  if (uploadOptions) {
+    uploadOptions.style.display = "block";
+  }
+
+  if (typeSelect && !typeSelect.value) {
+    typeSelect.value = "pista";
+  }
 
   if (uploadProgressContainer) uploadProgressContainer.style.display = "block";
   if (clearBtn) clearBtn.style.display = "inline-block";
   
   if (uploadFilesList) {
-    uploadFilesList.innerHTML = ""; // Limpiar archivos previos en pantalla
+    uploadFilesList.innerHTML = "";
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       const div = document.createElement("div");
       div.className = "upload-file-item";
-      // Mantenemos el índice único para evitar errores con nombres repetidos
       div.id = `file-${i}-${file.name.replace(/[^a-zA-Z0-9]/g, "-")}`;
       div.innerHTML = `
         <span class="file-name">📄 ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)</span>
@@ -530,13 +539,11 @@ function handleFileSelection(e) {
     }
   }
   
-  // Inicializar la barra visual en 0%
   const bar = document.getElementById("uploadProgressBar");
   const text = document.getElementById("uploadProgressText");
   if (bar) bar.style.width = "0%";
   if (text) text.textContent = `0/${files.length} archivos seleccionados`;
 }
-
 // ============================================
 // 📊 COMPONENTES DE SEGUIMIENTO DE PROGRESO
 // ============================================ 
@@ -634,7 +641,9 @@ export function clearUploadSelection() {
   const clearBtn = document.getElementById("clearUploadBtn");
   const uploadProgressBar = document.getElementById("uploadProgressBar");
   const uploadProgressText = document.getElementById("uploadProgressText");
-  const statusEl = document.getElementById("uploadStatus"); 
+  const statusEl = document.getElementById("uploadStatus");
+  const uploadOptions = document.getElementById("uploadOptions");
+  const typeSelect = document.getElementById("libraryFileType");
 
   if (fileInput) fileInput.value = "";
   if (nameInput) nameInput.value = "";
@@ -643,12 +652,15 @@ export function clearUploadSelection() {
   if (saveBtn) saveBtn.disabled = false;
   if (clearBtn) clearBtn.style.display = "none";
   if (uploadProgressBar) uploadProgressBar.style.width = "0%";
-  if (uploadProgressText) uploadProgressText.textContent = ""; 
+  if (uploadProgressText) uploadProgressText.textContent = "";
+  if (uploadOptions) uploadOptions.style.display = "none";
+  if (typeSelect) typeSelect.value = "pista";
 
   if (statusEl) {
     statusEl.style.display = "none";
     statusEl.className = "upload-status";
     statusEl.textContent = "";
   }
+
   console.log("🧼 Interfaz de carga reiniciada de forma segura.");
 }
