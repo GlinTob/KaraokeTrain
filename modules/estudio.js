@@ -35,6 +35,7 @@ let tapSyncMode = false;
 let tapSyncLines = [];
 let tapSyncTimestamps = [];
 let tapSyncCurrentIndex = 0;
+let currentTapPart = "P1";
 let tapSyncParts = [];
 
 
@@ -512,7 +513,7 @@ export async function startTapSync() {
   tapSyncTimestamps = [];
   tapSyncCurrentIndex = 0;
   tapSyncParts = [];
-  //currentTapPart = "P1";
+  currentTapPart = "P1";
   tapSyncMode = true;
 
   updateTapPartButtonsUI();
