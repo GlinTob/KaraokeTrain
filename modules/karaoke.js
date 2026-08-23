@@ -1,10 +1,13 @@
 import { $, safeAdd } from "../script.js";
 import { getLibraryItemsByIdFromSupabase } from "./biblioteca.js";
+import { getAudioController, destroyAudioController } from "./audio-controller.js";
 
 let textSegments = [];
 let baseTextSegments = [];
 let karaokeLoadedLyrics = [];
 let pitchHistory = [];
+let karaokeAudioController = null;
+let karaokeLoopBusy = false;
 let karaokePitchDetectionAudioCtx = null;
 let karaokePitchDetectionAnalyser = null;
 let karaokePitchLoopRafId = null;
@@ -594,61 +597,69 @@ export async function startKaraokePitchDetection() {
   loop();
 }
 
-export function loop() {
-  const track = $("karaokeTrack") || $("karaokeAudio") || $("audioKaraoke") || $("trackPlayer");
-  const currentTime = track ? track.currentTime : 0;
-  const isRecording = !!(karaokeMediaRecorder && karaokeMediaRecorder.state === "recording");
-  const trackEnded = !!(track && track.ended);
-
-  let pitch = -1;
-  let pitch2 = -1;
+export async function loop() {
+  if (karaokeLoopBusy) return;
+  karaokeLoopBusy = true;
 
   try {
-    if (
-      karaokePitchDetectionAnalyser &&
-      karaokePitchDetectionAudioCtx &&
-      (window.AudioUtils?.detectPitch || AudioUtils?.detectPitch)
-    ) {
-      const detectPitchFn = window.AudioUtils?.detectPitch || AudioUtils.detectPitch;
+    const track = $("karaokeTrack") || $("karaokeAudio") || $("audioKaraoke") || $("trackPlayer");
+    const currentTime = track ? track.currentTime : 0;
+    const isRecording = !!(karaokeMediaRecorder && karaokeMediaRecorder.state === "recording");
+    const trackEnded = !!(track && track.ended);
 
-      const buffer = new Float32Array(karaokePitchDetectionAnalyser.fftSize);
-      karaokePitchDetectionAnalyser.getFloatTimeDomainData(buffer);
-      pitch = detectPitchFn(buffer, karaokePitchDetectionAudioCtx.sampleRate);
+    let pitch = -1;
+    let pitch2 = -1;
+
+    try {
+      if (
+        karaokePitchDetectionAnalyser &&
+        karaokePitchDetectionAudioCtx &&
+        karaokeAudioController
+      ) {
+        const buffer = new Float32Array(karaokePitchDetectionAnalyser.fftSize);
+        karaokePitchDetectionAnalyser.getFloatTimeDomainData(buffer);
+        pitch = await karaokeAudioController.detectPitch(
+          buffer,
+          karaokePitchDetectionAudioCtx.sampleRate
+        );
+      }
+    } catch (error) {
+      console.error("Error detectando pitch P1 en karaoke:", error);
+      pitch = -1;
     }
-  } catch (error) {
-    console.error("Error detectando pitch P1 en karaoke:", error);
-    pitch = -1;
-  }
 
-  try {
-    if (
-      karaokeDuoSplitMode &&
-      karaokeSplitAnalyser2 &&
-      sr2 &&
-      (window.AudioUtils?.detectPitch || AudioUtils?.detectPitch)
-    ) {
-      const detectPitchFn = window.AudioUtils?.detectPitch || AudioUtils.detectPitch;
-
-      const buf2 = new Float32Array(karaokeSplitAnalyser2.fftSize);
-      karaokeSplitAnalyser2.getFloatTimeDomainData(buf2);
-      pitch2 = detectPitchFn(buf2, sr2);
+    try {
+      if (
+        karaokeDuoSplitMode &&
+        karaokeSplitAnalyser2 &&
+        sr2 &&
+        karaokeAudioController
+      ) {
+        const buf2 = new Float32Array(karaokeSplitAnalyser2.fftSize);
+        karaokeSplitAnalyser2.getFloatTimeDomainData(buf2);
+        pitch2 = await karaokeAudioController.detectPitch(buf2, sr2);
+      }
+    } catch (error) {
+      console.error("Error detectando pitch P2 en karaoke:", error);
+      pitch2 = -1;
     }
-  } catch (error) {
-    console.error("Error detectando pitch P2 en karaoke:", error);
-    pitch2 = -1;
+
+    karaokePitchP1 = typeof pitch === "number" ? pitch : -1;
+    karaokePitchP2 = typeof pitch2 === "number" ? pitch2 : -1;
+
+    drawKaraokeMonitor(currentTime, karaokePitchP1, karaokePitchP2);
+
+    if (!isRecording || trackEnded) {
+      karaokePitchLoopRafId = null;
+      return;
+    }
+
+    karaokePitchLoopRafId = requestAnimationFrame(() => {
+      loop();
+    });
+  } finally {
+    karaokeLoopBusy = false;
   }
-
-  karaokePitchP1 = typeof pitch === "number" ? pitch : -1;
-  karaokePitchP2 = typeof pitch2 === "number" ? pitch2 : -1;
-
-  drawKaraokeMonitor(currentTime, karaokePitchP1, karaokePitchP2);
-
-  if (!isRecording || trackEnded) {
-    karaokePitchLoopRafId = null;
-    return;
-  }
-
-  karaokePitchLoopRafId = requestAnimationFrame(loop);
 }
 
 export function stopKaraokeRecording() {
