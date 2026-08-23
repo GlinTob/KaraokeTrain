@@ -2,6 +2,7 @@ import { $, safeAdd } from "../script.js";
 import { getLibraryItemsByIdFromSupabase } from "./biblioteca.js";
 import { getAudioController, destroyAudioController, exportStereoWav } from "./audio-controller.js";
 import { startLiveAudio, stopLiveAudio, getLiveAudioState, setMonitoringEnabled } from "./liveAudioService.js";
+import { midiToFrequency } from "./afinador.js";
 
 
 let textSegments = [];
