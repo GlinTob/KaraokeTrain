@@ -7,6 +7,7 @@ import {
   renderLibrary
 } from './biblioteca.js';
 import { noteToFrequency, frequencyToMidi, midiToNoteName, frequencyToNoteName } from "./afinador.js";
+import { getAudioController, destroyAudioController, exportStereoWav, interleave } from "./audio-controller.js";
 
 /** 
  * MÓDULO ESTUDIO — Sincronizador de Letras (Tap-Sync), Segmentación de Renglones e Inyección a Supabase
