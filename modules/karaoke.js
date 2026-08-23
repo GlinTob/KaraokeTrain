@@ -1001,8 +1001,8 @@ function ultrastarToSegments(parsed) {
   let currentWords = [];
   let lastEndBeat = 0;
 
-  const midiToFrequencyFn =
-    window.AudioUtils?.midiToFrequency ||
+  const midiToNoteName =
+    window.Afinador?.midiToNoteName ||
     ((midi) => 440 * Math.pow(2, (midi - 69) / 12));
 
   for (let i = 0; i < parsed.notes.length; i++) {
@@ -1011,7 +1011,7 @@ function ultrastarToSegments(parsed) {
     const startTime = gap + note.startBeat * beatDuration;
     const endTime = startTime + note.duration * beatDuration;
     const midiNote = 60 + note.pitch;
-    const freq = midiToFrequencyFn(midiNote);
+    const freq = midiToNoteName(midiNote);
 
     const gapFromLast = note.startBeat - lastEndBeat;
 
