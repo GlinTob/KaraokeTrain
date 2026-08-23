@@ -1037,20 +1037,17 @@ export async function loadKaraokeSong(id) {
       track.load();
     }
 
-    if (Array.isArray(item.textSegments) && item.textSegments.length) {
-      //transcriptionSegments = item.transcription;
-      textSegments = item.baseTextSegmantes;
-      karaokeLoadedLyrics = item.textSegments;
-    } else if (Array.isArray(item.lyrics) && item.lyrics.length) {
-      //transcriptionSegments = item.lyrics;
+    if (Array.isArray(item.lyrics) && item.lyrics.length) {
       textSegments = item.lyrics;
       karaokeLoadedLyrics = item.lyrics;
+    } else if (Array.isArray(item.transcription) && item.transcription.length) {
+      // Compatibilidad con datos antiguos si aún existen en biblioteca
+      textSegments = item.transcription;
+      karaokeLoadedLyrics = item.transcription;
     } else {
-      //transcriptionSegments = [];
       textSegments = [];
       karaokeLoadedLyrics = [];
     }
-
     if (typeof cargarLetrasEnMonitor === "function") {
       cargarLetrasEnMonitor();
     }
