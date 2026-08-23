@@ -1034,8 +1034,8 @@ function ultrastarToSegments(parsed) {
       end: endTime,
       pitch: freq,
       midi: midiNote,
-      note: typeof getNoteFromFrequency === "function"
-        ? getNoteFromFrequency(freq)
+      note: typeof frequencyToNoteName === "function"
+        ? frequencyToNoteName(freq)
         : null
     });
 
