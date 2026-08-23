@@ -136,7 +136,7 @@ export async function loadSelectedTrackFromLibraryStudio() {
     if (typeof urlOrBlob === 'string') {
       // 1. Indicarle al reproductor que use permisos de origen cruzado nativos
       player.crossOrigin = "anonymous";
-      player.src = urlOrBlob;
+      player.src = item.file_url || item.audioBlob || "";
       
       // 2. SOLUCIÓN CRÍTICA: Añadir un "cache-buster" (?_cb=...) para obligar al navegador 
       // a ignorar la caché vieja y leer la nueva política CORS de Cloudflare
