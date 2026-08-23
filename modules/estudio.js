@@ -40,7 +40,7 @@ export function initEstudio() {
   safeAdd("loadStudioTrackBtn", "click", loadSelectedTrackFromLibraryStudio);
   safeAdd("loadSelectedVoiceBtn", "click", loadSelectedVoiceFromLibrary);
   safeAdd("loadSelectedTextBtn", "click", loadSelectedTextFromLibrary); // Vincula tu botón de letras manuales
-  safeAdd("studioTrackFile", "change", cargarAudioEstudio); 
+  //safeAdd("studioTrackFile", "change", cargarAudioEstudio); 
 
   // Llenar automáticamente los tres menús desplegables al abrir la pestaña
   loadTrackOptionsInStudio();
