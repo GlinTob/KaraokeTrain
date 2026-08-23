@@ -129,7 +129,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   applyKaraokeTheme();
 
-  const $("karaokeThemeSelect", "change", async (e) => {
+  const karaokeThemeSelect = $("karaokeThemeSelect", "change", async (e) => {
     localStorage.setItem("vocalApp_stage", e.target.value);
     applyKaraokeTheme();
   });
