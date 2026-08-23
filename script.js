@@ -7,7 +7,7 @@ export function safeAdd(id, event, handler) {
   if (el) {
     el.addEventListener(event, handler);
   } else {
-    console.warn(`⚠️ No se encontró el elemento con ID: {id} para registrar el evento [${event}]`);
+    console.warn(`⚠️ No se encontró el elemento con ID: ${id} para registrar el evento [${event}]`);
   }
 }
 
