@@ -731,10 +731,12 @@ export async function finishTapSync() {
     // Actualización limpia en Supabase usando únicamente la columna 'lyrics'
     await updateLibraryItemsFromSupabase(currentId, {
       name: `${item.name.replace(" - [KARAOKE]", "")} - [KARAOKE]`,
-      type: "karaoke", // 🚀 Esto lo moverá automáticamente de la carpeta Voz a la carpeta Karaoke
+      type: "karaoke",
       lyrics: finalSegments,
       isSincronizada: true,
-      tapModeStyle: window.currentTapSyncModeType
+      tapModeStyle: window.currentTapSyncModeType,
+      file_url: item.file_url || item.audioUrl || item.audioBlob || null,
+      file_path: item.file_path || null
     });
 
     if (status) status.textContent = "Estado: ¡Archivo transformado en Karaoke y guardado con éxito! ✅";
