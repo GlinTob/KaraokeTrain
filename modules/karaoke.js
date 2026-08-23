@@ -10,6 +10,7 @@ let karaokeAudioController = null;
 let karaokeLoopBusy = false;
 let karaokePitchDetectionAudioCtx = null;
 let karaokePitchDetectionAnalyser = null;
+let karaokeSplitAnalyser2 = null;
 let karaokePitchLoopRafId = null;
 let karaokePitchSourceNode = null;
 let karaokePitchWorkletNode = null;
