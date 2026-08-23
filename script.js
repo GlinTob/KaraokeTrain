@@ -24,27 +24,24 @@ const allKaraokeThemes = ["theme-clasico", "theme-moderno", "theme-disco", "them
 // 🚀 ENRUTADOR DINÁMICO Y DESCARGA BAJO DEMANDA (LAZY IMPORT)
 // ============================================
 export async function showTab(tabId) {
-  const normalizedTabId = String(tabId).toLowerCase();
+  console.log(`\n📌 [Navegación] Solicitando cambio a la pestaña: [${tabId.toUpperCase()}]`);
 
-  document.querySelectorAll(".tab").forEach(tab => {
-    tab.classList.remove("active");
-  });
+  document.querySelectorAll(".tab").forEach(tab => tab.classList.remove("active"));
+  const target = document.getElementById(tabId);
+  if (target) target.classList.add("active");
 
-  document.querySelectorAll(".sidebar button").forEach(btn => {
-    btn.classList.remove("active");
-  });
+  document.querySelectorAll(".sidebar button").forEach(btn => btn.classList.remove("active"));
 
-  const targetTab = document.getElementById(normalizedTabId);
-  if (targetTab) {
-    targetTab.classList.add("active");
-  } else {
-    console.warn(`No existe la pestaña: ${normalizedTabId}`);
-    return;
-  }
+  const btnMap = {
+    config: "btnConfig",
+    biblioteca: "btnBiblioteca",
+    estudio: "btnEstudio",
+    afinador: "btnAfinador",
+    karaoke: "btnKaraoke",
+    cambiarTono: "btnCambiarTono"
+  };
 
-  const activeBtn =
-    document.querySelector(`.sidebar button[data-tab="${normalizedTabId}"]`) ||
-    document.getElementById(`btn-${normalizedTabId}`);
+  const activeBtn = document.getElementById(btnMap[tabId]);
   if (activeBtn) activeBtn.classList.add("active");
 
   try {
@@ -190,12 +187,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 
   // --- EVENTOS ESTUDIO ---
-  /*
+
   safeAdd("audioFile", "change", async (e) => {
     const { cargarAudioEstudio } = await import("./modules/estudio.js");
     if (typeof cargarAudioEstudio === "function") cargarAudioEstudio(e);
   });
-  */
   safeAdd("loadStudioTrackBtn", "click", async () => {
     const { loadSelectedTrackFromLibraryStudio } = await import("./modules/estudio.js");
     if (typeof loadSelectedTrackFromLibraryStudio === "function") loadSelectedTrackFromLibraryStudio();
