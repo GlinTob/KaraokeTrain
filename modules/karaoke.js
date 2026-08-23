@@ -10,6 +10,7 @@ let karaokePitchDetectionAnalyser = null;
 let karaokePitchLoopRafId = null;
 let karaokePitchSourceNode = null;
 let karaokePitchWorkletNode = null;
+let karaokeSelectedTrackBlob = null;
 let karaokeDuoSplitMode = false;
 let pitchHistoryP1 = [];
 let pitchHistoryP2 = [];
