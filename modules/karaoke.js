@@ -84,7 +84,7 @@ export function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2) {
   ctx.fillStyle = paleta.fondo;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  const datos = (typeof textSegments !== 'undefined' && textSegments && textSegments.length > 0) ? textSegments : transcriptionSegments;
+  const datos = (typeof textSegments !== 'undefined' && textSegments && textSegments.length > 0) ? textSegments;
 
   const AVATAR_BLOCK_W = karaokeDuoSplitMode ? 110 : 0;
   const noteLabelsX = 28 + AVATAR_BLOCK_W;
@@ -929,6 +929,7 @@ async function handleUltrastarTxtChange(e) {
   }
 }
 
+/*
 async function confirmUltrastarImport() {
   if (!parsedUltrastar) {
     alert("⚠️ Primero selecciona un archivo .txt de UltraStar");
@@ -996,6 +997,7 @@ async function confirmUltrastarImport() {
     alert("❌ Error al importar la canción. Revisa la consola para más detalles.");
   }
 }
+*/
 
 export async function loadKaraokeSong(id) {
   try {
@@ -1032,16 +1034,16 @@ export async function loadKaraokeSong(id) {
       track.load();
     }
 
-    if (Array.isArray(item.transcription) && item.transcription.length) {
-      transcriptionSegments = item.transcription;
-      textSegments = item.transcription;
-      karaokeLoadedLyrics = item.transcription;
+    if (Array.isArray(item.textSegments) && item.textSegments.length) {
+      //transcriptionSegments = item.transcription;
+      textSegments = item.baseTextSegmantes;
+      karaokeLoadedLyrics = item.textSegments;
     } else if (Array.isArray(item.lyrics) && item.lyrics.length) {
-      transcriptionSegments = item.lyrics;
+      //transcriptionSegments = item.lyrics;
       textSegments = item.lyrics;
       karaokeLoadedLyrics = item.lyrics;
     } else {
-      transcriptionSegments = [];
+      //transcriptionSegments = [];
       textSegments = [];
       karaokeLoadedLyrics = [];
     }
@@ -1069,8 +1071,8 @@ export async function loadKaraokeSong(id) {
 }
 
 function limpiarVariablesMonitor() {
-  transcriptionSegments = [];
-  baseTranscriptionSegments = [];
+  //transcriptionSegments = [];
+  //baseTranscriptionSegments = [];
   textSegments = [];
   baseTextSegments = [];
   pitchHistory = [];
@@ -1238,7 +1240,7 @@ export async function exportKaraokeSong(id) {
       name: item.name,
       type: item.type,
       metadata: item.metadata || {},
-      transcription: item.transcription || [],
+      textSegments: item.textSegments || [],
       lyrics: item.lyrics || [],
       file_url: audioUrlCloud,
       file_path: item.file_path || null
@@ -1283,7 +1285,7 @@ async function importKaraokeFile(file) {
     const nuevoItemKaraoke = {
       name: data.name || "Karaoke importado",
       type: "karaoke",
-      transcription: data.transcription || [],
+      textSegments: data.textSegments || [],
       lyrics: data.lyrics || [],
       metadata: data.metadata || {},
       date: new Date().toISOString()
