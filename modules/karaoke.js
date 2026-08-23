@@ -988,72 +988,32 @@ function parseUltrastarTxt(content) {
   };
 }
 
-function ultrastarToSegments(parsed) {
-  if (!parsed || !Array.isArray(parsed.notes) || parsed.notes.length === 0) {
-    return [];
-  }
+export function safeGetNoteName(midi) {
+  const nombres = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+  return `${nombres[midi % 12]}${Math.floor(midi / 12) - 1}`;
+}
 
-  const bpm = parsed.bpm;
-  const gap = parsed.gap / 1000;
-  const beatDuration = 60 / bpm / 4;
-
-  const segments = [];
-  let currentWords = [];
-  let lastEndBeat = 0;
-
-  const midiToNoteName =
-    window.Afinador?.midiToNoteName ||
-    ((midi) => 440 * Math.pow(2, (midi - 69) / 12));
+export function ultrastarToSegments(parsed) {
+  console.log("📝 [karaoke.js] Despertando transformador lineal de partituras UltraStar Master...");
+  if (!parsed || !parsed.notes || !parsed.notes.length) return [];
+  const bpm = parsed.bpm, gap = parsed.gap / 1000, beatDuration = 60 / bpm / 4;
+  const segments = []; let currentWords = [], lastEndBeat = 0;
 
   for (let i = 0; i < parsed.notes.length; i++) {
     const note = parsed.notes[i];
-
-    const startTime = gap + note.startBeat * beatDuration;
-    const endTime = startTime + note.duration * beatDuration;
-    const midiNote = 60 + note.pitch;
-    const freq = midiToNoteName(midiNote);
-
-    const gapFromLast = note.startBeat - lastEndBeat;
-
-    if (gapFromLast > 8 && currentWords.length > 0) {
-      segments.push({
-        start: currentWords[0].start,
-        end: currentWords[currentWords.length - 1].end,
-        text: currentWords.map((w) => w.word).join(""),
-        words: currentWords,
-        pitch: currentWords[0].pitch,
-        midi: currentWords[0].midi,
-        note: currentWords[0].note
-      });
+    const startTime = gap + (note.startBeat * beatDuration), endTime = startTime + (note.duration * beatDuration);
+    let midiNote = 60 + parseInt(note.pitch, 10);
+    if (midiNote < 36) midiNote = 36; if (midiNote > 84) midiNote = 84;
+    if (note.startBeat - lastEndBeat > 8 && currentWords.length > 0) {
+      segments.push({ start: currentWords[0].start, end: currentWords[currentWords.length - 1].end, text: currentWords.map(w => w.word).join(""), words: currentWords, midi: currentWords[0].midi, note: currentWords[0].note });
       currentWords = [];
     }
-
-    currentWords.push({
-      word: note.syllable,
-      start: startTime,
-      end: endTime,
-      pitch: freq,
-      midi: midiNote,
-      note: typeof frequencyToNoteName === "function"
-        ? frequencyToNoteName(freq)
-        : null
-    });
-
+    currentWords.push({ word: note.syllable || "", start: startTime, end: endTime, midi: midiNote, note: safeGetNoteName(midiNote) });
     lastEndBeat = note.startBeat + note.duration;
   }
-
   if (currentWords.length > 0) {
-    segments.push({
-      start: currentWords[0].start,
-      end: currentWords[currentWords.length - 1].end,
-      text: currentWords.map((w) => w.word).join(""),
-      words: currentWords,
-      pitch: currentWords[0].pitch,
-      midi: currentWords[0].midi,
-      note: currentWords[0].note
-    });
+    segments.push({ start: currentWords[0].start, end: currentWords[currentWords.length - 1].end, text: currentWords.map(w => w.word).join(""), words: currentWords, midi: currentWords[0].midi, note: currentWords[0].note });
   }
-
   return segments;
 }
 
@@ -1147,7 +1107,6 @@ async function confirmUltrastarImport() {
   }
 }
 */
-
 export async function loadKaraokeSong(id) {
   try {
     if (typeof limpiarVariablesMonitor === "function") {
