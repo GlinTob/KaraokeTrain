@@ -24,11 +24,22 @@ const allKaraokeThemes = ["theme-clasico", "theme-moderno", "theme-disco", "them
 // 🚀 ENRUTADOR DINÁMICO Y DESCARGA BAJO DEMANDA (LAZY IMPORT)
 // ============================================
 export async function showTab(tabId) {
-  console.log(`\n📌 [Navegación] Solicitando cambio a la pestaña: [${tabId.toUpperCase()}]`);
+  const originalTabId = String(tabId);
+  const normalizedTabId = originalTabId === "cambiarTono"
+    ? "cambiarTono"
+    : originalTabId.toLowerCase();
+
+  console.log(`\n📌 [Navegación] Solicitando cambio a la pestaña: [${normalizedTabId.toUpperCase()}]`);
 
   document.querySelectorAll(".tab").forEach(tab => tab.classList.remove("active"));
-  const target = document.getElementById(tabId);
-  if (target) target.classList.add("active");
+
+  const target = document.getElementById(normalizedTabId);
+  if (target) {
+    target.classList.add("active");
+  } else {
+    console.warn(`⚠️ No se encontró la pestaña con ID: ${normalizedTabId}`);
+    return;
+  }
 
   document.querySelectorAll(".sidebar button").forEach(btn => btn.classList.remove("active"));
 
@@ -41,7 +52,7 @@ export async function showTab(tabId) {
     cambiarTono: "btnCambiarTono"
   };
 
-  const activeBtn = document.getElementById(btnMap[tabId]);
+  const activeBtn = document.getElementById(btnMap[normalizedTabId]);
   if (activeBtn) activeBtn.classList.add("active");
 
   try {
