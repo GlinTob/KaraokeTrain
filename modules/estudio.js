@@ -526,15 +526,41 @@ export async function startTapSync() {
 
 export function handleTapSyncKeypress(e) {
   if (!tapSyncMode) return;
-  if (e.code === "Space" || e.key === " ") {
+
+  const key = e.key;
+  const code = e.code;
+
+  if (code === "Space" || key === " ") {
     e.preventDefault();
     recordTap();
     return;
   }
-  if (e.key === "1") { setCurrentTapPart("P1"); return; }
-  if (e.key === "2") { setCurrentTapPart("P2"); return; }
-  if (e.key === "3") { setCurrentTapPart("DUO"); return; }
-  if (e.code === "Escape") { cancelTapSync(); }
+
+  if (key === "1" || code === "Digit1" || code === "Numpad1") {
+    e.preventDefault();
+    setCurrentTapPart("P1");
+    console.log("🎤 Parte activa: P1");
+    return;
+  }
+
+  if (key === "2" || code === "Digit2" || code === "Numpad2") {
+    e.preventDefault();
+    setCurrentTapPart("P2");
+    console.log("🎤 Parte activa: P2");
+    return;
+  }
+
+  if (key === "3" || code === "Digit3" || code === "Numpad3") {
+    e.preventDefault();
+    setCurrentTapPart("DUO");
+    console.log("🎤 Parte activa: DÚO");
+    return;
+  }
+
+  if (code === "Escape" || key === "Escape") {
+    e.preventDefault();
+    cancelTapSync();
+  }
 }
 
 export function cancelTapSync() {
