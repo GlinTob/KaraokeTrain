@@ -175,11 +175,11 @@ export async function loadVoiceOptionsInStudio() {
   select.innerHTML = `<option value="">Selecciona un archivo</option>`;
   try {
     const voces = await getLibraryItemsByTypeFromSupabase("voz");
-    const grabaciones = await getLibraryItemsByTypeFromSupabase("grabacion");
-    const merged = [...voces, ...grabaciones];
+    //const grabaciones = await getLibraryItemsByTypeFromSupabase("grabacion");
+    const merged = [...voces];
 
     console.log(`🔍 Buscando 'voz': se encontraron ${voces.length} coincidencias.`);
-    console.log(`🔍 Buscando 'grabacion': se encontraron ${grabaciones.length} coincidencias.`);
+    //console.log(`🔍 Buscando 'grabacion': se encontraron ${grabaciones.length} coincidencias.`);
 
     if (!merged.length) {
       const option = document.createElement("option");
@@ -207,7 +207,7 @@ export async function loadSelectedVoiceFromLibrary() {
   const select = $("voiceLibrarySelect");
   const player = $("selectedVoicePlayer");
   const status = $("selectedVoiceStatus");
-  const lyricsText = $("lyricsText");
+  //const lyricsText = $("lyricsText");
 
   if (!select || !player || !status) return;
 
