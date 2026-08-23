@@ -188,7 +188,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // --- EVENTOS ESTUDIO ---
   
-  safeAdd("loadAudioFile", "change", async (e) => {
+  safeAdd("audioFile", "change", async (e) => {
     const { cargarAudioEstudio } = await import("./modules/estudio.js");
     if (typeof cargarAudioEstudio === "function") cargarAudioEstudio(e);
   });
