@@ -15,7 +15,7 @@ import {
 let textSegments = [];
 let baseTextSegments = [];
 let autoScrollEnabled = true;
-let studioTrackFileName = "";
+let studioTrackFile = "";
 let studioTrackBlob = null;
 let studioTrackId = null;
 let selectedVoiceBlob = null;
