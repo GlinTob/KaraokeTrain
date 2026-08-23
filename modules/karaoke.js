@@ -354,17 +354,28 @@ export function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2) {
     drawRegion(P_TOP, P_BOTTOM, currentFreq, pitchHistory, null, null);
   }
 
-  if (Array.isArray(datos) && datos.length > 0) {
-    const idx = datos.findIndex(s => currentTime >= (s.start || 0) && currentTime <= (s.end || (s.start + 1)));
+    if (Array.isArray(datos) && datos.length > 0) {
+    const idx = datos.findIndex(
+      s => currentTime >= (s.start || 0) && currentTime <= (s.end || ((s.start || 0) + 1))
+    );
+
     if (idx !== -1) {
       ctx.fillStyle = "rgba(0, 0, 0, 0.8)";
       ctx.fillRect(0, canvas.height - 100, canvas.width, 100);
+
       ctx.textAlign = "center";
       ctx.fillStyle = "white";
       ctx.font = "bold 30px Arial";
+
       const parteActual = datos[idx].parte || "P1";
-      const prefijo = karaokeDuoSplitMode ? (parteActual === "DUO" ? "🟪 DÚO · " : (parteActual === "P2" ? "🟧 P2 · " : "🟦 P1 · ")) : "";
+      const prefijo = karaokeDuoSplitMode
+        ? (parteActual === "DUO"
+            ? "🟪 DÚO · "
+            : (parteActual === "P2" ? "🟧 P2 · " : "🟦 P1 · "))
+        : "";
+
       ctx.fillText(prefijo + (datos[idx].text || ""), canvas.width / 2, canvas.height - 65);
+
       if (datos[idx + 1]) {
         ctx.fillStyle = "#94a3b8";
         ctx.font = "italic 22px Arial";
@@ -1172,7 +1183,6 @@ export async function loadKaraokeSong(id) {
       textSegments = item.lyrics;
       karaokeLoadedLyrics = item.lyrics;
     } else if (Array.isArray(item.transcription) && item.transcription.length) {
-      // Compatibilidad con datos antiguos si aún existen en biblioteca
       textSegments = item.transcription;
       karaokeLoadedLyrics = item.transcription;
     } else {
