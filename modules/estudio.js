@@ -512,7 +512,7 @@ export async function startTapSync() {
   tapSyncTimestamps = [];
   tapSyncCurrentIndex = 0;
   tapSyncParts = [];
-  currentTapPart = "P1";
+  //currentTapPart = "P1";
   tapSyncMode = true;
 
   updateTapPartButtonsUI();
