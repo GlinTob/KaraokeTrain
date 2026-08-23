@@ -1,4 +1,5 @@
 import { $, safeAdd } from "../script.js";
+import { getLibraryItemsByIdFromSupabase } from "./biblioteca.js";
 
 let textSegments = [];
 let baseTextSegments = [];
