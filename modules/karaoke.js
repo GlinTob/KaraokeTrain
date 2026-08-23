@@ -84,7 +84,7 @@ export function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2) {
   ctx.fillStyle = paleta.fondo;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  const datos = (typeof textSegments !== 'undefined' && textSegments && textSegments.length > 0) ? textSegments;
+  const datos = (typeof textSegments !== 'undefined' && textSegments && textSegments.length > 0),
 
   const AVATAR_BLOCK_W = karaokeDuoSplitMode ? 110 : 0;
   const noteLabelsX = 28 + AVATAR_BLOCK_W;
