@@ -1,94 +1,41 @@
-/** 
+import { getAudioController } from './audio-controller.js';
+
+/**
  * AgujaViva — Hero-mode tuner needle with particle trail
  * Canvas 2D renderer, 60fps, theme-aware, no dependencies
  */
-import { drawKaraokeMonitor, $ } from '../script.js';
-import { audio-controller }, from './audio-controller.js';
 
+const $ = (id) => document.getElementById(id);
 
-
-// Estado de grabación global de la pestaña Afinador
 const state = {
   isRecording: false
-}; 
+};
 
-// Instancias y buffers globales internos
 let agujaVivaInstance = null;
 let pitchLoopTimeout = null;
 const pitchBuffer = new Float32Array(2048);
 let audioContext = null;
 let analyser = null;
-let stream = null; 
+let stream = null;
 
-// Auxiliares matemáticos
 function frequencyToCentsOff(freq, targetFreq) {
   return 1200 * Math.log2(freq / targetFreq);
-} 
+}
 
 function noteToFrequency(noteName) {
-  const notes = { 'C': 0, 'C#': 1, 'D': 2, 'D#': 3, 'E': 4, 'F': 5, 'F#': 6, 'G': 7, 'G#': 8, 'A': 9, 'A#': 10, 'B': 11 };
+  const notes = { C: 0, "C#": 1, D: 2, "D#": 3, E: 4, F: 5, "F#": 6, G: 7, "G#": 8, A: 9, "A#": 10, B: 11 };
   const match = noteName.match(/^([A-G]#?)(\d)$/);
-  if (!match) return 164.81; // E3 por defecto
+  if (!match) return 164.81;
   const key = match[1];
   const octave = parseInt(match[2], 10);
   const semitones = notes[key] + (octave - 4) * 12;
   return 440 * Math.pow(2, semitones / 12);
-} 
-
-// Algoritmo de autocorrelación para la detección de frecuencia fundamental (Pitch)
-function autoCorrelate(buf, sampleRate) {
-  let SIZE = buf.length;
-  let rms = 0;
-
-  for (let i = 0; i < SIZE; i++) {
-    const val = buf[i];
-    rms += val * val;
-  }
-  rms = Math.sqrt(rms / SIZE);
-  if (rms < 0.01) return -1; // Señal insuficiente
-
-  let r1 = 0, r2 = SIZE - 1;
-  const thres = 0.2;
-  for (let i = 0; i < SIZE / 2; i++) {
-    if (Math.abs(buf[i]) < thres) { r1 = i; break; }
-  }
-  for (let i = 1; i < SIZE / 2; i++) {
-    if (Math.abs(buf[SIZE - i]) < thres) { r2 = SIZE - i; break; }
-  }
-
-  const slicedBuf = buf.slice(r1, r2);
-  SIZE = slicedBuf.length;
-
-  const c = new Float32Array(SIZE);
-  for (let i = 0; i < SIZE; i++) {
-    for (let j = 0; j < SIZE - i; j++) {
-      c[i] = c[i] + slicedBuf[j] * slicedBuf[j + i];
-    }
-  }
-
-  let d = 0;
-  while (c[d] > c[d + 1]) d++;
-  let maxval = -1, maxpos = -1;
-  for (let i = d; i < SIZE; i++) {
-    if (c[i] > maxval) {
-      maxval = c[i];
-      maxpos = i;
-    }
-  }
-  let T0 = maxpos;
-
-  const x1 = c[T0 - 1], x2 = c[T0], x3 = c[T0 + 1];
-  const a = (x1 + x3 - 2 * x2) / 2;
-  const b = (x3 - x1) / 2;
-  if (a) T0 = T0 - b / (2 * a);
-
-  return sampleRate / T0;
 }
 
 export class AgujaViva {
   constructor(canvas, options = {}) {
     this.canvas = canvas;
-    this.ctx = canvas.getContext('2d', { alpha: true, desynchronized: true }); 
+    this.ctx = canvas.getContext('2d', { alpha: true, desynchronized: true });
 
     this.maxParticles = options.maxParticles || 120;
     this.particleLife = options.particleLife || 2.5;
@@ -101,7 +48,7 @@ export class AgujaViva {
     this.currentFreq = -1;
     this.targetFreq = 164.81;
     this.cents = 0;
-    this.maxCents = 30;
+    this.maxCents = 50;
 
     this.needleAngle = 0;
     this.targetAngle = 0;
@@ -146,14 +93,13 @@ export class AgujaViva {
     this.resize = this.resize.bind(this);
     window.addEventListener('resize', this.resize);
     this.resize();
-  } 
+  }
 
   resize() {
-    if (!this.canvas) return;
     const rect = this.canvas.getBoundingClientRect();
-    this.width = rect.width || 300;
-    this.height = rect.height || 150;
-    this.dpr = window.devicePixelRatio || 1; 
+    this.width = rect.width;
+    this.height = rect.height;
+    this.dpr = window.devicePixelRatio || 1;
 
     this.canvas.width = this.width * this.dpr;
     this.canvas.height = this.height * this.dpr;
@@ -162,70 +108,55 @@ export class AgujaViva {
 
     this.ctx.setTransform(1, 0, 0, 1, 0, 0);
     this.ctx.scale(this.dpr, this.dpr);
-  } 
+  }
 
   setPitch(freq) {
-  this.currentFreq = freq; 
+    this.currentFreq = freq;
 
-  if (freq > 0 && this.targetFreq > 0) {
-    this.cents = frequencyToCentsOff(freq, this.targetFreq);
-    const targetAngle = Math.max(-1, Math.min(1, this.cents / this.maxCents));
+    if (freq > 0 && this.targetFreq > 0) {
+      this.cents = frequencyToCentsOff(freq, this.targetFreq);
+      const targetAngle = Math.max(-1, Math.min(1, this.cents / this.maxCents));
 
-    // 1. Umbral dinámico proporcional a la tolerancia elegida (por defecto 1)
-    const activeTolerance = this.tolerance || 1;
-    const threshold = activeTolerance * 0.15;
+      const wasInTolerance = Math.abs(this.needleAngle) <= 1;
+      const nowInTolerance = Math.abs(targetAngle) <= 1;
+      if (wasInTolerance !== nowInTolerance) {
+        this.triggerBurst();
+      }
 
-    // 2. Evaluaciones de tolerancia
-    const wasInTolerance = Math.abs(this.needleAngle) <= threshold;
-    const nowInTolerance = Math.abs(targetAngle) <= threshold;
+      const isNowInTolerance = Math.abs(this.cents) <= this.maxCents;
+      if (isNowInTolerance && !this.wasInTolerance && this.rippleCooldown <= 0) {
+        this.triggerRipple();
+        this.rippleCooldown = 1.5;
+      }
+      this.wasInTolerance = isNowInTolerance;
 
-    // Disparador de animación al cruzar el límite de afinación
-    if (wasInTolerance !== nowInTolerance) {
-      this.triggerBurst();
-    }
-
-    // Disparador de efecto ripple cuando entra a tolerancia
-    if (nowInTolerance && !this.wasInTolerance && this.rippleCooldown <= 0) {
-      this.triggerRipple();
-      this.rippleCooldown = 1.5;
-    }
-
-    this.wasInTolerance = nowInTolerance;
-    this.targetAngle = targetAngle;
-
-    // 3. Asignación del estado actual
-    if (nowInTolerance) {
-      this.status = 'in-tune';
+      this.targetAngle = targetAngle;
     } else {
-      this.status = targetAngle < 0 ? 'flat' : 'sharp';
+      this.cents = 0;
+      this.targetAngle = 0;
+      this.wasInTolerance = false;
     }
-  } else {
-    this.cents = 0;
-    this.targetAngle = 0;
-    this.wasInTolerance = false;
-    this.status = 'off';
   }
-}
 
   setTargetNote(noteName) {
     this.targetFreq = noteToFrequency(noteName);
-  } 
+  }
 
   setDifficulty(level) {
     const tolerances = { facil: 50, medio: 30, dificil: 15, experto: 5 };
     this.maxCents = tolerances[level] || 30;
-  } 
+  }
 
   triggerBurst() {
     this.burstRadius = 0;
     this.burstAlpha = 1;
-  } 
+  }
 
   triggerRipple() {
     const cx = this.width / 2;
     const cy = this.height * 0.55;
     const color = this.colors.center;
-    const maxR = Math.max(this.width, this.height) * 0.8; 
+    const maxR = Math.max(this.width, this.height) * 0.8;
 
     const crestCount = 4;
     for (let i = 0; i < crestCount; i++) {
@@ -244,22 +175,22 @@ export class AgujaViva {
         age: -delay,
       });
     }
-  } 
+  }
 
   triggerPop() {
     this.popScale = 1.4;
-  } 
+  }
 
   triggerShake(intensity = 0.3) {
     this.shakeIntensity = intensity;
-  } 
+  }
 
   start() {
     if (this.running) return;
     this.running = true;
     this.lastTime = performance.now();
     this.tick(this.lastTime);
-  } 
+  }
 
   stop() {
     this.running = false;
@@ -267,10 +198,10 @@ export class AgujaViva {
       cancelAnimationFrame(this.rafId);
       this.rafId = null;
     }
-  } 
+  }
 
   tick(timestamp) {
-    if (!this.running) return; 
+    if (!this.running) return;
 
     const dt = Math.min((timestamp - this.lastTime) / 1000, 0.1);
     this.lastTime = timestamp;
@@ -279,11 +210,11 @@ export class AgujaViva {
     this.render();
 
     this.rafId = requestAnimationFrame((t) => this.tick(t));
-  } 
+  }
 
   update(dt) {
     const diff = this.targetAngle - this.needleAngle;
-    this.needleAngle += diff * Math.min(1, dt * 8); 
+    this.needleAngle += diff * Math.min(1, dt * 8);
 
     if (this.shakeIntensity > 0.01) {
       this.shakeIntensity *= this.shakeDecay;
@@ -328,7 +259,7 @@ export class AgujaViva {
     });
 
     this.updateThemeColors();
-  } 
+  }
 
   spawnParticles(dt) {
     if (this.currentFreq <= 0) {
@@ -338,7 +269,7 @@ export class AgujaViva {
         this.particleSpawnAccum = 0;
       }
       return;
-    } 
+    }
 
     const stability = 1 - Math.min(1, Math.abs(this.needleAngle));
     const spawnRate = this.trailFreq * (0.5 + stability * 2);
@@ -348,17 +279,17 @@ export class AgujaViva {
       this.spawnActiveParticle();
       this.particleSpawnAccum -= spawnRate;
     }
-  } 
+  }
 
   spawnActiveParticle() {
     const cx = this.width / 2;
-    const cy = this.height * 0.55; 
+    const cy = this.height * 0.55;
 
     const angle = this.needleAngle * Math.PI / 6 + (Math.random() - 0.5) * 0.3;
     const speed = 80 + Math.random() * 120;
 
     let color;
-    if (Math.abs(this.cents) <= (this.maxCents * 0.15)) {
+    if (Math.abs(this.cents) <= this.maxCents) {
       color = this.colors.center;
     } else if (this.cents < 0) {
       color = this.colors.flat;
@@ -380,13 +311,13 @@ export class AgujaViva {
       rotation: Math.random() * Math.PI * 2,
       rotSpeed: (Math.random() - 0.5) * 4,
     });
-  } 
+  }
 
   spawnSleepParticle() {
     const cx = this.width / 2;
     const cy = this.height * 0.55;
     const angle = Math.random() * Math.PI * 2;
-    const radius = 40 + Math.random() * 80; 
+    const radius = 40 + Math.random() * 80;
 
     this.particles.push({
       x: cx + Math.cos(angle) * radius,
@@ -402,21 +333,20 @@ export class AgujaViva {
       rotation: Math.random() * Math.PI * 2,
       rotSpeed: (Math.random() - 0.5) * 1,
     });
-  } 
+  }
 
   updateThemeColors() {
-    if (typeof document === 'undefined') return;
     const cs = getComputedStyle(document.documentElement);
     const bg = cs.getPropertyValue('--bg-main').trim() || '#0f172a';
     this.colors.bg = bg;
-  } 
+  }
 
   render() {
     const ctx = this.ctx;
     const w = this.width;
     const h = this.height;
     const cx = w / 2;
-    const cy = h * 0.55; 
+    const cy = h * 0.55;
 
     ctx.clearRect(0, 0, w, h);
 
@@ -454,8 +384,9 @@ export class AgujaViva {
     });
 
     if (this.burstAlpha > 0) {
-      const burstColor = Math.abs(this.cents) <= (this.maxCents * 0.15) ? this.colors.center : 
-        (this.cents < 0 ? this.colors.flat : this.colors.sharp);
+      const burstColor = Math.abs(this.cents) <= this.maxCents
+        ? this.colors.center
+        : (this.cents < 0 ? this.colors.flat : this.colors.sharp);
       ctx.strokeStyle = `rgba(${this.hexToRgb(burstColor).join(',')}, ${this.burstAlpha})`;
       ctx.lineWidth = 3;
       ctx.beginPath();
@@ -529,38 +460,39 @@ export class AgujaViva {
     const segmentCount = 21;
     const segmentW = barW / segmentCount;
     const centerIdx = Math.floor(segmentCount / 2);
-    const currentIdx = Math.max(0, Math.min(segmentCount - 1, Math.round((this.needleAngle + 1) / 2 * (segmentCount - 1))));
+    const litCount = Math.floor((this.needleAngle + 1) / 2 * segmentCount);
 
     for (let i = 0; i < segmentCount; i++) {
       const x = barX + i * segmentW + 2;
       const y = barY;
       const wSeg = segmentW - 4;
       const hSeg = 14;
-      let color = this.colors.ledOff;
-      let alpha = 0.3;
+      let color;
+      let alpha = 1;
 
       if (i === centerIdx) {
-        if (Math.abs(this.cents) <= (this.maxCents * 0.15) && this.currentFreq > 0) {
+        if (Math.abs(this.cents) <= this.maxCents && this.currentFreq > 0) {
           color = this.colors.ledOn;
-          alpha = 1;
-        } else if (this.currentFreq > 0) {
-          color = this.cents < 0 ? this.colors.ledFlat : this.colors.ledSharp;
-          alpha = 0.5;
-        }
-      } else if (this.currentFreq > 0) {
-        if (currentIdx < centerIdx && i >= currentIdx && i < centerIdx) {
+        } else if (this.cents < 0) {
           color = this.colors.ledFlat;
-          alpha = 0.6 + (i / centerIdx) * 0.4;
-        } else if (currentIdx > centerIdx && i > centerIdx && i <= currentIdx) {
+        } else {
           color = this.colors.ledSharp;
-          alpha = 0.6 + ((segmentCount - 1 - i) / (segmentCount - 1 - centerIdx)) * 0.4;
         }
+      } else if (i < litCount) {
+        color = this.colors.ledFlat;
+        alpha = 0.6 + (i / centerIdx) * 0.4;
+      } else if (i > litCount) {
+        color = this.colors.ledSharp;
+        alpha = 0.6 + ((segmentCount - 1 - i) / (segmentCount - 1 - centerIdx)) * 0.4;
+      } else {
+        color = this.colors.ledOff;
+        alpha = 0.3;
       }
 
       ctx.fillStyle = this.hexToRgba(color, alpha);
       ctx.fillRect(x, y, wSeg, hSeg);
 
-      if (this.currentFreq > 0 && (i === currentIdx || (i === centerIdx && Math.abs(this.cents) <= (this.maxCents * 0.15)))) {
+      if (i === centerIdx || (i < litCount && i > centerIdx - 3) || (i > litCount && i < centerIdx + 3)) {
         ctx.shadowColor = color;
         ctx.shadowBlur = 8;
         ctx.fillRect(x, y, wSeg, hSeg);
@@ -594,13 +526,8 @@ export class AgujaViva {
   }
 
   hexToRgb(hex) {
-    if (!hex || typeof hex !== 'string') return [250, 204, 21];
-    let h = hex.replace('#', '').trim();
-    if (h.length === 3) {
-      h = h.split('').map(c => c + c).join('');
-    }
+    const h = hex.replace('#', '');
     const bigint = parseInt(h, 16);
-    if (isNaN(bigint)) return [250, 204, 21];
     return [(bigint >> 16) & 255, (bigint >> 8) & 255, bigint & 255];
   }
 
@@ -612,90 +539,10 @@ export class AgujaViva {
   destroy() {
     this.stop();
     window.removeEventListener('resize', this.resize);
-    if (this.ctx && this.width && this.height) {
+    if (this.ctx) {
       this.ctx.clearRect(0, 0, this.width, this.height);
     }
   }
-}
-
-function updateUI(freq) {
-  const noteDisplay = $("currentNoteDisplay") || $("noteDisplay");
-  const centsDisplay = $("centsDisplay");
-  const guideText = $("guideText");
-
-  if (!state.isRecording || freq <= 0) {
-    if (noteDisplay) {
-      noteDisplay.textContent = "--";
-      noteDisplay.className = "current-note state-idle";
-    }
-    if (centsDisplay) {
-      centsDisplay.textContent = "";
-      centsDisplay.className = "cents-display";
-    }
-    if (guideText) {
-      guideText.textContent = "🎤 Escuchando...";
-      guideText.className = "guide-text";
-    }
-    return;
-  }
-
-  if (agujaVivaInstance) {
-    const cents = agujaVivaInstance.cents;
-    const absCents = Math.abs(cents);
-    const targetNoteEl = $("targetNote");
-    const targetNoteName = targetNoteEl ? targetNoteEl.value : "E3";
-
-    if (noteDisplay) {
-      noteDisplay.textContent = targetNoteName;
-    }
-
-    if (absCents <= agujaVivaInstance.maxCents * 0.15) {
-      if (noteDisplay) noteDisplay.className = "current-note state-on";
-      if (centsDisplay) {
-        centsDisplay.textContent = "Afinado (0 cents)";
-        centsDisplay.className = "cents-display visible cents-on";
-      }
-      if (guideText) {
-        guideText.textContent = "¡Nota Perfecta!";
-        guideText.className = "guide-text state-on";
-      }
-    } else if (cents < 0) {
-      if (noteDisplay) noteDisplay.className = "current-note state-flat";
-      if (centsDisplay) {
-        centsDisplay.textContent = `${Math.round(cents)} cents`;
-        centsDisplay.className = "cents-display visible cents-flat";
-      }
-      if (guideText) {
-        guideText.textContent = "▲ Sube la voz (Grave)";
-        guideText.className = "guide-text state-flat";
-      }
-    } else {
-      if (noteDisplay) noteDisplay.className = "current-note state-sharp";
-      if (centsDisplay) {
-        centsDisplay.textContent = `+${Math.round(cents)} cents`;
-        centsDisplay.className = "cents-display visible cents-sharp";
-      }
-      if (guideText) {
-        guideText.textContent = "▼ Baja la voz (Agudo)";
-        guideText.className = "guide-text state-sharp";
-      }
-    }
-  }
-}
-
-function runPitchDetectionLoop() {
-  if (!state.isRecording || !analyser || !audioContext) return;
-
-  analyser.getFloatTimeDomainData(pitchBuffer);
-  const freq = autoCorrelate(pitchBuffer, audioContext.sampleRate);
-
-  if (agujaVivaInstance) {
-    agujaVivaInstance.setPitch(freq);
-  }
-
-  updateUI(freq);
-
-  pitchLoopTimeout = setTimeout(runPitchDetectionLoop, 50);
 }
 
 export async function toggleRecording() {
@@ -703,18 +550,22 @@ export async function toggleRecording() {
   if (!btn) return;
 
   if (!state.isRecording) {
-    state.isRecording = true;
-    btn.innerHTML = '🎤 Detener';
-    btn.classList.add("recording");
-    btn.setAttribute("aria-pressed", "true");
     try {
+      state.isRecording = true;
+      btn.innerHTML = '🎤 Detener';
+      btn.classList.add("recording");
+      btn.setAttribute("aria-pressed", "true");
+
       await startAfinador();
-    } catch (err) {
-      console.error("Error al iniciar el afinador:", err);
+    } catch (error) {
+      console.error("No se pudo iniciar el afinador:", error);
+
       state.isRecording = false;
       btn.innerHTML = '🎤 Iniciar';
       btn.classList.remove("recording");
       btn.setAttribute("aria-pressed", "false");
+
+      alert("❌ No se pudo iniciar el micrófono del afinador: " + error.message);
       stopAfinador();
     }
   } else {
@@ -724,7 +575,7 @@ export async function toggleRecording() {
     btn.setAttribute("aria-pressed", "false");
     stopAfinador();
 
-    const noteDisplay = $("currentNoteDisplay") || $("noteDisplay");
+    const noteDisplay = $("currentNoteDisplay");
     const centsDisplay = $("centsDisplay");
     const guideText = $("guideText");
 
@@ -744,6 +595,11 @@ export async function toggleRecording() {
 }
 
 async function startAfinador() {
+  if (agujaVivaInstance) {
+    agujaVivaInstance.destroy();
+    agujaVivaInstance = null;
+  }
+
   const canvas = $("agujaCanvas");
   if (canvas) {
     agujaVivaInstance = new AgujaViva(canvas);
@@ -754,17 +610,18 @@ async function startAfinador() {
     if (difficultyEl) agujaVivaInstance.setDifficulty(difficultyEl.value);
 
     if (targetNoteEl) {
-      targetNoteEl.onchange = () => agujaVivaInstance && agujaVivaInstance.setTargetNote(targetNoteEl.value);
+      targetNoteEl.onchange = () => agujaVivaInstance?.setTargetNote(targetNoteEl.value);
     }
     if (difficultyEl) {
-      difficultyEl.onchange = () => agujaVivaInstance && agujaVivaInstance.setDifficulty(difficultyEl.value);
+      difficultyEl.onchange = () => agujaVivaInstance?.setDifficulty(difficultyEl.value);
     }
+
     agujaVivaInstance.start();
   }
 
-  const AudioCtx = window.AudioContext || window.webkitAudioContext;
-  audioContext = new AudioCtx();
-  if (audioContext.state === 'suspended') {
+  audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+  if (audioContext.state === "suspended") {
     await audioContext.resume();
   }
 
@@ -782,7 +639,9 @@ async function startAfinador() {
   mic.connect(analyser);
 
   setTimeout(() => {
-    runPitchDetectionLoop();
+    if (state.isRecording) {
+      runPitchDetectionLoop();
+    }
   }, 300);
 }
 
@@ -791,20 +650,46 @@ function stopAfinador() {
     clearTimeout(pitchLoopTimeout);
     pitchLoopTimeout = null;
   }
-  if (agujaVivaInstance) {
-    agujaVivaInstance.destroy();
-    agujaVivaInstance = null;
-  }
-  if (analyser) {
-    analyser.disconnect();
-    analyser = null;
-  }
+
   if (stream) {
     stream.getTracks().forEach(t => t.stop());
     stream = null;
   }
+
   if (audioContext) {
-    audioContext.close();
+    audioContext.close().catch(() => {});
     audioContext = null;
+  }
+
+  analyser = null;
+
+  if (agujaVivaInstance) {
+    agujaVivaInstance.destroy();
+    agujaVivaInstance = null;
+  }
+}
+
+async function runPitchDetectionLoop() {
+  if (!state.isRecording || !analyser || !audioContext) return;
+
+  analyser.getFloatTimeDomainData(pitchBuffer);
+
+  try {
+    const audioController = getAudioController();
+    const result = await audioController.detectPitch(pitchBuffer, audioContext.sampleRate);
+
+    if (agujaVivaInstance) {
+      if (typeof result === "number" && result > 0) {
+        agujaVivaInstance.setPitch(result);
+      } else {
+        agujaVivaInstance.setPitch(-1);
+      }
+    }
+  } catch (error) {
+    console.error("Fallo en bucle de detección:", error);
+  }
+
+  if (state.isRecording) {
+    pitchLoopTimeout = setTimeout(runPitchDetectionLoop, 16);
   }
 }
