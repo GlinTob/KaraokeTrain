@@ -67,7 +67,10 @@ export function toggleKaraokeDuoSplitMode() {
 export function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2) {
   const canvas = $("karaokeCanvas");
   if (!canvas) return;
+
   const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
   const hueFiesta = (currentTime * 50) % 360;
   const paleta = obtenerPaletaTema(hueFiesta);
 
@@ -81,16 +84,45 @@ export function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2) {
 
   function obtenerPaletaTema(hue = 0) {
     const temaActual = localStorage.getItem("vocalApp_stage") || "theme-clasico";
-    let config = { fondo: "#111827", lineas: "#333333", etiquetas: "#666666", barraFutura: "#1e40af", bordeFuturo: "#3b82f6", tamanoTexto: "15px" };
+    let config = {
+      fondo: "#111827",
+      lineas: "#333333",
+      etiquetas: "#666666",
+      barraFutura: "#1e40af",
+      bordeFuturo: "#3b82f6",
+      tamanoTexto: "15px"
+    };
+
     switch (temaActual) {
       case "theme-moderno":
-        config = { fondo: "#082f49", lineas: "rgba(6, 182, 212, 0.2)", etiquetas: "#06b6d4", barraFutura: "#1e3a8a", bordeFuturo: "#06b6d4", tamanoTexto: "16px" };
+        config = {
+          fondo: "#082f49",
+          lineas: "rgba(6, 182, 212, 0.2)",
+          etiquetas: "#06b6d4",
+          barraFutura: "#1e3a8a",
+          bordeFuturo: "#06b6d4",
+          tamanoTexto: "16px"
+        };
         break;
       case "theme-disco":
-        config = { fondo: "#2e1065", lineas: "rgba(219, 39, 119, 0.25)", etiquetas: "#facc15", barraFutura: "#701a75", bordeFuturo: "#db2777", tamanoTexto: "18px" };
+        config = {
+          fondo: "#2e1065",
+          lineas: "rgba(219, 39, 119, 0.25)",
+          etiquetas: "#facc15",
+          barraFutura: "#701a75",
+          bordeFuturo: "#db2777",
+          tamanoTexto: "18px"
+        };
         break;
       case "theme-acustico":
-        config = { fondo: "#451a03", lineas: "rgba(120, 53, 15, 0.4)", etiquetas: "#fcd34d", barraFutura: "#78350f", bordeFuturo: "#b45309", tamanoTexto: "14px" };
+        config = {
+          fondo: "#451a03",
+          lineas: "rgba(120, 53, 15, 0.4)",
+          etiquetas: "#fcd34d",
+          barraFutura: "#78350f",
+          bordeFuturo: "#b45309",
+          tamanoTexto: "14px"
+        };
         break;
       case "theme-fiesta":
         config = {
@@ -103,13 +135,14 @@ export function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2) {
         };
         break;
     }
+
     return config;
   }
 
   ctx.fillStyle = paleta.fondo;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  const datos = (typeof textSegments !== 'undefined' && textSegments && textSegments.length > 0);
+  const datos = Array.isArray(textSegments) ? textSegments : [];
 
   const AVATAR_BLOCK_W = karaokeDuoSplitMode ? 110 : 0;
   const noteLabelsX = 28 + AVATAR_BLOCK_W;
