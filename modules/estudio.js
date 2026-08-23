@@ -2,9 +2,10 @@ import { $, safeAdd } from "../script.js";
 import {
   getLibraryItemsByTypeFromSupabase,
   getLibraryItemsByIdFromSupabase,
+  getAllLibraryItemsFromSupabase,
   updateLibraryItemsFromSupabase,
   renderLibrary
-} from './biblioteca.js'; 
+} from './biblioteca.js';
 
 /** 
  * MÓDULO ESTUDIO — Sincronizador de Letras (Tap-Sync), Segmentación de Renglones e Inyección a Supabase
@@ -246,33 +247,34 @@ export async function loadSelectedVoiceFromLibrary() {
 }
 
 export async function loadTextOptionsInStudio() {
-  // ✅ SOLUCIÓN: Buscamos el elemento usando tanto tu id como una consulta estructural 
-  // que localiza cualquier etiqueta <select> dentro de la tarjeta de Letras
-  const select = 
-    document.getElementById("textLibrarySelect") || 
-    document.querySelector(".card h3[text*='LETRA'] + select") ||
-    document.querySelector("select[id*='text']") || 
+  const select =
+    document.getElementById("textLibrarySelect") ||
     $("textLibrarySelect");
 
   if (!select) {
-    console.warn("⚠️ No se pudo morder la caja del menú desplegable azul en el HTML actual.");
+    console.warn("⚠️ No se encontró el selector de letras en Estudio.");
     return;
   }
 
-  // Limpiamos las opciones previas y pintamos el estado inicial
   select.innerHTML = "";
-  
+
   const defaultOption = document.createElement("option");
   defaultOption.value = "";
   defaultOption.textContent = "Selecciona un archivo";
   select.appendChild(defaultOption);
 
   try {
-    const items = await getLibraryItemsByTypeFromSupabase("texto");
-    
-    console.log(`🔍 Buscando letras ('texto'): se encontraron ${items.length} coincidencias.`);
+    const items = await getAllLibraryItemsFromSupabase();
 
-    if (!items.length) {
+    const textItems = items.filter(item =>
+      item.type === "texto" ||
+      item.type === "letra" ||
+      item.type === "texto_plano"
+    );
+
+    console.log(`🔍 Buscando letras en Estudio: se encontraron ${textItems.length} coincidencias.`);
+
+    if (!textItems.length) {
       const option = document.createElement("option");
       option.value = "";
       option.textContent = "No hay letras guardadas";
@@ -280,20 +282,19 @@ export async function loadTextOptionsInStudio() {
       return;
     }
 
-    // Insertamos dinámicamente cada archivo de texto plano encontrado en Supabase
-    items.forEach(item => {
+    textItems.forEach(item => {
       const option = document.createElement("option");
       option.value = item.id;
-      option.textContent = item.name; // Inyectará "Letra de texto guardado en Supabase (sin R2)"
+      option.textContent = `${item.name} (${item.date ? new Date(item.date).toLocaleDateString() : "sin fecha"})`;
       select.appendChild(option);
     });
-    
-    console.log("🎨 Opciones de letras pintadas con éxito dentro del menú desplegable azul.");
 
+    console.log("🎨 Opciones de letras cargadas correctamente en Estudio.");
   } catch (e) {
     console.error("❌ Error al rellenar el menú de letras:", e);
   }
 }
+
 /**
  * 2. CARGAR LA LETRA SELECCIONADA EN EL MONITOR (Se ejecuta al pulsar el botón rosa)
  */
@@ -337,8 +338,8 @@ export async function loadSelectedTextFromLibrary() {
 
       textInput.value = textoFormateadoParaPantalla;
       status.innerHTML = `📄 <strong>Estado:</strong> Letra cargada respetando tus líneas de estrofa original ⚡`;
-    } else if (item.textoPlano) {
-      textInput.value = item.textoPlano;
+    } else if (item.textoPlano || item.metadata?.textoPlano) {
+      textInput.value = item.textoPlano || item.metadata?.textoPlano || "";
       status.innerHTML = `📄 <strong>Estado:</strong> Letra plana cargada en el monitor ⚡`;
     } else {
       textSegments = [];
