@@ -634,6 +634,50 @@ function updateTapSyncDisplay() {
   }
 }
 
+function convertirWordsASegmentos(words) {
+  if (!Array.isArray(words) || words.length === 0) return [];
+
+  const agrupados = new Map();
+
+  words.forEach((w) => {
+    const renglon = w.renglon || 1;
+    if (!agrupados.has(renglon)) {
+      agrupados.set(renglon, []);
+    }
+    agrupados.get(renglon).push(w);
+  });
+
+  const segmentos = [];
+
+  for (const [, lineWords] of agrupados.entries()) {
+    const sorted = [...lineWords].sort((a, b) => (a.startTime || 0) - (b.startTime || 0));
+
+    const wordsNormalizadas = sorted.map((w, idx) => {
+      const start = w.startTime || 0;
+      const next = sorted[idx + 1];
+      const end = next ? (next.startTime || start + 0.6) : start + 0.6;
+
+      return {
+        word: w.text || "",
+        text: w.text || "",
+        start,
+        end,
+        midi: w.midi || 60
+      };
+    });
+
+    segmentos.push({
+      start: wordsNormalizadas[0]?.start || 0,
+      end: wordsNormalizadas[wordsNormalizadas.length - 1]?.end || 0,
+      text: wordsNormalizadas.map(w => w.word).join(" "),
+      parte: sorted[0]?.parte || "P1",
+      words: wordsNormalizadas
+    });
+  }
+
+  return segmentos.sort((a, b) => (a.start || 0) - (b.start || 0));
+}
+
 export async function finishTapSync() {
   tapSyncMode = false;
 
@@ -665,7 +709,9 @@ export async function finishTapSync() {
 
   const statusId = selectedVoiceId ? "selectedVoiceStatus" : "selectedTextStatus";
   const status = $(statusId);
-  if (status) status.textContent = "Estado: Sincronización finalizada. Guardando marcas de tiempo... ✅";
+  if (status) {
+    status.textContent = "Estado: sincronizando notas y guardando karaoke... ⏳";
+  }
 
   const audioDuration = activePlayer ? activePlayer.duration : 0;
   const avgInterval = tapSyncTimestamps.length >= 2
@@ -679,23 +725,26 @@ export async function finishTapSync() {
     const item = await getLibraryItemsByIdFromSupabase(currentId);
     if (!item) throw new Error("No se pudo obtener el elemento de la biblioteca remota");
 
-    let finalSegments = [];
+    let finalWords = [];
     const esPalabraPorPalabra = (window.currentTapSyncModeType === "palabra");
 
     if (esPalabraPorPalabra) {
-      // 1. Sincronización precisa palabra por palabra
-      finalSegments = (item.lyrics || []).map((word, index) => {
+      const palabrasBase = Array.isArray(item.lyrics)
+        ? item.lyrics
+        : segmentarTextoPlano(($("lyricsText")?.value || "").trim());
+
+      finalWords = palabrasBase.map((word, index) => {
         const startTime = tapSyncTimestamps[index] || 0;
         return {
-          id: word.id,
+          id: word.id || (index + 1),
           text: word.text,
           renglon: word.renglon || 1,
-          startTime: startTime,
-          parte: tapSyncParts[index] || "P1"
+          startTime,
+          parte: tapSyncParts[index] || "P1",
+          midi: word.midi || 60
         };
       });
     } else {
-      // 2. Sincronización por línea/frase con interpolación de palabras
       let globalWordId = 1;
 
       tapSyncLines.forEach((lineText, lineIndex) => {
@@ -713,19 +762,22 @@ export async function finishTapSync() {
         palabrasDeLaLinea.forEach((palabraText, wordIndex) => {
           const wordStart = startTimeFrase + (wordIndex * duracionPorPalabra);
 
-          finalSegments.push({
+          finalWords.push({
             id: globalWordId++,
             text: palabraText,
             renglon: lineIndex + 1,
             startTime: wordStart,
-            parte: parteLinea
+            parte: parteLinea,
+            midi: 60
           });
         });
       });
     }
 
-    textSegments = finalSegments;
-    baseTextSegments = finalSegments;
+    const karaokeSegments = convertirWordsASegmentos(finalWords);
+
+    textSegments = finalWords;
+    baseTextSegments = finalWords;
 
     const trackItem = studioTrackId
       ? await getLibraryItemsByIdFromSupabase(studioTrackId)
@@ -734,7 +786,7 @@ export async function finishTapSync() {
     await updateLibraryItemsFromSupabase(currentId, {
       name: `${item.name.replace(" - [KARAOKE]", "")} - [KARAOKE]`,
       type: "karaoke",
-      lyrics: finalSegments,
+      lyrics: karaokeSegments,
       isSincronizada: true,
       tapModeStyle: window.currentTapSyncModeType,
       file_url: trackItem?.file_url || item.file_url || item.audioUrl || item.audioBlob || null,
@@ -744,7 +796,12 @@ export async function finishTapSync() {
     if (status) {
       status.textContent = "Estado: ¡Archivo transformado en Karaoke y guardado con éxito! ✅";
     }
-    
+
+    console.log("✅ Taps aplicados y karaoke actualizado.", {
+      totalWords: finalWords.length,
+      totalSegments: karaokeSegments.length
+    });
+
     await renderLibrary("todos");
 
     alert(
