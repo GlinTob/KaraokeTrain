@@ -614,7 +614,7 @@ export function loop() {
   karaokePitchLoopRafId = requestAnimationFrame(loop);
 }
 
-function stopKaraokeRecording() {
+export function stopKaraokeRecording() {
   if (karaokePitchLoopRafId) {
     cancelAnimationFrame(karaokePitchLoopRafId);
     karaokePitchLoopRafId = null;
@@ -687,7 +687,7 @@ function stopKaraokeRecording() {
   }
 }
 
-function restartKaraokeRecording() {
+export function restartKaraokeRecording() {
   const track = $("karaokeTrack") || $("karaokeAudio") || $("trackPlayer");
 
   if (track) {
@@ -1074,7 +1074,7 @@ function dataUrlToBlob(dataUrl) {
   return new Blob([arr], { type: mime });
 }
 
-async function mixKaraoke() {
+export async function mixKaraoke() {
   if (!karaokeSelectedTrackBlob || !karaokeRecordedBlob) {
     alert("⚠️ Primero presiona 'Cantar' en un karaoke y luego graba tu voz.");
     return;
