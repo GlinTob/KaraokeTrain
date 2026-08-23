@@ -25,7 +25,7 @@ function frequencyToCentsOff(freq, targetFreq) {
   return 1200 * Math.log2(freq / targetFreq);
 }
 
-function noteToFrequency(noteName) {
+export function noteToFrequency(noteName) {
   const notes = { C: 0, 'C#': 1, D: 2, 'D#': 3, E: 4, F: 5, 'F#': 6, G: 7, 'G#': 8, A: 9, 'A#': 10, B: 11 };
   const match = noteName.match(/^([A-G]#?)(\d)$/);
   if (!match) return 82.41;
@@ -35,18 +35,18 @@ function noteToFrequency(noteName) {
   return 440 * Math.pow(2, semitonesFromA4 / 12);
 }
 
-function frequencyToMidi(freq) {
+export function frequencyToMidi(freq) {
   return Math.round(69 + 12 * Math.log2(freq / 440));
 }
 
-function midiToNoteName(midi) {
+export function midiToNoteName(midi) {
   const names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
   const name = names[midi % 12];
   const octave = Math.floor(midi / 12) - 1;
   return `${name}${octave}`;
 }
 
-function frequencyToNoteName(freq) {
+export function frequencyToNoteName(freq) {
   if (!freq || freq <= 0) return '--';
   return midiToNoteName(frequencyToMidi(freq));
 }
