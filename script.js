@@ -52,8 +52,13 @@ export async function showTab(tabId) {
       if (typeof loadAvailableMics === "function") await loadAvailableMics();
     } else if (tabId === "biblioteca") {
       console.log("📁 [Lazy Load] Cargando visor de Base de Datos...");
-      const { renderLibrary } = await import("./modules/biblioteca.js");
-      if (typeof renderLibrary === "function") await renderLibrary('todos');
+      const { initBiblioteca, renderLibrary } = await import("./modules/biblioteca.js");
+      if (typeof initBiblioteca === "function") {
+        initBiblioteca();
+      }
+      if (typeof renderLibrary === "function") {
+        await renderLibrary("todos");
+      }
     } else if (tabId === "estudio") {
       console.log("🎧 [Lazy Load] Cargando entorno de sincronización y listados...");
       const { loadTrackOptionsInStudio, loadVoiceOptionsInStudio } = await import("./modules/estudio.js");
