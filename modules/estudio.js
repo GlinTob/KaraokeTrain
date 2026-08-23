@@ -35,9 +35,8 @@ let tapSyncMode = false;
 let tapSyncLines = [];
 let tapSyncTimestamps = [];
 let tapSyncCurrentIndex = 0;
-let tapSyncSplitMode = "linea";
 let tapSyncParts = [];
-let currentTapPart = "P1"; 
+
 
 export function initEstudio() {
   console.log("🎚️ [estudio.js] Inicializado con éxito"); 
