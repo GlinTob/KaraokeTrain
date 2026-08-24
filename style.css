@@ -538,346 +538,87 @@ audio {
 }
 
 /* ==========================================
-   BIBLIOTECA — Neon Pink Futuristic
+   BIBLIOTECA SIMPLIFICADA (ESTILO SOBRIO)
 ========================================== */
 
-#biblioteca h1 {
-  color: var(--neon-pink-text);
-  font-family: 'Space Grotesk', 'Orbitron', 'Rajdhani', 'Exo 2', sans-serif;
-  font-weight: 800;
-  letter-spacing: 0.02em;
-  text-shadow: 0 0 24px rgba(255, 110, 199, 0.5);
-  margin-bottom: 20px;
-}
-
-#biblioteca #libraryList {
+.biblioteca-container {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 16px;
-  padding: 8px;
-  border: 1px solid var(--neon-pink-border);
-  border-radius: 16px;
-  background: linear-gradient(180deg, rgba(15, 23, 42, 0.6) 0%, rgba(30, 41, 59, 0.4) 100%);
-  backdrop-filter: blur(8px);
-  box-shadow:
-    0 0 0 1px var(--neon-pink-border) inset,
-    0 8px 32px rgba(0, 0, 0, 0.4),
-    0 0 32px rgba(255, 110, 199, 0.08);
-  transition: box-shadow 0.3s ease, border-color 0.3s ease;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+  padding: 20px 0;
 }
 
-#biblioteca #libraryList:hover {
-  box-shadow:
-    0 0 0 1px var(--neon-pink) inset,
-    0 12px 40px rgba(0, 0, 0, 0.5),
-    0 0 48px rgba(255, 110, 199, 0.15);
-}
-
-@media (min-width: 768px) {
-  #biblioteca #libraryList {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-@media (min-width: 1200px) {
-  #biblioteca #libraryList {
-    grid-template-columns: repeat(3, 1fr);
-  }
-}
-
-#biblioteca .library-item,
-#biblioteca .karaoke-list-item {
-  background: linear-gradient(180deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.98) 100%) !important;
-  backdrop-filter: blur(12px) !important;
-  border: 1px solid var(--neon-pink-border) !important;
-  border-radius: 14px !important;
-  padding: 16px !important;
-  margin: 0 !important;
-  box-shadow:
-    0 0 0 1px rgba(255, 110, 199, 0.1) inset,
-    0 4px 16px rgba(0, 0, 0, 0.3),
-    0 0 16px rgba(255, 110, 199, 0.05);
-  transition: box-shadow 0.25s ease, border-color 0.25s ease, transform 0.2s ease !important;
-  display: flex !important;
-  flex-direction: column !important;
-  gap: 8px;
-}
-
-#biblioteca .library-item:hover,
-#biblioteca .karaoke-list-item:hover {
-  box-shadow:
-    0 0 0 1px var(--neon-pink) inset,
-    0 8px 24px rgba(0, 0, 0, 0.4),
-    0 0 24px rgba(255, 110, 199, 0.15) !important;
-  transform: translateY(-3px) scale(1.01) !important;
-  border-color: var(--neon-pink) !important;
-}
-
-#biblioteca .library-item > p,
-#biblioteca .karaoke-list-item > p {
-  display: flex !important;
-  flex-direction: column !important;
-  gap: 4px;
-  margin: 0 !important;
-  font-family: 'Space Grotesk', 'Orbitron', 'Rajdhani', 'Exo 2', 'JetBrains Mono', monospace !important;
-}
-
-#biblioteca .karaoke-name,
-#biblioteca .library-item p:first-child {
-  font-size: 16px !important;
-  font-weight: 700 !important;
-  color: var(--neon-pink-text) !important;
-  font-family: 'Space Grotesk', 'Orbitron', 'Rajdhani', 'Exo 2', sans-serif !important;
-  letter-spacing: 0.02em;
-  text-shadow: 0 0 12px rgba(255, 110, 199, 0.4);
-}
-
-#biblioteca .library-item p span,
-#biblioteca .karaoke-list-item p span {
-  font-size: 12px !important;
-  color: var(--text-muted) !important;
-  font-weight: 500;
-  opacity: 0.85 !important;
-}
-
-#biblioteca .library-item audio,
-#biblioteca .karaoke-list-item audio {
-  order: 0 !important;
-  width: 100% !important;
-  height: 36px !important;
-  border-radius: 10px !important;
-  background: rgba(15, 23, 42, 0.9) !important;
-  border: 1px solid var(--neon-pink-border) !important;
-  filter: drop-shadow(0 0 8px rgba(255, 110, 199, 0.2)) !important;
-  transition: border-color 0.2s, box-shadow 0.2s !important;
-  margin-top: 8px !important;
-}
-
-#biblioteca .library-item audio:hover,
-#biblioteca .karaoke-list-item audio:hover {
-  border-color: var(--neon-pink) !important;
-  box-shadow: 0 0 16px rgba(255, 110, 199, 0.3) !important;
-}
-
-#biblioteca .library-item button,
-#biblioteca .karaoke-list-item button {
-  background: linear-gradient(135deg, var(--neon-pink) 0%, var(--neon-pink-medium) 50%, var(--neon-pink-dark) 100%) !important;
-  color: #fff !important;
-  border: none !important;
-  border-radius: 8px !important;
-  padding: 8px 16px !important;
-  font-size: 13px !important;
-  font-weight: 700 !important;
-  letter-spacing: 0.04em !important;
-  font-family: 'Space Grotesk', 'Orbitron', 'Rajdhani', 'Exo 2', monospace !important;
-  text-transform: uppercase !important;
-  cursor: pointer !important;
-  box-shadow:
-    0 3px 0 var(--neon-pink-glow),
-    0 6px 16px var(--neon-pink-shadow),
-    0 0 0 1px var(--neon-pink-border),
-    inset 0 1px 0 rgba(255,255,255,0.2) !important;
-  transition: transform 0.1s, box-shadow 0.15s, background 0.2s, filter 0.15s !important;
-  filter: drop-shadow(0 0 6px var(--neon-pink-shadow)) !important;
-  width: 100% !important;
-  margin: 8px 0 0 0 !important;
-}
-
-#biblioteca .library-item button:hover,
-#biblioteca .karaoke-list-item button:hover {
-  transform: translateY(-2px) scale(1.01) !important;
-  background: linear-gradient(135deg, var(--neon-pink-light) 0%, var(--neon-pink-medium) 50%, var(--neon-pink) 100%) !important;
-  box-shadow:
-    0 4px 0 var(--neon-pink-glow),
-    0 10px 24px var(--neon-pink-shadow),
-    0 0 0 2px var(--neon-pink-border),
-    inset 0 1px 0 rgba(255,255,255,0.3) !important;
-  filter: drop-shadow(0 0 12px var(--neon-pink-shadow)) !important;
-}
-
-#biblioteca .library-item button:active,
-#biblioteca .karaoke-list-item button:active {
-  transform: translateY(1px) scale(0.99) !important;
-}
-
-#biblioteca .folder-controls {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 24px;
-  flex-wrap: wrap;
-  justify-content: center;
-  background: linear-gradient(180deg, rgba(30, 41, 59, 0.9) 0%, rgba(15, 23, 42, 0.95) 100%);
-  padding: 16px;
-  border-radius: 16px;
-  border: 1px solid var(--neon-pink-border);
-  box-shadow:
-    0 0 0 1px var(--neon-pink-border) inset,
-    0 8px 32px rgba(0, 0, 0, 0.4),
-    0 0 32px rgba(255, 110, 199, 0.1);
-  backdrop-filter: blur(12px);
-}
-
-#biblioteca .folder-btn {
-  padding: 12px 24px;
-  background: linear-gradient(135deg, var(--neon-pink) 0%, var(--neon-pink-medium) 50%, var(--neon-pink-dark) 100%);
-  color: #fff;
-  border: none;
+/* Tarjeta de canción: Eliminamos el brillo rosa fuerte */
+.song-card {
+  background: var(--bg-sidebar);
+  border: 1px solid #334155; /* Borde gris azulado discreto */
   border-radius: 12px;
-  cursor: pointer;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  font-family: 'Space Grotesk', 'Orbitron', 'Rajdhani', 'Exo 2', monospace;
-  text-transform: uppercase;
-  font-size: 14px;
-  box-shadow:
-    0 4px 0 var(--neon-pink-glow),
-    0 8px 24px var(--neon-pink-shadow),
-    0 0 0 1px var(--neon-pink-border),
-    inset 0 1px 0 rgba(255,255,255,0.25);
-  transition: transform 0.1s, box-shadow 0.15s, background 0.2s, filter 0.15s;
-  filter: drop-shadow(0 0 8px var(--neon-pink-shadow));
-  min-width: 120px;
+  overflow: hidden;
+  transition: transform 0.2s ease, border-color 0.2s ease;
 }
 
-#biblioteca .folder-btn:hover {
-  transform: translateY(-2px) scale(1.01);
-  background: linear-gradient(135deg, var(--neon-pink-light) 0%, var(--neon-pink-medium) 50%, var(--neon-pink) 100%);
-  box-shadow:
-    0 6px 0 var(--neon-pink-glow),
-    0 12px 32px var(--neon-pink-shadow),
-    0 0 0 2px var(--neon-pink-border),
-    inset 0 1px 0 rgba(255,255,255,0.3);
-  filter: drop-shadow(0 0 16px var(--neon-pink-shadow));
+.song-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--accent); /* Solo brilla el verde al pasar el ratón */
+  box-shadow: 0 10px 20px rgba(0,0,0,0.3);
 }
 
-#biblioteca .folder-btn:active {
-  transform: translateY(1px) scale(0.99);
-  box-shadow:
-    0 2px 0 var(--neon-pink-glow),
-    0 4px 8px var(--neon-pink-shadow),
-    inset 0 1px 0 rgba(255,255,255,0.15);
+/* Header de la tarjeta (imagen/arte) */
+.song-card-header {
+  height: 150px;
+  background: #0f172a; /* Fondo neutro */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 1px solid #334155;
 }
 
-#biblioteca .folder-btn.active {
-  background: linear-gradient(135deg, #f472b6 0%, var(--neon-pink) 50%, #d946ef 100%);
-  box-shadow:
-    0 4px 0 var(--neon-pink-glow),
-    0 8px 24px var(--neon-pink-shadow),
-    0 0 0 2px var(--neon-pink-border),
-    inset 0 1px 0 rgba(255,255,255,0.3);
-  animation: folder-pulse 2s ease-in-out infinite;
+/* Info de la canción: Tipografía clara y sin sombras rosas */
+.song-info {
+  padding: 16px;
 }
 
-@keyframes folder-pulse {
-  0%, 100% { box-shadow: 0 4px 0 var(--neon-pink-glow), 0 8px 24px var(--neon-pink-shadow), 0 0 0 2px var(--neon-pink-border); }
-  50% { box-shadow: 0 4px 0 var(--neon-pink-glow), 0 12px 40px var(--neon-pink-shadow), 0 0 0 3px var(--neon-pink); }
-}
-
-#biblioteca .card:has(#libraryFileInput),
-#biblioteca .card:has(#libraryFileType) {
-  background: linear-gradient(180deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.98) 100%);
-  backdrop-filter: blur(12px);
-  border: 1px solid var(--neon-pink-border);
-  border-radius: 16px;
-  box-shadow:
-    0 0 0 1px rgba(255, 110, 199, 0.1) inset,
-    0 8px 32px rgba(0, 0, 0, 0.3),
-    0 0 24px rgba(255, 110, 199, 0.08);
-  transition: box-shadow 0.3s ease, border-color 0.3s ease, transform 0.2s ease;
-}
-
-#biblioteca .card:has(#libraryFileInput):hover,
-#biblioteca .card:has(#libraryFileType):hover {
-  box-shadow:
-    0 0 0 1px var(--neon-pink) inset,
-    0 12px 40px rgba(0, 0, 0, 0.5),
-    0 0 40px rgba(255, 110, 199, 0.15);
-  transform: translateY(-2px);
-}
-
-#biblioteca .card:has(#libraryFileInput) h3,
-#biblioteca .card:has(#libraryFileType) h3 {
-  color: var(--neon-pink-text);
-  font-family: 'Space Grotesk', 'Orbitron', 'Rajdhani', 'Exo 2', sans-serif;
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  text-shadow: 0 0 16px rgba(255, 110, 199, 0.4);
-  margin-bottom: 16px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--neon-pink-border);
-}
-
-#biblioteca #libraryFileInput,
-#biblioteca #libraryFileType,
-#biblioteca #libraryFileName {
-  background: rgba(15, 23, 42, 0.95) !important;
-  backdrop-filter: blur(8px) !important;
-  border: 1px solid var(--neon-pink-border) !important;
-  border-radius: 10px !important;
-  color: var(--text-main) !important;
-  font-family: 'Space Grotesk', 'Orbitron', 'Rajdhani', 'Exo 2', monospace !important;
-  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s !important;
-}
-
-#biblioteca #libraryFileType {
-  appearance: none !important;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23ff6ec7' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E") !important;
-  background-repeat: no-repeat !important;
-  background-position: right 12px center !important;
-  padding-right: 40px !important;
-}
-
-#biblioteca #libraryFileInput:focus,
-#biblioteca #libraryFileType:focus,
-#biblioteca #libraryFileName:focus {
-  outline: none !important;
-  border-color: var(--neon-pink) !important;
-  box-shadow: 0 0 0 3px rgba(255, 110, 199, 0.3), 0 0 24px rgba(255, 110, 199, 0.1) !important;
-  background: rgba(30, 41, 59, 1) !important;
-}
-
-#biblioteca #saveLibraryFileBtn {
-  background: linear-gradient(135deg, var(--neon-pink) 0%, var(--neon-pink-medium) 50%, var(--neon-pink-dark) 100%) !important;
-  color: #fff !important;
-  border: none !important;
-  border-radius: 12px !important;
-  padding: 14px 28px !important;
-  font-size: 16px !important;
-  font-weight: 700 !important;
-  letter-spacing: 0.05em !important;
-  font-family: 'Space Grotesk', 'Orbitron', 'Rajdhani', 'Exo 2', 'JetBrains Mono', monospace !important;
-  text-transform: uppercase !important;
-  cursor: pointer !important;
-  box-shadow:
-    0 4px 0 var(--neon-pink-glow),
-    0 8px 24px var(--neon-pink-shadow),
-    0 0 0 1px var(--neon-pink-border),
-    inset 0 1px 0 rgba(255,255,255,0.25) !important;
-  transition: transform 0.1s, box-shadow 0.15s, background 0.2s, filter 0.15s !important;
-  filter: drop-shadow(0 0 8px var(--neon-pink-shadow)) !important;
-}
-
-#biblioteca #saveLibraryFileBtn:hover {
-  transform: translateY(-2px) scale(1.01) !important;
-  background: linear-gradient(135deg, var(--neon-pink-light) 0%, var(--neon-pink-medium) 50%, var(--neon-pink) 100%) !important;
-  box-shadow:
-    0 6px 0 var(--neon-pink-glow),
-    0 12px 32px var(--neon-pink-shadow),
-    0 0 0 2px var(--neon-pink-border),
-    inset 0 1px 0 rgba(255,255,255,0.3) !important;
-  filter: drop-shadow(0 0 16px var(--neon-pink-shadow)) !important;
-}
-
-#biblioteca #libraryList:empty::before {
-  content: '📭 Biblioteca vacía — Sube tu primer archivo';
-  display: block;
-  text-align: center;
-  padding: 60px 20px;
-  color: var(--text-muted);
-  font-family: 'Space Grotesk', 'Orbitron', 'Rajdhani', 'Exo 2', sans-serif;
+.song-title {
   font-size: 18px;
-  font-weight: 500;
-  opacity: 0.6;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-bottom: 4px;
+  text-shadow: none; /* Eliminamos sombras de texto neón */
+}
+
+.song-artist {
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+/* Botones de acción: Menos saturados */
+.btn-play-song {
+  width: 100%;
+  padding: 10px;
+  margin-top: 12px;
+  background: #334155;
+  border: none;
+  border-radius: 8px;
+  color: var(--text-main);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-play-song:hover {
+  background: var(--accent); /* Solo cambia a verde al interactuar */
+}
+
+/* Badge de dificultad: Simple y pequeño */
+.difficulty-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: 10px;
+  text-transform: uppercase;
+  border-radius: 4px;
+  background: rgba(148, 163, 184, 0.1);
+  color: var(--text-muted);
+  border: 1px solid rgba(148, 163, 184, 0.3);
 }
 
 /* ==========================================
