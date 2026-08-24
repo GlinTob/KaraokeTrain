@@ -1140,57 +1140,6 @@ async function confirmUltrastarImport() {
   }
 }
 */
-function normalizeKaraokeSegments(rawSegments = []) {
-  if (!Array.isArray(rawSegments)) return [];
-
-  return rawSegments.map((seg) => {
-    const rawWords = Array.isArray(seg.words) ? seg.words : [];
-
-    const words = rawWords.map((w, wordIndex) => {
-      const start = Number.isFinite(w.start)
-        ? w.start
-        : (Number.isFinite(w.startTime) ? w.startTime : 0);
-
-      const nextWord = rawWords[wordIndex + 1];
-      const end = Number.isFinite(w.end)
-        ? w.end
-        : (
-            Number.isFinite(nextWord?.start)
-              ? nextWord.start
-              : Number.isFinite(nextWord?.startTime)
-                ? nextWord.startTime
-                : start + 0.6
-          );
-
-      return {
-        word: w.word || w.text || "",
-        text: w.text || w.word || "",
-        start,
-        end,
-        midi: Number.isFinite(w.midi) ? w.midi : null
-      };
-    });
-
-    const segStart = Number.isFinite(seg.start)
-      ? seg.start
-      : (words[0]?.start ?? 0);
-
-    const segEnd = Number.isFinite(seg.end)
-      ? seg.end
-      : (words[words.length - 1]?.end ?? segStart + 0.6);
-
-    return {
-      start: segStart,
-      end: segEnd,
-      text: seg.text || words.map(w => w.word).join(" "),
-      parte: seg.parte || "P1",
-      midi: Number.isFinite(seg.midi)
-        ? seg.midi
-        : (Number.isFinite(words[0]?.midi) ? words[0].midi : null),
-      words
-    };
-  });
-}
 
 function normalizeKaraokeSegments(rawSegments = []) {
   if (!Array.isArray(rawSegments)) return [];
