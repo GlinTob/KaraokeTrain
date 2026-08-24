@@ -447,9 +447,6 @@ export function saveMicSelection(micNumber) {
   showSaveNotification();
 }
 
-let micTestStream = null;
-let micTestAnimationId = null;
-
 export async function testMicrophone(micNumber) {
   // 1. Detener cualquier prueba previa
   stopMicTest();
