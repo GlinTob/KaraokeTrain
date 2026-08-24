@@ -1211,7 +1211,7 @@ function normalizeKaraokeSegments(rawSegments = []) {
 }
 
 
-export async function loadKaraokeSong(id) {
+async function loadKaraokeSong(id) {
   try {
     if (typeof limpiarVariablesMonitor === "function") {
       limpiarVariablesMonitor();
@@ -1427,7 +1427,7 @@ async function mixKaraoke() {
   }
 }
 
-export async function exportKaraokeSong(id) {
+async function exportKaraokeSong(id) {
   try {
     const item = await getLibraryItemsByIdFromSupabase(id);
     if (!item) {
