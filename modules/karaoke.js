@@ -916,7 +916,7 @@ export function stopKaraokeRecording() {
   }
 }
 
-function restartKaraokeRecording() {
+export function restartKaraokeRecording() {
   const track = $("karaokeTrack") || $("karaokeAudio") || $("trackPlayer");
 
   if (track) {
@@ -931,7 +931,7 @@ function restartKaraokeRecording() {
   $("karaokeStartBtn").disabled = false;
 }
 
-function syncKaraokeMonitor(currentTime) {
+export function syncKaraokeMonitor(currentTime) {
   const lines = document.querySelectorAll(".karaoke-live-line");
   if (!lines.length) return;
 
