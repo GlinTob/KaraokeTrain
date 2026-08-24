@@ -3,7 +3,7 @@ import { getLibraryItemsByIdFromSupabase } from "./biblioteca.js";
 import { getAudioController, destroyAudioController, exportStereoWav, interleave } from "./audio-controller.js";
 import { startLiveAudio, stopLiveAudio, getLiveAudioState, setMonitoringEnabled } from "./liveAudioService.js";
 import { noteToFrequency, frequencyToMidi, midiToNoteName, frequencyToNoteName } from "./afinador.js";
-//import { AudioWorkletProcessor } from "./vocal-processor.js";
+import { AudioWorkletProcessor } from "./vocal-processor.js";
 
 
 let textSegments = [];
@@ -674,12 +674,17 @@ export async function startKaraokePitchDetection() {
       const vocalProcessorUrl =
         window.VOCAL_PROCESSOR_URL ||
         new URL("./vocal-processor.js", import.meta.url).href;
-
+  
       await audioCtx.audioWorklet.addModule(vocalProcessorUrl);
-
+  
       karaokePitchWorkletNode = new AudioWorkletNode(audioCtx, "vocal-processor");
-      updateVocalProcessorParams?.(karaokePitchWorkletNode);
-
+  
+      if (typeof updateVocalProcessorParams === "function") {
+        updateVocalProcessorParams(karaokePitchWorkletNode);
+      } else {
+        console.warn("⚠️ updateVocalProcessorParams no está disponible. Se usarán parámetros por defecto.");
+      }
+  
       karaokePitchSourceNode.connect(karaokePitchWorkletNode);
       finalNode = karaokePitchWorkletNode;
     } catch (e) {
@@ -808,9 +813,20 @@ export async function loop() {
 
     karaokePitchP1 = typeof pitch === "number" ? pitch : -1;
     karaokePitchP2 = typeof pitch2 === "number" ? pitch2 : -1;
-
+    
+    console.log("🎯 Pitch loop karaoke", {
+      p1: karaokePitchP1,
+      p2: karaokePitchP2,
+      hasStream1: !!karaokeStream,
+      hasStream2: !!karaokeStream2,
+      hasAnalyser1: !!karaokePitchDetectionAnalyser,
+      hasAnalyser2: !!karaokeSplitAnalyser2,
+      sr1: karaokePitchDetectionAudioCtx?.sampleRate || null,
+      sr2: sr2 || null,
+      duoSplit: karaokeDuoSplitMode
+    });
+    
     drawKaraokeMonitor(currentTime, karaokePitchP1, karaokePitchP2);
-
     if (!isRecording || trackEnded) {
       karaokePitchLoopRafId = null;
       return;
