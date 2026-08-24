@@ -1042,7 +1042,7 @@ function safeGetNoteName(midi) {
   return `${nombres[midi % 12]}${Math.floor(midi / 12) - 1}`;
 }
 
-export function ultrastarToSegments(parsed) {
+function ultrastarToSegments(parsed) {
   console.log("📝 [karaoke.js] Despertando transformador lineal de partituras UltraStar Master...");
   if (!parsed || !parsed.notes || !parsed.notes.length) return [];
   const bpm = parsed.bpm, gap = parsed.gap / 1000, beatDuration = 60 / bpm / 4;
@@ -1292,7 +1292,7 @@ function limpiarVariablesMonitor() {
   console.log("🧼 Variables del monitor de letras y pitch reseteadas");
 }
 
-export function blobToBase64Full(blob) {
+function blobToBase64Full(blob) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onloadend = () => resolve(reader.result);
@@ -1316,7 +1316,7 @@ function dataUrlToBlob(dataUrl) {
   return new Blob([arr], { type: mime });
 }
 
-export async function mixKaraoke() {
+async function mixKaraoke() {
   if (!karaokeSelectedTrackBlob || !karaokeRecordedBlob) {
     alert("⚠️ Primero presiona 'Cantar' en un karaoke y luego graba tu voz.");
     return;
