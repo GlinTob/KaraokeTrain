@@ -708,6 +708,7 @@ export async function startKaraokePitchDetection() {
     source2.connect(karaokeSplitAnalyser2);
     
     console.log("Análisis de Pitch para P2 inicializado correctamente.");
+  }
 }
 
 async function ensureP2PitchTracking() {
