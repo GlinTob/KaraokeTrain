@@ -540,13 +540,12 @@
             
               <!-- SELECTOR DE MODO -->
               <div class="settings-group">
-                <label>Modo de juego:</label>
+                <label>Modo dúo:</label>
                 <select id="micCount" onchange="document.getElementById('mic2Group').style.display = this.value === '2' ? 'block' : 'none'">
                   <option value="1">1 Jugador</option>
                   <option value="2">2 Jugadores (Dúo)</option>
                 </select>
               </div>
-            </div>
             <div class="settings-group" style="margin-top: 15px;">
               <button type="button" id="refreshMicsBtn" class="btn-neon btn-secondary">🔄 Actualizar lista de micrófonos</button>
             </div>
@@ -598,6 +597,7 @@
                 <p class="section-desc">Procesamiento en tiempo real al mezclar tu voz con la pista.</p>
               </div>
             </div>
+          </div>
 
             <div class="vp-toggle">
               <label class="vp-toggle-label">
@@ -671,39 +671,20 @@
                 </div>
               </div>
 
-              <div class="vp-dual-mic">
-                <label class="vp-checkbox-label">
-                  <input type="checkbox" id="dualMicSameReceiver">
-                  <span class="vp-checkbox-slider"></span>
-                  <span>⚠️ Mis 2 mics usan el MISMO receptor (CH01)</span>
-                </label>
-                <p class="vp-hint">Si tus 2 mics inalámbricos usan el mismo receptor (aparecen como un solo dispositivo "CH01"), actívalo para separar voces automáticamente.</p>
-              </div>
-
               <div class="vp-actions">
                 <button type="button" id="testVocalProcessorBtn" class="btn-neon">🔊 Probar Procesador (5 seg)</button>
                 <button type="button" id="resetVocalProcessorBtn" class="btn-neon btn-secondary">↩️ Resetear Valores</button>
               </div>
             </div>
-          </div>
-
-          <div class="config-actions">
-            <button type="button" id="exportConfigBtn" class="btn-neon btn-secondary">📤 Exportar Configuración</button>
-            <button type="button" id="importConfigBtn" class="btn-neon btn-secondary">📥 Importar Configuración</button>
-            <button type="button" id="resetAllConfigBtn" class="btn-neon btn-danger">🗑️ Resetear Todo</button>
-          </div>
-
-          <p id="saveNotification" class="save-notification">✅ Configuración guardada</p>
-        </section>
-    </main>
+      </main>
     </div>
     <script>
-    window.__PITCH_WORKLET_URL__ = "/pitch-shifter-processor.js";
-    window.__VOCAL_PROCESSOR_URL__ = "/vocal-processor.js";
+      window.__PITCH_WORKLET_URL__ = "/pitch-shifter-processor.js";
+      window.__VOCAL_PROCESSOR_URL__ = "/vocal-processor.js";
     </script>
     <script src="cloudflare-storage.js" type="module"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
     <script type="module" src="supabase-config.js"></script>
     <script src="script.js" type="module"></script>
-</body>
+  </body>
 </html>
