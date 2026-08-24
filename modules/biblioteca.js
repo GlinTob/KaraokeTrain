@@ -602,26 +602,33 @@ export async function enviarAlMonitorKaraoke(karaokeItem) {
   if (!karaokeItem) return;
 
   try {
-    // Usar el reproductor real del módulo Karaoke
     const track = document.getElementById("karaokeTrack");
 
     if (track && karaokeItem.file_url) {
       track.crossOrigin = "anonymous";
       track.src = karaokeItem.file_url;
       track.dataset.karaokeId = String(karaokeItem.id);
-      track.dataset.karaokeLoaded = "1";
+      // Flag para evitar que script.js recargue lo que ya inyectamos
+      track.dataset.preventLoad = "true"; 
       track.load();
     }
 
-    // Guardar datos globales para el monitor
     window.currentKaraokeLyrics = karaokeItem.lyrics || karaokeItem.transcription || [];
     window.currentKaraokeName = karaokeItem.name || "";
     window.currentKaraokeItemId = karaokeItem.id;
 
-    // Cambiar a la pestaña karaoke
-    if (typeof window.showTab === "function") {
-      await window.showTab("karaoke");
-    } else {
+    // 1. Importar showTab dinámicamente si no está disponible
+    const { showTab } = await import("../script.js");
+    
+    // 2. Cambiar a la pestaña
+    await showTab("karaoke");
+
+  } catch (error) {
+    console.error("Error al transferir datos al monitor:", error);
+  }
+} // <--- AQUÍ se cierra la función
+/*
+} else {
       const navBtn =
         document.querySelector("[data-tab='karaoke']") ||
         document.getElementById("btn-nav-karaoke");
@@ -640,6 +647,7 @@ export async function enviarAlMonitorKaraoke(karaokeItem) {
     alert("No se pudo transferir el karaoke al monitor de canto.");
   }
 }
+*/
 export function clearUploadSelection() {
   const fileInput = document.getElementById("libraryFileInput");
   const nameInput = document.getElementById("libraryFileName");
