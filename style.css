@@ -1163,126 +1163,107 @@ audio {
 }
 
 /* ==========================================
-   ESTUDIO
+   MODO ESTUDIO (ANÁLISIS TÉCNICO)
 ========================================== */
 
-#studioStatus,
-#selectedVoiceStatus,
-#selectedTextStatus {
-  margin-top: 15px;
-  color: var(--neon-pink-text) !important;
-  font-family: 'Space Grotesk', 'Orbitron', 'Rajdhani', 'Exo 2', monospace !important;
-  font-weight: 600 !important;
-  letter-spacing: 0.02em !important;
-  text-shadow: 0 0 12px rgba(255, 110, 199, 0.3) !important;
+/* Contenedor principal: Espacio de trabajo limpio */
+.estudio-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  background: var(--bg-main);
+  padding: 20px;
 }
 
-#estudio .card {
-  background: linear-gradient(180deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.98) 100%);
-  backdrop-filter: blur(12px);
-  border: 1px solid var(--neon-pink-border);
-  border-radius: 16px;
-  box-shadow:
-    0 0 0 1px rgba(255, 110, 199, 0.1) inset,
-    0 8px 32px rgba(0, 0, 0, 0.4),
-    0 0 24px rgba(255, 110, 199, 0.08);
-  transition: box-shadow 0.3s ease, border-color 0.3s ease, transform 0.2s ease;
+/* Área del Visualizador (Gráficos/Ondas) */
+.visualizer-card {
+  background: #0f172a; /* Fondo más profundo */
+  border: 1px solid #1e293b;
+  border-radius: 12px;
+  position: relative;
+  overflow: hidden;
+  min-height: 300px;
 }
 
-#estudio .card:hover {
-  box-shadow:
-    0 0 0 1px var(--neon-pink) inset,
-    0 12px 40px rgba(0, 0, 0, 0.5),
-    0 0 40px rgba(255, 110, 199, 0.15);
-  transform: translateY(-2px);
+/* Rejilla de fondo (Grid) para el análisis */
+.visualizer-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: 
+    linear-gradient(to right, rgba(255,255,255,0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255,255,255,0.05) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
 }
 
-#estudio .card h3 {
-  color: var(--neon-pink-text);
-  font-family: 'Space Grotesk', 'Orbitron', 'Rajdhani', 'Exo 2', sans-serif;
+/* Panel de métricas (Hz, Cents, Nota) */
+.metrics-panel {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 15px;
+}
+
+.metric-box {
+  background: var(--bg-sidebar);
+  border: 1px solid #334155;
+  padding: 15px;
+  border-radius: 10px;
+  text-align: center;
+}
+
+.metric-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  letter-spacing: 1px;
+  margin-bottom: 5px;
+  display: block;
+}
+
+.metric-value {
+  font-size: 24px;
   font-weight: 700;
-  letter-spacing: 0.03em;
-  text-shadow: 0 0 16px rgba(255, 110, 199, 0.4);
-  margin-bottom: 16px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--neon-pink-border);
+  color: var(--text-main);
+  font-family: 'JetBrains Mono', monospace; /* Fuente técnica */
 }
 
-#estudio button,
-#estudio .btn-neon {
-  background: linear-gradient(135deg, var(--neon-pink) 0%, var(--neon-pink-medium) 50%, var(--neon-pink-dark) 100%) !important;
-  color: #fff !important;
-  border: none !important;
-  border-radius: 12px !important;
-  padding: 12px 24px !important;
-  font-size: clamp(14px, 2vw, 18px) !important;
-  font-weight: 700 !important;
-  letter-spacing: 0.05em !important;
-  font-family: 'Space Grotesk', 'Orbitron', 'Rajdhani', 'Exo 2', 'JetBrains Mono', monospace !important;
-  text-transform: uppercase !important;
-  cursor: pointer !important;
-  box-shadow:
-    0 4px 0 var(--neon-pink-glow),
-    0 8px 24px var(--neon-pink-shadow),
-    0 0 0 1px var(--neon-pink-border),
-    inset 0 1px 0 rgba(255,255,255,0.25) !important;
-  transition: transform 0.1s, box-shadow 0.15s, background 0.2s, filter 0.15s !important;
-  filter: drop-shadow(0 0 8px var(--neon-pink-shadow)) !important;
+/* El valor cambia a verde sutil si está en pitch */
+.metric-value.in-tune {
+  color: var(--accent);
 }
 
-#estudio button:hover,
-#estudio .btn-neon:hover {
-  transform: translateY(-2px) scale(1.01) !important;
-  background: linear-gradient(135deg, var(--neon-pink-light) 0%, var(--neon-pink-medium) 50%, var(--neon-pink) 100%) !important;
-  box-shadow:
-    0 6px 0 var(--neon-pink-glow),
-    0 12px 32px var(--neon-pink-shadow),
-    0 0 0 2px var(--neon-pink-border),
-    inset 0 1px 0 rgba(255,255,255,0.3) !important;
-  filter: drop-shadow(0 0 16px var(--neon-pink-shadow)) !important;
+/* Botones de acción en Estudio */
+.estudio-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  padding-top: 10px;
 }
 
-#estudio button:active,
-#estudio .btn-neon:active {
-  transform: translateY(1px) scale(0.99) !important;
-  box-shadow:
-    0 2px 0 var(--neon-pink-glow),
-    0 4px 8px var(--neon-pink-shadow),
-    inset 0 1px 0 rgba(255,255,255,0.15) !important;
+.btn-estudio {
+  background: #1e293b;
+  border: 1px solid #334155;
+  color: var(--text-main);
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
 }
 
-#estudio button:disabled,
-#estudio .btn-neon:disabled {
-  opacity: 0.5 !important;
-  cursor: not-allowed !important;
-  transform: none !important;
-  box-shadow:
-    0 2px 0 var(--neon-pink-glow),
-    0 4px 12px var(--neon-pink-shadow) !important;
+.btn-estudio:hover {
+  border-color: var(--accent);
+  background: rgba(34, 197, 94, 0.05);
 }
 
-#estudio #tapBeatBtn.recording {
-  background: linear-gradient(135deg, #fb7185 0%, #f43f5e 50%, #ef4444 100%) !important;
-  box-shadow:
-    0 4px 0 #be123c,
-    0 8px 24px rgba(251, 113, 133, 0.5),
-    0 0 0 1px rgba(251, 113, 133, 0.4) !important;
-  animation: record-pulse 1.5s ease-in-out infinite !important;
+.btn-estudio.record-active {
+  border-color: var(--danger);
+  color: var(--danger);
+  background: rgba(239, 68, 68, 0.1);
 }
 
-#estudio select {
-  background: rgba(15, 23, 42, 0.95) !important;
-  backdrop-filter: blur(8px) !important;
-  border: 1px solid var(--neon-pink-border) !important;
-  border-radius: 10px !important;
-  padding: 12px 16px !important;
-  color: var(--text-main) !important;
-  font-size: 16px !important;
-  font-weight: 600 !important;
-  font-family: 'Space Grotesk', 'Orbitron', 'Rajdhani', 'Exo 2', monospace !important;
-  min-width: 200px !important;
-  cursor: pointer !important;
-}
 
 /* ==========================================
    ESTILO AVATARES EN CONFIGURACIÓN (CARD HORIZONTAL)
@@ -1356,59 +1337,47 @@ audio {
 }
 
 /* ==========================================
-   ESTUDIO — Botones de parte activa (P1 / P2 / DÚO)
+   ESTUDIO — Botones de parte (MODO LIGERO)
 ========================================== */
 
-#estudio #tapPartP1Btn,
-#estudio #tapPartP2Btn,
-#estudio #tapPartDuoBtn {
-  position: relative;
-  transition: transform 0.12s ease, box-shadow 0.18s ease, background 0.2s ease, opacity 0.2s ease !important;
-  opacity: 0.85;
+#estudio .btn-tap-part {
+  padding: 12px 24px;
+  border-radius: 8px;
+  border: 1px solid #334155;
+  background: #1e293b;
+  color: var(--text-muted);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  opacity: 0.8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
-#estudio #tapPartP1Btn.active,
-#estudio #tapPartP2Btn.active,
-#estudio #tapPartDuoBtn.active {
+#estudio .btn-tap-part.active {
   opacity: 1;
-  transform: translateY(-2px) scale(1.02) !important;
+  transform: translateY(-2px);
   color: #fff !important;
-  border: 2px solid rgba(255,255,255,0.45) !important;
+  border-color: rgba(255, 255, 255, 0.5);
 }
 
-/* P1 activo = azul */
+/* P1: Azul Sólido */
 #estudio #tapPartP1Btn.active {
-  background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 55%, #1d4ed8 100%) !important;
-  box-shadow:
-    0 4px 0 #1e40af,
-    0 10px 28px rgba(37, 99, 235, 0.45),
-    0 0 0 2px rgba(96, 165, 250, 0.45),
-    0 0 24px rgba(59, 130, 246, 0.35),
-    inset 0 1px 0 rgba(255,255,255,0.25) !important;
+  background: #2563eb !important;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3) !important;
 }
 
-/* P2 activo = naranja */
+/* P2: Naranja Sólido */
 #estudio #tapPartP2Btn.active {
-  background: linear-gradient(135deg, #f97316 0%, #ea580c 55%, #c2410c 100%) !important;
-  box-shadow:
-    0 4px 0 #9a3412,
-    0 10px 28px rgba(249, 115, 22, 0.45),
-    0 0 0 2px rgba(251, 146, 60, 0.45),
-    0 0 24px rgba(249, 115, 22, 0.35),
-    inset 0 1px 0 rgba(255,255,255,0.25) !important;
+  background: #ea580c !important;
+  box-shadow: 0 4px 12px rgba(234, 88, 12, 0.3) !important;
 }
 
-/* DÚO activo = violeta */
+/* DÚO: Violeta Sólido */
 #estudio #tapPartDuoBtn.active {
-  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 55%, #6d28d9 100%) !important;
-  box-shadow:
-    0 4px 0 #5b21b6,
-    0 10px 28px rgba(139, 92, 246, 0.45),
-    0 0 0 2px rgba(167, 139, 250, 0.45),
-    0 0 24px rgba(139, 92, 246, 0.35),
-    inset 0 1px 0 rgba(255,255,255,0.25) !important;
+  background: #7c3aed !important;
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3) !important;
 }
-
 /* Los no activos se ven más apagados */
 #estudio #tapPartP1Btn:not(.active),
 #estudio #tapPartP2Btn:not(.active),
