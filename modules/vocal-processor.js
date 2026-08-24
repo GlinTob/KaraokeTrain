@@ -1,4 +1,4 @@
-class VocalProcessor extends AudioWorkletProcessor {
+export class VocalProcessor extends AudioWorkletProcessor {
   static get parameterDescriptors() {
     return [
       {
