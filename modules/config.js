@@ -369,10 +369,10 @@ export async function loadAvailableMics() {
     return;
   }
 
-  let tempStream = null;
+  //let tempStream = null;
 
   try {
-    tempStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const tempStream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
     const devices = await navigator.mediaDevices.enumerateDevices();
     const mics = devices.filter((d) => d.kind === "audioinput");
