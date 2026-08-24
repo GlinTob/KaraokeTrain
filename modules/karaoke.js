@@ -839,7 +839,7 @@ async function loop() {
   }
 }
 
-function stopKaraokeRecording() {
+export function stopKaraokeRecording() {
   if (karaokePitchLoopRafId) {
     cancelAnimationFrame(karaokePitchLoopRafId);
     karaokePitchLoopRafId = null;
