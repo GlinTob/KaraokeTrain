@@ -390,34 +390,46 @@ export function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2) {
     drawRegion(P_TOP, P_BOTTOM, currentFreq, pitchHistory, null, null);
   }
 
-    if (Array.isArray(datos) && datos.length > 0) {
-    const idx = datos.findIndex(
-      s => currentTime >= (s.start || 0) && currentTime <= (s.end || ((s.start || 0) + 1))
-    );
+  // 1. Dibujar el rastro (siempre, aunque no esté cantando ahora)
+  if (Array.isArray(pitchHist) && pitchHist.length > 0) {
+    ctx.beginPath();
+    ctx.strokeStyle = (etiquetaParte === "P2") ? "rgba(249, 115, 22, 0.6)" : "rgba(34, 197, 94, 0.6)";
+    ctx.lineWidth = 4;
+    let started = false;
 
-    if (idx !== -1) {
-      ctx.fillStyle = "rgba(0, 0, 0, 0.8)";
-      ctx.fillRect(0, canvas.height - 100, canvas.width, 100);
-
-      ctx.textAlign = "center";
-      ctx.fillStyle = "white";
-      ctx.font = "bold 30px Arial";
-
-      const parteActual = datos[idx].parte || "P1";
-      const prefijo = karaokeDuoSplitMode
-        ? (parteActual === "DUO"
-            ? "🟪 DÚO · "
-            : (parteActual === "P2" ? "🟧 P2 · " : "🟦 P1 · "))
-        : "";
-
-      ctx.fillText(prefijo + (datos[idx].text || ""), canvas.width / 2, canvas.height - 65);
-
-      if (datos[idx + 1]) {
-        ctx.fillStyle = "#94a3b8";
-        ctx.font = "italic 22px Arial";
-        ctx.fillText(datos[idx + 1].text || "", canvas.width / 2, canvas.height - 25);
+    pitchHist.forEach((p) => {
+      // Usar el tiempo guardado para que el rastro se desplace con la música
+      const x = dynLineX + (p.time - currentTime) * pixelsPerSecond;
+      
+      if (x < pentagramStartX || x > canvas.width || p.freq <= 0) {
+        started = false; // Levantar el lápiz si hay silencio o sale de pantalla
+        return;
       }
-    }
+      
+      const yPos = midiToY(Math.round(12 * Math.log2(p.freq / 440) + 69));
+      
+      if (!started) {
+        ctx.moveTo(x, yPos);
+        started = true;
+      } else {
+        ctx.lineTo(x, yPos);
+      }
+    });
+    ctx.stroke();
+  }
+
+  // 2. Dibujar la bola indicadora (solo si canta ahora)
+  if (pitchVal > 0) {
+    const userMidi = Math.round(12 * Math.log2(pitchVal / 440) + 69);
+    const userY = midiToY(userMidi);
+
+    ctx.beginPath();
+    ctx.fillStyle = "#facc15";
+    ctx.arc(dynLineX, userY, 9, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "white";
+    ctx.lineWidth = 2;
+    ctx.stroke();
   }
 }
 
