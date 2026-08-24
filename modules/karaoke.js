@@ -762,7 +762,7 @@ async function stopP2PitchTracking() {
   console.log("🛑 P2 pitch tracking detenido.");
 }
 
-export async function loop() {
+async function loop() {
   if (karaokeLoopBusy) return;
   karaokeLoopBusy = true;
 
