@@ -1482,3 +1482,45 @@ audio {
   transition: width 0.1s ease-out;
 }
 */
+
+.mic-tester-card {
+  background: var(--bg-sidebar);
+  padding: 15px;
+  border-radius: 12px;
+  margin-bottom: 15px;
+  border: 1px solid var(--border);
+}
+
+.mic-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.mic-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 10px;
+}
+
+.btn-test {
+  background: var(--bg-main);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  padding: 5px 15px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.btn-test:hover {
+  background: var(--accent);
+  color: white;
+}
+
+.mic-status {
+  font-size: 11px;
+  color: var(--text-muted);
+}
