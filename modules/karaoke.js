@@ -452,7 +452,7 @@ export async function startKaraokeRecording() {
       track.pause();
       track.currentTime = 0;
       track.src = karaokeSelectedTrackBlob;
-      track.volume = 0.5;
+      track.volume = 0.6;
 
       await new Promise((resolve, reject) => {
         const timeout = setTimeout(() => {
