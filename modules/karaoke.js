@@ -97,7 +97,6 @@ export function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2) {
       bordeFuturo: "#3b82f6",
       tamanoTexto: "15px"
     };
-
     switch (temaActual) {
       case "theme-moderno":
         config = {
@@ -140,7 +139,6 @@ export function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2) {
         };
         break;
     }
-
     return config;
   }
 
