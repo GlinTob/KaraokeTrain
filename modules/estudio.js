@@ -484,6 +484,231 @@ export function segmentarTextoPlano(texto) {
   return todasLasPalabras;
 }
 
+function isFiniteMidi(value) {
+  return Number.isFinite(value) && value > 0 && value < 128;
+}
+
+function estimateWordWindowsFromLine(lineWords, lineStart, lineEnd) {
+  const safeWords = Array.isArray(lineWords) ? lineWords : [];
+  const duration = Math.max(0.05, (lineEnd || 0) - (lineStart || 0));
+
+  if (!safeWords.length) return [];
+
+  const totalChars = safeWords.reduce((sum, w) => {
+    const txt = (w.text || w.word || "").trim();
+    return sum + Math.max(1, txt.length);
+  }, 0) || safeWords.length;
+
+  let cursor = lineStart;
+
+  return safeWords.map((w, index) => {
+    const txt = (w.text || w.word || "").trim();
+    const weight = Math.max(1, txt.length) / totalChars;
+
+    let wordDuration = duration * weight;
+    if (index === safeWords.length - 1) {
+      wordDuration = Math.max(0.05, lineEnd - cursor);
+    }
+
+    const start = cursor;
+    const end = cursor + wordDuration;
+    cursor = end;
+
+    return {
+      ...w,
+      text: w.text || w.word || "",
+      word: w.word || w.text || "",
+      startTime: start,
+      start,
+      end
+    };
+  });
+}
+
+async function decodeAudioBlobToMono(audioSource) {
+  if (!audioSource) throw new Error("No hay audio para analizar pitch.");
+
+  let blob = audioSource;
+
+  if (typeof audioSource === "string") {
+    const response = await fetch(audioSource);
+    if (!response.ok) {
+      throw new Error(`No se pudo descargar el audio para análisis (${response.status}).`);
+    }
+    blob = await response.blob();
+  }
+
+  const arrayBuffer = await blob.arrayBuffer();
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer.slice(0));
+  const sampleRate = audioBuffer.sampleRate;
+
+  let monoData;
+
+  if (audioBuffer.numberOfChannels === 1) {
+    monoData = new Float32Array(audioBuffer.getChannelData(0));
+  } else {
+    const length = audioBuffer.length;
+    monoData = new Float32Array(length);
+
+    for (let ch = 0; ch < audioBuffer.numberOfChannels; ch++) {
+      const channel = audioBuffer.getChannelData(ch);
+      for (let i = 0; i < length; i++) {
+        monoData[i] += channel[i] / audioBuffer.numberOfChannels;
+      }
+    }
+  }
+
+  try {
+    await audioCtx.close();
+  } catch (_) {}
+
+  return { monoData, sampleRate };
+}
+
+function getMedianMidi(values) {
+  const valid = values.filter(isFiniteMidi).sort((a, b) => a - b);
+  if (!valid.length) return null;
+  const mid = Math.floor(valid.length / 2);
+  return valid.length % 2 === 0
+    ? Math.round((valid[mid - 1] + valid[mid]) / 2)
+    : valid[mid];
+}
+
+function fillMissingMidis(words, fallbackMidi = 60) {
+  if (!Array.isArray(words) || !words.length) return words || [];
+
+  const existing = words.map(w => isFiniteMidi(w.midi) ? w.midi : null);
+  const median = getMedianMidi(existing) || fallbackMidi;
+
+  for (let i = 0; i < words.length; i++) {
+    if (isFiniteMidi(words[i].midi)) continue;
+
+    let replacement = null;
+
+    for (let left = i - 1; left >= 0; left--) {
+      if (isFiniteMidi(words[left].midi)) {
+        replacement = words[left].midi;
+        break;
+      }
+    }
+
+    if (!isFiniteMidi(replacement)) {
+      for (let right = i + 1; right < words.length; right++) {
+        if (isFiniteMidi(words[right].midi)) {
+          replacement = words[right].midi;
+          break;
+        }
+      }
+    }
+
+    words[i].midi = isFiniteMidi(replacement) ? replacement : median;
+  }
+
+  return words;
+}
+
+async function analyzePitchForTimedWords(audioSource, timedWords) {
+  if (!audioSource) {
+    console.warn("⚠️ No hay audio fuente para analizar pitch.");
+    return fillMissingMidis(
+      timedWords.map(w => ({ ...w, midi: null })),
+      60
+    );
+  }
+
+  const { monoData, sampleRate } = await decodeAudioBlobToMono(audioSource);
+  const audioController = getAudioController();
+
+  const analyzedWords = [];
+
+  for (const w of timedWords) {
+    const start = Math.max(0, Number(w.start ?? w.startTime ?? 0));
+    const end = Math.max(start + 0.05, Number(w.end ?? (start + 0.3)));
+
+    const startSample = Math.max(0, Math.floor(start * sampleRate));
+    const endSample = Math.min(monoData.length, Math.floor(end * sampleRate));
+
+    let midi = null;
+
+    if (endSample - startSample >= 256) {
+      const slice = monoData.slice(startSample, endSample);
+      try {
+        const freq = await audioController.detectPitch(slice, sampleRate);
+        if (typeof freq === "number" && freq > 0) {
+          midi = frequencyToMidi(freq);
+        }
+      } catch (err) {
+        console.warn("⚠️ Error detectando pitch para palabra:", w.word || w.text, err);
+      }
+    }
+
+    analyzedWords.push({
+      ...w,
+      text: w.text || w.word || "",
+      word: w.word || w.text || "",
+      midi: isFiniteMidi(midi) ? midi : null
+    });
+  }
+
+  return fillMissingMidis(analyzedWords, 60);
+}
+
+function groupWordsToKaraokeSegments(words) {
+  if (!Array.isArray(words) || !words.length) return [];
+
+  const grouped = new Map();
+
+  words.forEach((w) => {
+    const renglon = w.renglon || 1;
+    if (!grouped.has(renglon)) {
+      grouped.set(renglon, []);
+    }
+    grouped.get(renglon).push(w);
+  });
+
+  const segments = [];
+
+  for (const [, rowWords] of grouped.entries()) {
+    const ordered = [...rowWords].sort((a, b) => {
+      const sa = Number(a.start ?? a.startTime ?? 0);
+      const sb = Number(b.start ?? b.startTime ?? 0);
+      return sa - sb;
+    });
+
+    const normalizedWords = ordered.map((w, idx) => {
+      const start = Number(w.start ?? w.startTime ?? 0);
+      const next = ordered[idx + 1];
+      const end = Number(
+        w.end ??
+        (next ? (next.start ?? next.startTime ?? (start + 0.3)) : (start + 0.3))
+      );
+
+      return {
+        word: w.word || w.text || "",
+        text: w.text || w.word || "",
+        start,
+        end,
+        midi: isFiniteMidi(w.midi) ? w.midi : 60,
+        parte: w.parte || "P1"
+      };
+    });
+
+    const parteDominante = ordered[0]?.parte || "P1";
+
+    segments.push({
+      start: normalizedWords[0]?.start || 0,
+      end: normalizedWords[normalizedWords.length - 1]?.end || 0,
+      text: normalizedWords.map(w => w.word).join(" "),
+      parte: parteDominante,
+      midi: normalizedWords[0]?.midi || 60,
+      words: normalizedWords
+    });
+  }
+
+  return segments.sort((a, b) => (a.start || 0) - (b.start || 0));
+}
+
 // ==========================================
 // ⏱️ MOTOR TAP-SYNC EN TIEMPO REAL
 // ==========================================
@@ -808,7 +1033,7 @@ export async function finishTapSync() {
   const statusId = selectedVoiceId ? "selectedVoiceStatus" : "selectedTextStatus";
   const status = $(statusId);
   if (status) {
-    status.textContent = "Estado: sincronizando notas y guardando karaoke... ⏳";
+    status.textContent = "Estado: sincronizando tiempos y analizando pitch... ⏳";
   }
 
   const audioDuration = activePlayer ? activePlayer.duration : 0;
@@ -823,56 +1048,102 @@ export async function finishTapSync() {
     const item = await getLibraryItemsByIdFromSupabase(currentId);
     if (!item) throw new Error("No se pudo obtener el elemento de la biblioteca remota");
 
-    let finalWords = [];
-    const esPalabraPorPalabra = (window.currentTapSyncModeType === "palabra");
+    const baseWords = Array.isArray(item.lyrics) && item.lyrics.length
+      ? item.lyrics.map((w, idx) => ({
+          id: w.id || (idx + 1),
+          text: w.text || w.word || "",
+          word: w.word || w.text || "",
+          renglon: w.renglon || 1,
+          parte: w.parte || "P1"
+        }))
+      : segmentarTextoPlano(($("lyricsText")?.value || "").trim());
 
-    if (esPalabraPorPalabra) {
-      const palabrasBase = Array.isArray(item.lyrics)
-        ? item.lyrics
-        : segmentarTextoPlano(($("lyricsText")?.value || "").trim());
+    if (!baseWords.length) {
+      throw new Error("No hay palabras base para sincronizar.");
+    }
 
-      finalWords = palabrasBase.map((word, index) => {
+    let timedWords = [];
+    const isWordMode = (window.currentTapSyncModeType === "palabra");
+
+    if (isWordMode) {
+      timedWords = baseWords.map((word, index) => {
         const startTime = tapSyncTimestamps[index] || 0;
+        const nextTap = tapSyncTimestamps[index + 1];
+        const endTime = Number.isFinite(nextTap) ? nextTap : (startTime + Math.max(0.2, avgInterval || 0.5));
+
         return {
           id: word.id || (index + 1),
-          text: word.text,
+          text: word.text || word.word || "",
+          word: word.word || word.text || "",
           renglon: word.renglon || 1,
+          parte: tapSyncParts[index] || word.parte || "P1",
           startTime,
-          parte: tapSyncParts[index] || "P1",
-          midi: Number.isFinite(word.midi) ? word.midi : null
+          start: startTime,
+          end: endTime
         };
       });
     } else {
-      let globalWordId = 1;
+      let globalWordIndex = 0;
 
       tapSyncLines.forEach((lineText, lineIndex) => {
-        const startTimeFrase = tapSyncTimestamps[lineIndex] || 0;
-        const endTimeFrase = tapSyncTimestamps[lineIndex + 1] || (startTimeFrase + avgInterval);
-        const duracionTotalFrase = endTimeFrase - startTimeFrase;
+        const startTimeLine = tapSyncTimestamps[lineIndex] || 0;
+        const endTimeLine = tapSyncTimestamps[lineIndex + 1] || (startTimeLine + avgInterval);
         const parteLinea = tapSyncParts[lineIndex] || "P1";
 
-        const palabrasDeLaLinea = lineText.split(/\s+/).filter(w => w.trim().length > 0);
-        const totalPalabras = palabrasDeLaLinea.length;
-        if (totalPalabras === 0) return;
+        const wordsInRow = baseWords.filter(w => (w.renglon || 1) === (lineIndex + 1));
 
-        const duracionPorPalabra = duracionTotalFrase / totalPalabras;
+        const sourceWords = wordsInRow.length
+          ? wordsInRow
+          : lineText.split(/\s+/).filter(Boolean).map((txt) => ({
+              id: ++globalWordIndex,
+              text: txt,
+              word: txt,
+              renglon: lineIndex + 1,
+              parte: parteLinea
+            }));
 
-        palabrasDeLaLinea.forEach((palabraText, wordIndex) => {
-          const wordStart = startTimeFrase + (wordIndex * duracionPorPalabra);
+        const estimated = estimateWordWindowsFromLine(sourceWords, startTimeLine, endTimeLine);
 
-          finalWords.push({
-            id: globalWordId++,
-            text: palabraText,
-            renglon: lineIndex + 1,
-            startTime: wordStart,
+        estimated.forEach((w) => {
+          timedWords.push({
+            id: w.id || (++globalWordIndex),
+            text: w.text || w.word || "",
+            word: w.word || w.text || "",
+            renglon: w.renglon || (lineIndex + 1),
             parte: parteLinea,
-            midi: null
+            startTime: w.startTime,
+            start: w.start,
+            end: w.end
           });
         });
       });
     }
 
-    const karaokeSegments = convertirWordsASegmentos(finalWords);
+    if (status) {
+      status.textContent = "Estado: detectando notas por palabra desde la voz seleccionada... 🎵";
+    }
+
+    const audioSourceForPitch =
+      selectedVoiceBlob ||
+      item.file_url ||
+      item.audioBlob ||
+      null;
+
+    const analyzedWords = await analyzePitchForTimedWords(audioSourceForPitch, timedWords);
+
+    const finalWords = analyzedWords.map((w, index) => ({
+      id: w.id || (index + 1),
+      text: w.text || w.word || "",
+      word: w.word || w.text || "",
+      renglon: w.renglon || 1,
+      parte: w.parte || "P1",
+      startTime: Number(w.startTime ?? w.start ?? 0),
+      start: Number(w.start ?? w.startTime ?? 0),
+      end: Number(w.end ?? ((w.start ?? w.startTime ?? 0) + 0.3)),
+      midi: isFiniteMidi(w.midi) ? w.midi : 60
+    }));
+
+    const karaokeSegments = groupWordsToKaraokeSegments(finalWords);
 
     textSegments = finalWords;
     baseTextSegments = finalWords;
@@ -881,35 +1152,50 @@ export async function finishTapSync() {
       ? await getLibraryItemsByIdFromSupabase(studioTrackId)
       : null;
 
+    const fileUrlFinal =
+      trackItem?.file_url ||
+      item.file_url ||
+      item.audioUrl ||
+      item.audioBlob ||
+      null;
+
+    const filePathFinal =
+      trackItem?.file_path ||
+      item.file_path ||
+      null;
+
     await updateLibraryItemsFromSupabase(currentId, {
       name: `${item.name.replace(" - [KARAOKE]", "")} - [KARAOKE]`,
       type: "karaoke",
       lyrics: karaokeSegments,
+      transcription: karaokeSegments,
       isSincronizada: true,
+      isReadyKaraoke: true,
       tapModeStyle: window.currentTapSyncModeType,
-      file_url: trackItem?.file_url || item.file_url || item.audioUrl || item.audioBlob || null,
-      file_path: trackItem?.file_path || item.file_path || null
+      file_url: fileUrlFinal,
+      file_path: filePathFinal
     });
 
     if (status) {
-      status.textContent = "Estado: ¡Archivo transformado en Karaoke y guardado con éxito! ✅";
+      status.textContent = "Estado: ¡Karaoke generado con tiempos y notas automáticas! ✅";
     }
 
-    console.log("✅ Taps aplicados y karaoke actualizado.", {
+    console.log("✅ Karaoke generado con pitch automático por palabra.", {
       totalWords: finalWords.length,
-      totalSegments: karaokeSegments.length
+      totalSegments: karaokeSegments.length,
+      mode: window.currentTapSyncModeType
     });
 
     await renderLibrary("todos");
 
     alert(
-      "✅ ¡Sincronización por taps guardada con éxito!\n\n" +
-      "Tu archivo ha sido transformado en un Karaoke y ya está disponible en su respectiva carpeta."
+      "✅ ¡Sincronización completada!\n\n" +
+      "Se guardaron los tiempos y las notas automáticas por palabra."
     );
 
   } catch (error) {
     console.error("Error al finalizar sincronización:", error);
     if (status) status.textContent = "Estado: Error al guardar la sincronización";
-    alert("❌ Error al guardar la línea final de taps en la base de datos.");
+    alert("❌ Error al aplicar taps y analizar pitch: " + error.message);
   }
 }
