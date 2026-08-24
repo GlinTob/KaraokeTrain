@@ -710,7 +710,7 @@ export async function startKaraokePitchDetection() {
     console.log("Análisis de Pitch para P2 inicializado correctamente.");
 }
 
-export async function ensureP2PitchTracking() {
+async function ensureP2PitchTracking() {
   if (!karaokeStream2) {
     console.warn("⚠️ No hay karaokeStream2 para analizar pitch de P2.");
     return;
