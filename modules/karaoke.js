@@ -741,7 +741,7 @@ async function ensureP2PitchTracking() {
   });
 }
 
-export async function stopP2PitchTracking() {
+async function stopP2PitchTracking() {
   if (karaokeSplitSource2) {
     try { karaokeSplitSource2.disconnect(); } catch (e) {}
     karaokeSplitSource2 = null;
