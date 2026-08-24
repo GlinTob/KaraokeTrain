@@ -4,7 +4,7 @@ import { getAudioController, destroyAudioController, exportStereoWav, interleave
 import { startLiveAudio, stopLiveAudio, getLiveAudioState, setMonitoringEnabled } from "./liveAudioService.js";
 import { noteToFrequency, frequencyToMidi, midiToNoteName, frequencyToNoteName } from "./afinador.js";
 import { VocalProcessor } from "./vocal-processor.js";
-import { AudioProcessorController } from "./audio-processor-worker.js";
+import { AudioProcessor } from "./audio-processor-worker.js";
 
 
 let textSegments = [];
