@@ -66,7 +66,7 @@ export function toggleKaraokeDuoSplitMode() {
   const track = $("karaokeTrack") || $("karaokeAudio") || $("audioKaraoke") || $("trackPlayer");
   const currentTime = track ? track.currentTime : 0;
 
-  drawKaraokeMonitor(currentTime, karaokePitchP1 || -1, karaokePitchP2 || -1);
+  drawKaraokeMonitor(currentTime, karaokePitchP1, karaokePitchP2);
 }
 
 export function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2) {
