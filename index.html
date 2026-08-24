@@ -309,20 +309,6 @@
               </svg>
               <input type="text" id="bibliotecaSearch" placeholder="Buscar por nombre, tipo, fecha...">
             </div>
-
-            <!-- Se deshabilita para dar espacio
-            <div class="biblioteca-sort">
-              <label for="bibliotecaSort">Ordenar:</label>
-              <select id="bibliotecaSort">
-                <option value="date-desc">Más recientes</option>
-                <option value="date-asc">Más antiguos</option>
-                <option value="name-asc">Nombre A-Z</option>
-                <option value="name-desc">Nombre Z-A</option>
-                <option value="type">Por tipo</option>
-              </select>
-            </div>
-            -->
-            
           </div>
 
           <div class="card">
@@ -515,7 +501,8 @@
                 
                 <div class="mic-controls">
                   <span id="mic1Status" class="mic-status">Listo para probar</span>
-                  <button type="button" onclick="testMicrophone(1)" class="btn-test">🔊 Probar</button>
+                  <button type="button" id="testMic1Btn" class="btn-neon btn-secondary">🔊 Probar Mic 1</button>
+                  <button type="button" id="stopMic1TestBtn" class="btn-neon btn-secondary">⏹️ Detener</button>
                 </div>
               </div>
             
@@ -534,7 +521,8 @@
                 
                 <div class="mic-controls">
                   <span id="mic2Status" class="mic-status">Listo para probar</span>
-                  <button type="button" onclick="testMicrophone(2)" class="btn-test">🔊 Probar</button>
+                  <button type="button" id="testMic2Btn" class="btn-neon btn-secondary">🔊 Probar Mic 2</button>
+                  <button type="button" id="stopMic2TestBtn" class="btn-neon btn-secondary">⏹️ Detener</button>
                 </div>
               </div>
             
@@ -542,8 +530,8 @@
               <div class="settings-group">
                 <label>Modo dúo:</label>
                 <select id="micCount" onchange="document.getElementById('mic2Group').style.display = this.value === '2' ? 'block' : 'none'">
-                  <option value="1">1 Jugador</option>
-                  <option value="2">2 Jugadores (Dúo)</option>
+                  <option value="1">1 Cantante</option>
+                  <option value="2">2 Cantantes (Dúo)</option>
                 </select>
               </div>
             <div class="settings-group" style="margin-top: 15px;">
