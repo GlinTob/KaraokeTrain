@@ -3,9 +3,6 @@ import { $ } from "../script.js";
 /** 
  * MÓDULO BIBLIOTECA — Gestor de Almacenamiento Remoto, Sincronización Supabase y Cargas R2
  */
-import { cargarLetrasEnMonitor } from './karaoke.js';
-// ...
-cargarLetrasEnMonitor(datosDeSupabase);
 
 let db = null; 
 
