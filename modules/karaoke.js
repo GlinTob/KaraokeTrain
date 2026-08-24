@@ -1156,6 +1156,40 @@ async function confirmUltrastarImport() {
 }
 */
 
+/**
+ * Sincroniza los datos del monitor desde la Biblioteca 
+ * evitando recargas innecesarias y habilitando la grabación.
+ */
+export function setKaraokeData(lyrics, name, fileUrl) {
+  // 1. Normalizar y asignar segmentos para el renderizado del Canvas
+  textSegments = normalizeKaraokeSegments(lyrics);
+  baseTextSegments = [...textSegments];
+  
+  // 2. Sincronizar metadatos internos
+  karaokeSelectedTrackName = name || "Sin nombre";
+  
+  // CRÍTICO: Esto evita el alert("Selecciona un karaoke...") en startKaraokeRecording
+  karaokeSelectedTrackBlob = fileUrl; 
+
+  // 3. Actualizar la interfaz de usuario
+  const statusEl = $("karaokeStatus");
+  if (statusEl) {
+    statusEl.textContent = `Listos para cantar: ${karaokeSelectedTrackName}`;
+  }
+
+  // 4. Limpiar históricos de interpretación previa
+  pitchHistory = [];
+  pitchHistoryP1 = [];
+  pitchHistoryP2 = [];
+  karaokePitchP1 = -1;
+  karaokePitchP2 = -1;
+
+  console.log(`🎤 [Karaoke] "${karaokeSelectedTrackName}" sincronizado y listo para grabar.`);
+}
+
+/**
+ * Normaliza la estructura de datos de Supabase al formato interno del Monitor
+ */
 function normalizeKaraokeSegments(rawSegments = []) {
   if (!Array.isArray(rawSegments)) return [];
 
