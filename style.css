@@ -1964,3 +1964,89 @@ audio {
   outline: 3px solid rgba(255,255,255,0.35);
   outline-offset: 3px;
 }
+/* DISEÑO DEL CÍRCULO PROBADOR */
+.mic-tester-circle {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  margin: 20px auto;
+  background: var(--bg-sidebar);
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  border: 2px solid var(--border);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: visible;
+}
+
+.mic-tester-circle:hover {
+  border-color: var(--neon-pink);
+  transform: scale(1.05);
+  box-shadow: 0 0 20px rgba(255, 110, 199, 0.2);
+}
+
+.mic-center .mic-icon {
+  width: 40px;
+  height: 40px;
+  color: var(--text-muted);
+  transition: color 0.3s;
+}
+
+.mic-status {
+  position: absolute;
+  bottom: -30px;
+  font-size: 12px;
+  color: var(--text-muted);
+  width: 150px;
+  text-align: center;
+}
+
+/* EFECTO CUANDO ESTÁ ACTIVO (Detección de voz) */
+.mic-tester-circle.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.mic-tester-circle.active .mic-icon {
+  color: var(--accent);
+}
+
+.mic-ring {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.mic-tester-circle.active .mic-ring {
+  animation: mic-pulse-ring 1.5s infinite;
+}
+
+@keyframes mic-pulse-ring {
+  0% { transform: scale(1); opacity: 0.8; }
+  100% { transform: scale(1.4); opacity: 0; }
+}
+
+/* BARRA DE NIVEL */
+.mic-level-wrapper {
+  width: 100%;
+  height: 6px;
+  background: #0f172a;
+  border-radius: 10px;
+  margin-top: 40px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.mic-level-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--accent), #4ade80);
+  transition: width 0.1s ease-out;
+}
