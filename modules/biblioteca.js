@@ -226,7 +226,7 @@ export async function renderLibrary(filter = "todos") {
     }
   });
 
-  container.innerHTML = "Cargando archivos...";
+  container.innerHTML = "Archivos de la biblioteca";
 
   try {
     const library = await getAllLibraryItemsFromSupabase();
@@ -241,11 +241,11 @@ export async function renderLibrary(filter = "todos") {
       }
   
       if (filter === "letras") {
-        return item.type === "texto" || item.type === "letra" || item.type === "texto_plano";
+        return item.type === "texto";
       }
   
       if (filter === "voces") {
-        return item.type === "voz" || item.type === "grabacion";
+        return item.type === "voz";
       }
 
       // Filtro por defecto para carpetas exactas (pistas, etc.)
@@ -410,6 +410,7 @@ export async function saveManualFileToLibrary() {
             transcription: [],
             metadata: {}
           });
+          /*
         } else {
           console.log(`🎵 Subiendo audio: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
           await window.CloudflareStorage.saveLibraryItemToCloudflare({
@@ -419,6 +420,7 @@ export async function saveManualFileToLibrary() {
             transcription: [],
             metadata: {}
           });
+          */
         }
 
         updateFileStatus(file.name, "success", "", i);
