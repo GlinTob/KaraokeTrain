@@ -448,121 +448,6 @@ export function saveMicSelection(micNumber) {
 }
 
 export function stopMicTest() {
-  if (micTestAnimationId) {
-    cancelAnimationFrame(micTestAnimationId);
-    micTestAnimationId = null;
-  }
-
-  if (micTestTimeoutId) {
-    clearTimeout(micTestTimeoutId);
-    micTestTimeoutId = null;
-  }
-
-  if (micTestStream) {
-    micTestStream.getTracks().forEach((track) => track.stop());
-    micTestStream = null;
-  }
-
-  if (micTestAudioContext) {
-    micTestAudioContext.close().catch(() => {});
-    micTestAudioContext = null;
-  }
-
-  micTestAnalyser = null;
-
-  document.querySelectorAll(".mic-level-fill").forEach((fill) => {
-    fill.style.width = "0%";
-    fill.classList.remove("active");
-  });
-}
-
-export async function loadAvailableMics() {
-  if (!navigator.mediaDevices?.enumerateDevices || !navigator.mediaDevices?.getUserMedia) {
-    console.error("El navegador no soporta mediaDevices.");
-    const mic1Select = $("mic1Select");
-    const mic2Select = $("mic2Select");
-    if (mic1Select) mic1Select.innerHTML = `<option value="">⚠️ Navegador no compatible</option>`;
-    if (mic2Select) mic2Select.innerHTML = `<option value="">⚠️ Navegador no compatible</option>`;
-    return;
-  }
-
-  let tempStream = null;
-
-  try {
-    const tempStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const mics = devices.filter((d) => d.kind === "audioinput");
-
-    const mic1Select = $("mic1Select");
-    const mic2Select = $("mic2Select");
-
-    const populateMicSelect = (selectEl, storageKey) => {
-      if (!selectEl) return;
-
-      selectEl.innerHTML = "";
-
-      if (mics.length === 0) {
-        selectEl.innerHTML = `<option value="">No se detectaron micrófonos</option>`;
-        return;
-      }
-
-      mics.forEach((mic, index) => {
-        const option = document.createElement("option");
-        option.value = mic.deviceId;
-        option.textContent = mic.label || `Micrófono ${index + 1}`;
-        selectEl.appendChild(option);
-      });
-
-      const savedMic = localStorage.getItem(storageKey);
-      if (savedMic && mics.some((mic) => mic.deviceId === savedMic)) {
-        selectEl.value = savedMic;
-      }
-    };
-
-    populateMicSelect(mic1Select, "vocalApp_mic1");
-    populateMicSelect(mic2Select, "vocalApp_mic2");
-
-    console.log("🎙️ Micrófonos detectados y sincronizados:", mics.length);
-  } catch (error) {
-    console.error("Error crítico al enumerar los micrófonos del sistema:", error);
-    const mic1Select = $("mic1Select");
-    const mic2Select = $("mic2Select");
-    if (mic1Select) mic1Select.innerHTML = `<option value="">⚠️ Permite acceso al micrófono</option>`;
-    if (mic2Select) mic2Select.innerHTML = `<option value="">⚠️ Permite acceso al micrófono</option>`;
-  } finally {
-    if (tempStream) {
-      tempStream.getTracks().forEach((track) => track.stop());
-    }
-  }
-}
-
-export function toggleMic2Visibility() {
-  const micCount = $("micCount");
-  const mic2Group = $("mic2Group");
-  if (!micCount || !mic2Group) return;
-
-  mic2Group.style.display = micCount.value === "2" ? "block" : "none";
-}
-
-export function getSelectedMicId(micNumber) {
-  const selectId = micNumber === 1 ? "mic1Select" : "mic2Select";
-  const select = $(selectId);
-  return select ? select.value : null;
-}
-
-export function saveMicSelection(micNumber) {
-  const selectId = micNumber === 1 ? "mic1Select" : "mic2Select";
-  const storageKey = micNumber === 1 ? "vocalApp_mic1" : "vocalApp_mic2";
-  const select = $(selectId);
-
-  if (!select) return;
-
-  localStorage.setItem(storageKey, select.value);
-  showSaveNotification();
-}
-
-export function stopMicTest() {
   // ... (tu lógica de stop actual)
 
   // Limpiar textos de estado
@@ -579,66 +464,60 @@ export function stopMicTest() {
 }
 
 export async function testMicrophone(micNumber) {
-  stopMicTest();
+  stopMicTest(); // Limpia pruebas anteriores
 
+  const controller = getAudioController();
   const selectId = micNumber === 1 ? "mic1Select" : "mic2Select";
-  const levelId = micNumber === 1 ? "mic1Level" : "mic2Level";
+  const statusId = micNumber === 1 ? "mic1Status" : "mic2Status";
+  const levelFillId = micNumber === 1 ? "mic1LevelFill" : "mic2LevelFill";
+  
   const select = $(selectId);
-  const levelBar = $(levelId);
+  const status = $(statusId);
+  const levelFill = $(levelFillId);
 
-  if (!select || !levelBar) return;
-
-  const deviceId = select.value;
-  if (!deviceId) {
+  if (!select || !select.value) {
     alert("⚠️ Selecciona un micrófono primero");
     return;
   }
 
   try {
-    const constraints = {
-      audio: {
-        deviceId: { exact: deviceId },
-        echoCancellation: false,
-        noiseSuppression: false,
-        autoGainControl: false
-      }
+    micTestStream = await navigator.mediaDevices.getUserMedia({
+      audio: { deviceId: { exact: select.value } }
+    });
+
+    micTestAudioContext = new AudioContext();
+    const source = micTestAudioContext.createMediaStreamSource(micTestStream);
+    
+    // Usamos un ScriptProcessor para enviar datos al Worker
+    const processor = micTestAudioContext.createScriptProcessor(2048, 1, 1);
+
+    if (status) status.innerText = "🎤 Escuchando...";
+    if (levelFill) levelFill.classList.add("active");
+
+    processor.onaudioprocess = async (e) => {
+      const input = e.inputBuffer.getChannelData(0);
+      
+      // 1. Detectar Silencio usando tu Worker
+      const isSilent = await controller.detectSilence(input, 0.01);
+      
+      // 2. Calcular Nivel (RMS) para la barra visual
+      let sum = 0;
+      for(let i=0; i<input.length; i++) sum += input[i]*input[i];
+      const rms = Math.sqrt(sum / input.length);
+      const percentage = Math.min(100, rms * 400); // Ajuste de sensibilidad
+
+      if (levelFill) levelFill.style.width = `${percentage}%`;
+      if (status) status.innerText = isSilent ? "Silencio detectado..." : "¡Señal OK!";
     };
 
-    micTestStream = await navigator.mediaDevices.getUserMedia(constraints);
-    micTestAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+    source.connect(processor);
+    processor.connect(micTestAudioContext.destination);
 
-    const source = micTestAudioContext.createMediaStreamSource(micTestStream);
-    micTestAnalyser = micTestAudioContext.createAnalyser();
-    micTestAnalyser.fftSize = 2048;
-    source.connect(micTestAnalyser);
+    // Auto-stop después de 8 segundos para ahorrar recursos
+    micTestTimeoutId = setTimeout(() => stopMicTest(), 8000);
 
-    const levelFill = levelBar.querySelector(".mic-level-fill");
-    if (levelFill) {
-      levelFill.classList.add("active");
-    }
-
-    function updateLevel() {
-      if (!micTestAnalyser) return;
-
-      const dataArray = new Uint8Array(micTestAnalyser.frequencyBinCount);
-      micTestAnalyser.getByteFrequencyData(dataArray);
-      const average = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
-      const percentage = Math.min(100, (average / 128) * 100);
-
-      if (levelFill) {
-        levelFill.style.width = `${percentage}%`;
-      }
-
-      micTestAnimationId = requestAnimationFrame(updateLevel);
-    }
-
-    updateLevel();
-
-    micTestTimeoutId = setTimeout(() => {
-      stopMicTest();
-    }, 5000);
   } catch (error) {
-    console.error("Error al probar hardware de micrófono:", error);
-    alert("❌ No se pudo acceder al micrófono seleccionado. Verifica los permisos.");
+    console.error("Error al probar mic:", error);
+    if (status) status.innerText = "❌ Error de acceso";
   }
 }
