@@ -986,7 +986,7 @@ export async function applyTapSync() {
 
   if (pistaInstrumentalActiva) {
     try {
-      console.log(`💾 [estudio.js] Guardando proyecto unificado: "Karaoke - ${nombrePistaActiva}" con base instrumental pura.`);
+      console.log(`💾 [estudio.js] Guardando proyecto: "Karaoke - ${nombrePistaActiva}" en biblioteca.`);
       await addLibraryItem({
         name: `Karaoke - ${nombrePistaActiva}`,
         type: "karaoke",
