@@ -155,9 +155,9 @@ export function initSettings() {
 
   const sensInput = $("micSensitivity");
   if (sensInput) {
-    sensInput.value = localStorage.getItem("singIt_sensitivity") || "0.015";
+    sensInput.value = localStorage.getItem("vocalApp_sensitivity") || "0.015";
     sensInput.addEventListener("input", (e) => {
-      localStorage.setItem("singIt_sensitivity", e.target.value);
+      localStorage.setItem("vocalApp_sensitivity", e.target.value);
     });
   }
 
@@ -406,8 +406,8 @@ export async function loadAvailableMics() {
       }
     };
 
-    populateMicSelect(mic1Select, "singIt_mic1");
-    populateMicSelect(mic2Select, "singIt_mic2");
+    populateMicSelect(mic1Select, "vocalApp_mic1");
+    populateMicSelect(mic2Select, "vocalApp_mic2");
 
     console.log("🎙️ Micrófonos detectados y sincronizados:", mics.length);
   } catch (error) {
@@ -439,7 +439,7 @@ export function getSelectedMicId(micNumber) {
 
 export function saveMicSelection(micNumber) {
   const selectId = micNumber === 1 ? "mic1Select" : "mic2Select";
-  const storageKey = micNumber === 1 ? "singIt_mic1" : "singIt_mic2";
+  const storageKey = micNumber === 1 ? "vocalApp_mic1" : "vocalApp_mic2";
   const select = $(selectId);
 
   if (!select) return;
