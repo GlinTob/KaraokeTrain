@@ -1037,7 +1037,7 @@ function parseUltrastarTxt(content) {
   };
 }
 
-export function safeGetNoteName(midi) {
+function safeGetNoteName(midi) {
   const nombres = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
   return `${nombres[midi % 12]}${Math.floor(midi / 12) - 1}`;
 }
