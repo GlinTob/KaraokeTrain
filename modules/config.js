@@ -447,104 +447,72 @@ export function saveMicSelection(micNumber) {
   showSaveNotification();
 }
 
-export function stopMicTest() {
-  // 1. Detener el flujo de hardware (apaga la luz del mic)
-  if (micTestStream) {
-    micTestStream.getTracks().forEach((track) => track.stop());
-    micTestStream = null;
-  }
+let micTestStream = null;
+let micTestAnimationId = null;
 
-  // 2. Cerrar el contexto de audio (libera la memoria)
-  if (micTestAudioContext) {
-    // Esto detiene automáticamente cualquier ScriptProcessor conectado
-    micTestAudioContext.close().catch(() => {});
-    micTestAudioContext = null;
-  }
-
-  // 3. Limpiar los textos de la interfaz
-  const statusLabels = document.querySelectorAll(".mic-status");
-  statusLabels.forEach(label => {
-    label.innerText = "Haz clic para probar";
-  });
-
-  // 4. Limpiar las barras visuales
-  document.querySelectorAll(".mic-level-fill").forEach((fill) => {
-    fill.style.width = "0%";
-    fill.classList.remove("active");
-  });
-  
-  // Limpiar el anillo de animación
-  document.querySelectorAll(".mic-ring").forEach(ring => ring.classList.remove("active"));
-  
-  console.log("🛑 Prueba de micrófono terminada y recursos liberados.");
-}
 export async function testMicrophone(micNumber) {
-  stopMicTest(); // Limpia cualquier prueba activa
+  // 1. Detener cualquier prueba previa
+  stopMicTest();
 
-  const controller = getAudioController();
   const selectId = micNumber === 1 ? "mic1Select" : "mic2Select";
+  const fillId = micNumber === 1 ? "mic1LevelFill" : "mic2LevelFill";
+  const statusId = micNumber === 1 ? "mic1Status" : "mic2Status";
+  
   const select = document.getElementById(selectId);
+  const fill = document.getElementById(fillId);
+  const status = document.getElementById(statusId);
 
-  if (!select || !select.value) {
-    alert("⚠️ Selecciona un micrófono primero");
-    return;
-  }
+  if (!select?.value) return alert("Selecciona un mic");
 
   try {
-    // 1. Capturar Audio
     micTestStream = await navigator.mediaDevices.getUserMedia({
       audio: { deviceId: { exact: select.value } }
     });
 
-    micTestAudioContext = new (window.AudioContext || window.webkitAudioContext)();
-    
-    // 2. Configurar Nodos
-    const source = micTestAudioContext.createMediaStreamSource(micTestStream);
-    const processor = micTestAudioContext.createScriptProcessor(2048, 1, 1);
+    const audioCtx = new AudioContext();
+    const source = audioCtx.createMediaStreamSource(micTestStream);
+    const analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 256; // Tamaño pequeño = muy rápido
+    source.connect(analyser);
 
-    // 3. Conexión CRÍTICA (Sin esto no hay señal)
-    source.connect(processor);
-    processor.connect(micTestAudioContext.destination);
+    const bufferLength = analyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
 
-    // 4. Feedback Inicial UI
-    const status = document.getElementById(`mic${micNumber}Status`);
-    const fill = document.getElementById(`mic${micNumber}LevelFill`);
-    const ring = document.getElementById(`mic${micNumber}Ring`);
-    
-    if (status) status.innerText = "🎤 Escuchando...";
-    if (fill) fill.classList.add("active");
-    if (ring) ring.classList.add("active");
+    if (status) status.innerText = "🎤 Probando...";
 
-    // 5. Procesamiento
-    processor.onaudioprocess = async (e) => {
-      if (!micTestStream) return; 
-    
-      const input = e.inputBuffer.getChannelData(0);
+    function draw() {
+      if (!micTestStream) return;
+      micTestAnimationId = requestAnimationFrame(draw);
       
-      // Llamada al Worker para silencio
-      const isSilent = await controller.detectSilence(input, 0.01);
+      analyser.getByteFrequencyData(dataArray);
       
-      // Cálculo de volumen (RMS)
+      // Calcular volumen promedio
       let sum = 0;
-      for (let i = 0; i < input.length; i++) {
-        sum += input[i] * input[i];
+      for (let i = 0; i < bufferLength; i++) {
+        sum += dataArray[i];
       }
-      const rms = Math.sqrt(sum / input.length);
-      const percentage = Math.min(100, rms * 500);
-    
-      // Actualizar Barra y Texto
-      if (fill) fill.style.width = percentage + "%";
-      if (status) {
-        status.innerText = isSilent ? "Esperando voz..." : "🎤 ¡Señal detectada!";
-      }
-    };
+      const average = sum / bufferLength;
+      const volume = Math.min(100, (average / 128) * 100);
 
-    // Auto-detener después de 8 segundos
-    micTestTimeoutId = setTimeout(stopMicTest, 8000);
+      if (fill) fill.style.width = volume + "%";
+    }
 
-  } catch (error) {
-    console.error("Error en testMicrophone:", error);
-    const status = document.getElementById(`mic${micNumber}Status`);
-    if (status) status.innerText = "❌ Error de hardware";
+    draw();
+
+    // Auto-apagado en 5 segundos para no gastar batería
+    setTimeout(stopMicTest, 5000);
+
+  } catch (err) {
+    if (status) status.innerText = "❌ Error de mic";
   }
+}
+
+export function stopMicTest() {
+  if (micTestAnimationId) cancelAnimationFrame(micTestAnimationId);
+  if (micTestStream) {
+    micTestStream.getTracks().forEach(t => t.stop());
+    micTestStream = null;
+  }
+  document.querySelectorAll(".mic-level-fill").forEach(f => f.style.width = "0%");
+  document.querySelectorAll(".mic-status").forEach(s => s.innerText = "Haz clic para probar");
 }
