@@ -1244,7 +1244,7 @@ function normalizeKaraokeSegments(rawSegments = []) {
 }
 
 
-async function loadKaraokeSong(id) {
+export async function loadKaraokeSong(id) {
   try {
     if (typeof limpiarVariablesMonitor === "function") {
       limpiarVariablesMonitor();
