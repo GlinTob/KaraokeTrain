@@ -97,10 +97,7 @@ export async function showTab(tabId) {
       }
       // Limpiar el flag para futuras navegaciones manuales
       if (track) delete track.dataset.preventLoad;
-
-      }
     }
-
     console.log(`✅ [Navegación] Pestaña [${normalizedTabId.toUpperCase()}] cargada y visualizada.`);
   } catch (error) {
     console.error(`❌ [Lazy Load Error] Falló el módulo [${normalizedTabId}]:`, error);
