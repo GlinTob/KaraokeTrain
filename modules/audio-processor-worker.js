@@ -5,7 +5,7 @@
 // Prevents UI freezing during audio operations
 // File: audio-processor-worker.js
 
-class AudioProcessor {
+export class AudioProcessor {
   /**
    * Mix multiple audio buffers without blocking main thread
    */
