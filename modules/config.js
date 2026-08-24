@@ -479,16 +479,11 @@ export function stopMicTest() {
   console.log("🛑 Prueba de micrófono terminada y recursos liberados.");
 }
 export async function testMicrophone(micNumber) {
-  stopMicTest(); // Limpia pruebas anteriores
+  stopMicTest(); // Limpia cualquier prueba activa
 
   const controller = getAudioController();
   const selectId = micNumber === 1 ? "mic1Select" : "mic2Select";
-  const statusId = micNumber === 1 ? "mic1Status" : "mic2Status";
-  const levelFillId = micNumber === 1 ? "mic1LevelFill" : "mic2LevelFill";
-  
-  const select = $(selectId);
-  const status = $(statusId);
-  const levelFill = $(levelFillId);
+  const select = document.getElementById(selectId);
 
   if (!select || !select.value) {
     alert("⚠️ Selecciona un micrófono primero");
@@ -496,49 +491,60 @@ export async function testMicrophone(micNumber) {
   }
 
   try {
+    // 1. Capturar Audio
     micTestStream = await navigator.mediaDevices.getUserMedia({
       audio: { deviceId: { exact: select.value } }
     });
 
-    micTestAudioContext = new AudioContext();
-    const source = micTestAudioContext.createMediaStreamSource(micTestStream);
+    micTestAudioContext = new (window.AudioContext || window.webkitAudioContext)();
     
-    // Usamos un ScriptProcessor para enviar datos al Worker
+    // 2. Configurar Nodos
+    const source = micTestAudioContext.createMediaStreamSource(micTestStream);
     const processor = micTestAudioContext.createScriptProcessor(2048, 1, 1);
 
-    if (status) status.innerText = "🎤 Escuchando...";
-    if (levelFill) levelFill.classList.add("active");
+    // 3. Conexión CRÍTICA (Sin esto no hay señal)
+    source.connect(processor);
+    processor.connect(micTestAudioContext.destination);
 
-    processor.onaudioprocess = async (e) => {
-  if (!micTestStream) return; 
-
-  const input = e.inputBuffer.getChannelData(0);
-  
-  // 1. Detectar presencia de voz con tu Worker
-  const isSilent = await controller.detectSilence(input, 0.01);
-  
-  // 2. Calcular Volumen Real (RMS)
-  let sum = 0;
-  for (let i = 0; i < input.length; i++) {
-    sum += input[i] * input[i];
-  }
-  const rms = Math.sqrt(sum / input.length);
-  
-  // 3. Escalar el porcentaje (multiplicamos por 500 para que sea sensible)
-  const percentage = Math.min(100, rms * 500);
-
-  // 4. Actualizar la barra visual usando el ID del HTML que me mostraste
-  const fill = document.getElementById(`mic${micNumber}LevelFill`);
-  if (fill) {
-    fill.style.width = percentage + "%";
+    // 4. Feedback Inicial UI
+    const status = document.getElementById(`mic${micNumber}Status`);
+    const fill = document.getElementById(`mic${micNumber}LevelFill`);
+    const ring = document.getElementById(`mic${micNumber}Ring`);
     
-    // Cambiar color si hay saturación (opcional)
-    fill.style.background = percentage > 80 ? 'var(--danger)' : 'var(--accent)';
-  }
+    if (status) status.innerText = "🎤 Escuchando...";
+    if (fill) fill.classList.add("active");
+    if (ring) ring.classList.add("active");
 
-  // 5. Actualizar texto
-  const status = document.getElementById(`mic${micNumber}Status`);
-  if (status) {
-    status.innerText = isSilent ? "Esperando voz..." : "🎤 ¡Señal OK!";
+    // 5. Procesamiento
+    processor.onaudioprocess = async (e) => {
+      if (!micTestStream) return; 
+    
+      const input = e.inputBuffer.getChannelData(0);
+      
+      // Llamada al Worker para silencio
+      const isSilent = await controller.detectSilence(input, 0.01);
+      
+      // Cálculo de volumen (RMS)
+      let sum = 0;
+      for (let i = 0; i < input.length; i++) {
+        sum += input[i] * input[i];
+      }
+      const rms = Math.sqrt(sum / input.length);
+      const percentage = Math.min(100, rms * 500);
+    
+      // Actualizar Barra y Texto
+      if (fill) fill.style.width = percentage + "%";
+      if (status) {
+        status.innerText = isSilent ? "Esperando voz..." : "🎤 ¡Señal detectada!";
+      }
+    };
+
+    // Auto-detener después de 8 segundos
+    micTestTimeoutId = setTimeout(stopMicTest, 8000);
+
+  } catch (error) {
+    console.error("Error en testMicrophone:", error);
+    const status = document.getElementById(`mic${micNumber}Status`);
+    if (status) status.innerText = "❌ Error de hardware";
   }
-};
+}
