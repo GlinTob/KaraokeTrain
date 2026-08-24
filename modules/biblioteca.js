@@ -602,26 +602,25 @@ export async function enviarAlMonitorKaraoke(karaokeItem) {
   if (!karaokeItem) return;
 
   try {
+    // Dentro de enviarAlMonitorKaraoke(karaokeItem) en biblioteca.js
     const track = document.getElementById("karaokeTrack");
-
     if (track && karaokeItem.file_url) {
-      track.crossOrigin = "anonymous";
-      track.src = karaokeItem.file_url;
-      track.dataset.karaokeId = String(karaokeItem.id);
-      // Flag para evitar que script.js recargue lo que ya inyectamos
-      track.dataset.preventLoad = "true"; 
-      track.load();
-    }
-
-    window.currentKaraokeLyrics = karaokeItem.lyrics || karaokeItem.transcription || [];
-    window.currentKaraokeName = karaokeItem.name || "";
-    window.currentKaraokeItemId = karaokeItem.id;
-
-    // 1. Importar showTab dinámicamente si no está disponible
-    const { showTab } = await import("../script.js");
+        track.src = karaokeItem.file_url;
+        track.dataset.karaokeId = String(karaokeItem.id);
+        track.load();
     
-    // 2. Cambiar a la pestaña
-    await showTab("karaoke");
+        // Sincronizamos el módulo Karaoke
+        const { setKaraokeData } = await import("./karaoke.js");
+        setKaraokeData(
+            karaokeItem.lyrics || karaokeItem.transcription || [],
+            karaokeItem.name,
+            karaokeItem.file_url
+        );
+        
+        // Navegamos
+        const { showTab } = await import("../script.js");
+        showTab("karaoke");
+    }
 
   } catch (error) {
     console.error("Error al transferir datos al monitor:", error);
