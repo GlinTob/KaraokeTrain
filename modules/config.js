@@ -448,21 +448,36 @@ export function saveMicSelection(micNumber) {
 }
 
 export function stopMicTest() {
-  // ... (tu lógica de stop actual)
+  // 1. Detener el flujo de hardware (apaga la luz del mic)
+  if (micTestStream) {
+    micTestStream.getTracks().forEach((track) => track.stop());
+    micTestStream = null;
+  }
 
-  // Limpiar textos de estado
-  const status1 = $("mic1Status");
-  const status2 = $("mic2Status");
-  if (status1) status1.innerText = "Haz clic para probar";
-  if (status2) status2.innerText = "Haz clic para probar";
-  
-  // Limpiar barras
+  // 2. Cerrar el contexto de audio (libera la memoria)
+  if (micTestAudioContext) {
+    // Esto detiene automáticamente cualquier ScriptProcessor conectado
+    micTestAudioContext.close().catch(() => {});
+    micTestAudioContext = null;
+  }
+
+  // 3. Limpiar los textos de la interfaz
+  const statusLabels = document.querySelectorAll(".mic-status");
+  statusLabels.forEach(label => {
+    label.innerText = "Haz clic para probar";
+  });
+
+  // 4. Limpiar las barras visuales
   document.querySelectorAll(".mic-level-fill").forEach((fill) => {
     fill.style.width = "0%";
     fill.classList.remove("active");
   });
+  
+  // Limpiar el anillo de animación
+  document.querySelectorAll(".mic-ring").forEach(ring => ring.classList.remove("active"));
+  
+  console.log("🛑 Prueba de micrófono terminada y recursos liberados.");
 }
-
 export async function testMicrophone(micNumber) {
   stopMicTest(); // Limpia pruebas anteriores
 
