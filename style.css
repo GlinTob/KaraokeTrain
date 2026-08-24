@@ -1070,378 +1070,96 @@ audio {
 }
 
 /* ==========================================
-   KARAOKE — Neon Pink Futuristic
+   KARAOKE SIMPLIFICADO (FOCO EN LA LETRA)
 ========================================== */
 
-#karaoke h1 {
-  color: var(--neon-pink-text);
-  font-family: 'Space Grotesk', 'Orbitron', 'Rajdhani', 'Exo 2', sans-serif;
-  font-weight: 800;
-  letter-spacing: 0.02em;
-  text-shadow: 0 0 24px rgba(255, 110, 199, 0.5);
+/* Contenedor principal: Fondo oscuro sólido */
+.karaoke-stage {
+  background: #020617; 
+  border-radius: 16px;
+  padding: 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 30px;
+  border: 1px solid #1e293b;
+}
+
+/* Área de letras: Sin efectos neón que dificulten la lectura */
+.lyrics-container {
+  width: 100%;
+  max-width: 800px;
+  text-align: center;
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+/* La línea actual: Grande, blanca y clara */
+.lyric-line.active {
+  font-size: clamp(28px, 5vw, 42px);
+  color: #ffffff;
+  font-weight: 700;
+  transform: scale(1);
+  text-shadow: none; /* Adiós al brillo rosa */
   margin-bottom: 20px;
 }
 
-/* Monitor Karaoke Card */
-#karaoke .monitor-karaoke-card {
-  background: linear-gradient(180deg, rgba(15, 23, 42, 0.95) 0%, rgba(30, 41, 59, 0.98) 100%);
-  backdrop-filter: blur(12px);
-  border: 1px solid var(--neon-pink-border);
-  border-radius: 16px;
+/* Líneas siguientes/anteriores: Sutiles */
+.lyric-line.next, .lyric-line.previous {
+  font-size: clamp(18px, 3vw, 24px);
+  color: var(--text-muted);
+  opacity: 0.5;
+  font-weight: 400;
+}
+
+/* Barra de Progreso de la canción: Minimalista */
+.song-progress-container {
+  width: 100%;
+  height: 4px;
+  background: #1e293b;
+  border-radius: 2px;
   overflow: hidden;
-  box-shadow:
-    0 0 0 1px rgba(255, 110, 199, 0.1) inset,
-    0 8px 32px rgba(0, 0, 0, 0.4),
-    0 0 24px rgba(255, 110, 199, 0.08);
-  transition: box-shadow 0.3s ease, border-color 0.3s ease;
 }
 
-#karaoke .monitor-karaoke-card:hover {
-  box-shadow:
-    0 0 0 1px var(--neon-pink) inset,
-    0 12px 40px rgba(0, 0, 0, 0.5),
-    0 0 40px rgba(255, 110, 199, 0.15);
-}
-
-#karaoke .monitor-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
-  background: rgba(15, 23, 42, 0.9);
-  border-bottom: 1px solid var(--neon-pink-border);
-}
-
-#karaoke .monitor-hint {
-  color: var(--text-muted);
-  font-size: 12px;
-  font-family: 'Space Grotesk', 'Orbitron', 'Rajdhani', monospace;
-}
-
-#karaoke .monitor-canvas-wrapper {
-  position: relative;
-  width: 100%;
-  aspect-ratio: 3 / 1;
-  min-height: 400px;
-  background: linear-gradient(180deg, #0a0a0a 0%, #1a1a2e 100%);
-}
-
-#karaoke .monitor-canvas {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
+.song-progress-bar {
   height: 100%;
-  display: block;
-  border-radius: 0;
+  background: var(--accent); /* Verde sutil */
+  width: 0%;
+  transition: width 0.1s linear;
 }
 
-#karaoke .monitor-lyrics {
-  margin-top: 16px;
-  padding: 20px;
-  background: rgba(15, 23, 42, 0.8);
-  border: 1px solid var(--neon-pink-border);
-  border-radius: 12px;
-  max-height: 280px;
-  overflow-y: auto;
-  font-family: 'Space Grotesk', 'Orbitron', 'Rajdhani', 'Exo 2', monospace;
-  transition: border-color 0.3s ease, box-shadow 0.3s ease;
-}
-
-#karaoke .monitor-lyrics:hover {
-  border-color: var(--neon-pink);
-  box-shadow: 0 0 24px rgba(255, 110, 199, 0.2);
-}
-
-#karaoke .karaoke-live-line.upcoming {
-  color: var(--text-muted) !important;
-  opacity: 0.5 !important;
-  font-size: 22px !important;
-}
-
-/* Karaoke Live Lyrics Words */
-#karaoke .karaoke-live-line {
+/* Panel de control de Karaoke (Play/Pause) */
+.karaoke-controls {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 1rem;
-  margin: 0.5rem 0;
-  line-height: 1.5;
-  transition: all 0.1s ease !important;
+  gap: 20px;
+  background: #0f172a;
+  padding: 15px 30px;
+  border-radius: 50px;
+  border: 1px solid #334155;
 }
 
-#karaoke .karaoke-live-word {
-  display: inline-block;
-  padding: 0.15rem 0.4rem;
-  margin: 0 0.1rem;
-  border-radius: 4px;
-  font-family: 'Space Grotesk', 'Orbitron', 'Rajdhani', 'Exo 2', monospace !important;
-  font-weight: 600 !important;
-  font-size: 1.1em !important;
-  line-height: 1.4;
-  transition: all 0.1s ease;
-  white-space: nowrap;
-  box-sizing: border-box;
+.btn-karaoke-control {
+  background: transparent;
+  border: none;
+  color: var(--text-main);
+  cursor: pointer;
+  padding: 10px;
+  transition: color 0.2s;
 }
 
-#karaoke .karaoke-live-word.active-word {
-  color: var(--neon-pink) !important;
-  text-shadow: 0 0 8px var(--neon-pink), 0 0 16px var(--neon-pink) !important;
-  font-weight: 900 !important;
-  transform: scale(1.1);
-  z-index: 1;
+.btn-karaoke-control:hover {
+  color: var(--accent);
 }
 
-#karaoke .karaoke-live-word.past-word {
-  color: #22c55e !important;
-  opacity: 0.9;
-}
-
-/* Karaoke Cards */
-#karaoke .card {
-  background: linear-gradient(180deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.98) 100%);
-  backdrop-filter: blur(12px);
-  border: 1px solid var(--neon-pink-border);
-  border-radius: 16px;
-  box-shadow:
-    0 0 0 1px rgba(255, 110, 199, 0.1) inset,
-    0 8px 32px rgba(0, 0, 0, 0.4),
-    0 0 24px rgba(255, 110, 199, 0.08);
-  transition: box-shadow 0.3s ease, border-color 0.3s ease, transform 0.2s ease;
-}
-
-#karaoke .card:hover {
-  box-shadow:
-    0 0 0 1px var(--neon-pink) inset,
-    0 12px 40px rgba(0, 0, 0, 0.5),
-    0 0 40px rgba(255, 110, 199, 0.15);
-  transform: translateY(-2px);
-}
-
-#karaoke .card h3,
-#karaoke .card h4 {
-  color: var(--neon-pink-text);
-  font-family: 'Space Grotesk', 'Orbitron', 'Rajdhani', 'Exo 2', sans-serif;
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  text-shadow: 0 0 16px rgba(255, 110, 199, 0.4);
-  margin-bottom: 16px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--neon-pink-border);
-}
-
-#karaoke .karaoke-status,
-#karaoke .mix-description,
-#karaoke .export-description {
-  color: var(--text-muted);
-  font-family: 'Space Grotesk', 'Rajdhani', 'Exo 2', monospace;
-  font-size: 15px;
-  margin-bottom: 16px;
-}
-
-#karaoke .duo-indicator {
-  background: rgba(30, 41, 59, 0.9) !important;
-  border: 1px solid var(--neon-pink-border) !important;
-  border-radius: 12px !important;
-  padding: 16px !important;
-  margin-bottom: 16px !important;
-  box-shadow: 0 0 16px rgba(255, 110, 199, 0.1) !important;
-}
-
-#karaoke .duo-title {
-  color: var(--neon-pink-text) !important;
-  font-family: 'Space Grotesk', 'Orbitron', 'Rajdhani', sans-serif !important;
-  font-weight: 700 !important;
-  text-shadow: 0 0 12px rgba(255, 110, 199, 0.4) !important;
-  margin: 0 0 12px 0 !important;
-}
-
-#karaoke .duo-mics {
-  display: flex;
-  gap: 24px;
-}
-
-#karaoke .duo-mic {
-  flex: 1;
-}
-
-#karaoke .duo-mic small {
-  color: var(--text-muted);
-  font-family: 'Space Grotesk', monospace;
-  display: block;
-  margin-bottom: 4px;
-}
-
-#karaoke .karaoke-audio {
-  width: 100% !important;
-  height: 40px !important;
-  border-radius: 10px !important;
-  background: rgba(15, 23, 42, 0.9) !important;
-  border: 1px solid var(--neon-pink-border) !important;
-  filter: drop-shadow(0 0 8px rgba(255, 110, 199, 0.2)) !important;
-  transition: border-color 0.2s, box-shadow 0.2s !important;
-  margin-top: 12px !important;
-}
-
-#karaoke .karaoke-audio:hover {
-  border-color: var(--neon-pink) !important;
-  box-shadow: 0 0 16px rgba(255, 110, 199, 0.3) !important;
-}
-
-#karaoke .mix-result,
-#karaoke .export-result {
-  margin-top: 16px;
-  padding: 16px;
-  background: rgba(15, 23, 42, 0.8);
-  border: 1px solid var(--neon-pink-border);
-  border-radius: 12px;
-  font-family: 'Space Grotesk', 'Rajdhani', monospace;
-  color: var(--neon-pink-text);
-}
-
-/* Karaoke Buttons */
-#karaoke .btn-neon {
-  background: linear-gradient(135deg, var(--neon-pink) 0%, var(--neon-pink-medium) 50%, var(--neon-pink-dark) 100%) !important;
-  color: #fff !important;
-  border: none !important;
-  border-radius: 12px !important;
-  padding: 12px 24px !important;
-  font-size: clamp(14px, 2vw, 18px) !important;
-  font-weight: 700 !important;
-  letter-spacing: 0.05em !important;
-  font-family: 'Space Grotesk', 'Orbitron', 'Rajdhani', 'Exo 2', 'JetBrains Mono', monospace !important;
-  text-transform: uppercase !important;
-  cursor: pointer !important;
-  box-shadow:
-    0 4px 0 var(--neon-pink-glow),
-    0 8px 24px var(--neon-pink-shadow),
-    0 0 0 1px var(--neon-pink-border),
-    inset 0 1px 0 rgba(255,255,255,0.25) !important;
-  transition: transform 0.1s, box-shadow 0.15s, background 0.2s, filter 0.15s !important;
-  filter: drop-shadow(0 0 8px var(--neon-pink-shadow)) !important;
-  min-width: 160px;
-}
-
-#karaoke .btn-neon:hover {
-  transform: translateY(-2px) scale(1.01) !important;
-  background: linear-gradient(135deg, var(--neon-pink-light) 0%, var(--neon-pink-medium) 50%, var(--neon-pink) 100%) !important;
-  box-shadow:
-    0 6px 0 var(--neon-pink-glow),
-    0 12px 32px var(--neon-pink-shadow),
-    0 0 0 2px var(--neon-pink-border),
-    inset 0 1px 0 rgba(255,255,255,0.3) !important;
-  filter: drop-shadow(0 0 16px var(--neon-pink-shadow)) !important;
-}
-
-#karaoke .btn-neon:active {
-  transform: translateY(1px) scale(0.99) !important;
-  box-shadow:
-    0 2px 0 var(--neon-pink-glow),
-    0 4px 8px var(--neon-pink-shadow),
-    inset 0 1px 0 rgba(255,255,255,0.15) !important;
-}
-
-#karaoke .btn-record {
-  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%) !important;
-  box-shadow:
-    0 4px 0 #15803d,
-    0 8px 24px rgba(34, 197, 94, 0.5),
-    0 0 0 1px rgba(34, 197, 94, 0.3) !important;
-}
-
-#karaoke .btn-record:hover {
-  background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%) !important;
-  box-shadow:
-    0 6px 0 #15803d,
-    0 12px 32px rgba(34, 197, 94, 0.6),
-    0 0 0 2px rgba(34, 197, 94, 0.4) !important;
-}
-
-#karaoke .btn-mix {
-  background: linear-gradient(135deg, #a855f7 0%, #9333ea 50%, #7c3aed 100%) !important;
-  box-shadow:
-    0 4px 0 #7c3aed,
-    0 8px 24px rgba(168, 85, 247, 0.5),
-    0 0 0 1px rgba(168, 85, 247, 0.3) !important;
-}
-
-#karaoke .btn-mix:hover {
-  background: linear-gradient(135deg, #c084fc 0%, #a855f7 50%, #9333ea 100%) !important;
-  box-shadow:
-    0 6px 0 #7c3aed,
-    0 12px 32px rgba(168, 85, 247, 0.6),
-    0 0 0 2px rgba(168, 85, 247, 0.4) !important;
-}
-
-#karaoke .btn-export {
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 50%, #1d4ed8 100%) !important;
-  box-shadow:
-    0 4px 0 #1d4ed8,
-    0 8px 24px rgba(59, 130, 246, 0.5),
-    0 0 0 1px rgba(59, 130, 246, 0.3) !important;
-}
-
-#karaoke .btn-export:hover {
-  background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 50%, #2563eb 100%) !important;
-}
-
-#karaoke .btn-share {
-  background: linear-gradient(135deg, #f59e0b 0%, #d97706 50%, #b45309 100%) !important;
-  box-shadow:
-    0 4px 0 #b45309,
-    0 8px 24px rgba(245, 158, 11, 0.5),
-    0 0 0 1px rgba(245, 158, 11, 0.3) !important;
-}
-
-#karaoke .btn-share:hover {
-  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 50%, #d97706 100%) !important;
-}
-
-#karaoke .btn-save {
-  background: linear-gradient(135deg, #22c55e 0%, #16a34a 50%, #15803d 100%) !important;
-  box-shadow:
-    0 4px 0 #15803d,
-    0 8px 24px rgba(34, 197, 94, 0.5),
-    0 0 0 1px rgba(34, 197, 94, 0.3) !important;
-}
-
-#karaoke .btn-save:hover {
-  background: linear-gradient(135deg, #4ade80 0%, #22c55e 50%, #16a34a 100%) !important;
-}
-
-#karaoke .btn-secondary {
-  background: linear-gradient(135deg, #64748b 0%, #475569 50%, #334155 100%) !important;
-  box-shadow:
-    0 4px 0 #334155,
-    0 8px 24px rgba(100, 116, 139, 0.4),
-    0 0 0 1px rgba(100, 116, 139, 0.3) !important;
-}
-
-#karaoke .btn-secondary:hover {
-  background: linear-gradient(135deg, #94a3b8 0%, #64748b 50%, #475569 100%) !important;
-}
-
-/* Mic level bars in karaoke */
-#karaoke .mic-level-bar {
-  background: rgba(15, 23, 42, 0.9) !important;
-  border: 1px solid var(--neon-pink-border) !important;
-  border-radius: 6px !important;
-}
-
-#karaoke .mic-level-fill {
-  background: linear-gradient(90deg, #22c55e, #84cc16, #facc15, #f97316, #ef4444) !important;
-  border-radius: 6px !important;
-}
-
-#karaoke .mic-level-fill.active {
-  box-shadow: 0 0 12px #4ade80 !important;
-  animation: pulse-mic 0.3s ease-in-out infinite alternate !important;
-}
-
-@keyframes pulse-mic {
-  from { opacity: 0.8; }
-  to { opacity: 1; }
+/* Feedback de afinación en Karaoke: Puntos sutiles en lugar de chispas */
+.pitch-feedback-dot {
+  width: 8px;
+  height: 8px;
+  background: var(--accent);
+  border-radius: 50%;
+  box-shadow: none;
 }
 
 /* ==========================================
