@@ -497,86 +497,56 @@
 
           <!-- MICROFONOS -->
           <div class="config-section">
-            <h2>🎙️ Micrófonos</h2>
-
-            <div class="settings-group">
-              <label for="micCount">🔊 Cantidad de micrófonos</label>
-              <select id="micCount" class="config-select">
-                <option value="1">1 Micrófono (Solo)</option>
-                <option value="2">2 Micrófonos (Dúo)</option>
-              </select>
-            </div>
-
-            <!-- MIC 1 -->
-            <div class="mic-tester-card" id="mic1Card">
-              <div class="mic-tester-header">
-                <span class="mic-icon">🎙️</span>
-                <h4>Micrófono Principal</h4>
-                <span class="mic-required">Requerido</span>
-              </div>
-              <div class="mic-selector">
-                <select id="mic1Select" class="config-select">
-                  <option value="">🔍 Detectando micrófonos...</option>
-                </select>
-              </div>
-              <div class="mic-tester-circle" id="mic1Tester">
-                <div class="mic-ring" id="mic1Ring"></div>
-                <div class="mic-center">
-                  <svg class="mic-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z"></path>
-                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-                    <line x1="12" y1="19" x2="12" y2="22"></line>
-                    <line x1="8" y1="22" x2="16" y2="22"></line>
-                  </svg>
-                </div>
-                <div class="mic-ring-outer" id="mic1RingOuter"></div>
-                <span class="mic-status" id="mic1Status">Haz clic para probar</span>
-              </div>
-              <div class="mic-test-buttons" style="display: flex; gap: 8px; margin-top: 12px; justify-content: center;">
-                <button type="button" id="testMic1Btn" class="btn-neon btn-secondary" style="padding: 8px 16px; font-size: 12px;">🔊 Probar Mic 1</button>
-                <button type="button" id="stopMic1TestBtn" class="btn-neon btn-secondary" style="display: none;">⏹️ Detener</button>
-              </div>
-              <div class="mic-level-wrapper">
-                <div class="mic-level-bar" id="mic1LevelBar"><div class="mic-level-fill" id="mic1LevelFill"></div></div>
-              </div>
-            </div>
-
-            <!-- MIC 2 -->
-            <div id="mic2Group" style="display: none;">
-              <div class="mic-tester-card" id="mic2Card">
-                <div class="mic-tester-header">
-                  <span class="mic-icon">🎙️</span>
-                  <h4>Micrófono Secundario (Dúo)</h4>
-                  <span class="mic-optional">Opcional</span>
-                </div>
-                <div class="mic-selector">
-                  <select id="mic2Select" class="config-select">
-                    <option value="">Cargando dispositivos...</option>
+              <h2>🎙️ Configuración de Micrófonos</h2>
+            
+              <!-- MICRÓFONO 1 -->
+              <div class="mic-tester-card">
+                <div class="mic-header">
+                  <h4>Micrófono Principal</h4>
+                  <select id="mic1Select" class="config-select">
+                    <option value="">Detectando dispositivos...</option>
                   </select>
                 </div>
-                <div class="mic-tester-circle" id="mic2Tester">
-                  <div class="mic-ring" id="mic2Ring"></div>
-                  <div class="mic-center">
-                    <svg class="mic-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z"></path>
-                      <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-                      <line x1="12" y1="19" x2="12" y2="22"></line>
-                      <line x1="8" y1="22" x2="16" y2="22"></line>
-                    </svg>
-                  </div>
-                  <div class="mic-ring-outer" id="mic2RingOuter"></div>
-                  <span class="mic-status" id="mic2Status">Haz clic para probar</span>
+                
+                <div class="mic-level-bar">
+                  <!-- Esta es la barra que se moverá -->
+                  <div id="mic1LevelFill" class="mic-level-fill"></div>
                 </div>
-                <div class="mic-test-buttons" style="display: flex; gap: 8px; margin-top: 12px; justify-content: center;">
-                  <button type="button" id="testMic2Btn" class="btn-neon btn-secondary" style="padding: 8px 16px; font-size: 12px;">🔊 Probar Mic 2</button>
-                  <button type="button" id="stopMic2TestBtn" class="btn-neon btn-secondary" style="display: none;">⏹️ Detener</button>
-                </div>
-                <div class="mic-level-wrapper">
-                  <div class="mic-level-bar" id="mic2LevelBar"><div class="mic-level-fill" id="mic2LevelFill"></div></div>
+                
+                <div class="mic-controls">
+                  <span id="mic1Status" class="mic-status">Listo para probar</span>
+                  <button type="button" onclick="testMicrophone(1)" class="btn-test">🔊 Probar</button>
                 </div>
               </div>
+            
+              <!-- MICRÓFONO 2 -->
+              <div class="mic-tester-card" id="mic2Group" style="display: none;">
+                <div class="mic-header">
+                  <h4>Micrófono Secundario (Dúo)</h4>
+                  <select id="mic2Select" class="config-select">
+                    <option value="">Detectando dispositivos...</option>
+                  </select>
+                </div>
+                
+                <div class="mic-level-bar">
+                  <div id="mic2LevelFill" class="mic-level-fill"></div>
+                </div>
+                
+                <div class="mic-controls">
+                  <span id="mic2Status" class="mic-status">Listo para probar</span>
+                  <button type="button" onclick="testMicrophone(2)" class="btn-test">🔊 Probar</button>
+                </div>
+              </div>
+            
+              <!-- SELECTOR DE MODO -->
+              <div class="settings-group">
+                <label>Modo de juego:</label>
+                <select id="micCount" onchange="document.getElementById('mic2Group').style.display = this.value === '2' ? 'block' : 'none'">
+                  <option value="1">1 Jugador</option>
+                  <option value="2">2 Jugadores (Dúo)</option>
+                </select>
+              </div>
             </div>
-
             <div class="settings-group" style="margin-top: 15px;">
               <button type="button" id="refreshMicsBtn" class="btn-neon btn-secondary">🔄 Actualizar lista de micrófonos</button>
             </div>
