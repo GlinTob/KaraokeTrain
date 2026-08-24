@@ -508,6 +508,8 @@ export async function startKaraokeRecording() {
           autoGainControl: false
         }
       });
+      console.log("Stream 2 capturado:", karaokeStream2.id);
+      await ensureP2PitchTracking();
 
       const mergeCtx = new (window.AudioContext || window.webkitAudioContext)({
         sampleRate: 48000
@@ -697,18 +699,15 @@ export async function startKaraokePitchDetection() {
 
   finalNode.connect(karaokePitchDetectionAnalyser);
 
-  if (karaokeDuoSplitMode) {
-    try {
-      await ensureP2PitchTracking();
-    } catch (e) {
-      console.warn("No se pudo inicializar P2 pitch tracking:", e);
-    }
-  }
-
-  karaokeAudioController = getAudioController();
-  karaokeLoopBusy = false;
-
-  loop();
+  // Dentro de startKaraokePitchDetection, después de configurar P1:
+  if (karaokeDuoSplitMode && karaokeStream2) {
+    // Usar el mismo AudioContext para evitar problemas de sincronización
+    const source2 = audioCtx.createMediaStreamSource(karaokeStream2);
+    karaokeSplitAnalyser2 = audioCtx.createAnalyser();
+    karaokeSplitAnalyser2.fftSize = 2048;
+    source2.connect(karaokeSplitAnalyser2);
+    
+    console.log("Análisis de Pitch para P2 inicializado correctamente.");
 }
 
 export async function ensureP2PitchTracking() {
