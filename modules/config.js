@@ -369,7 +369,7 @@ export async function loadAvailableMics() {
     return;
   }
 
-  //let tempStream = null;
+  let tempStream = null;
 
   try {
     const tempStream = await navigator.mediaDevices.getUserMedia({ audio: true });
