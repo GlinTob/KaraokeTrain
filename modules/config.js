@@ -147,10 +147,7 @@ export function inicializarEscenarioDesdeMemoria() {
 // ====================================================================
 
 export function initSettings() {
-  if (settingsInitialized) {
-    console.warn("⚠️ initSettings() ya fue ejecutado. Se evita doble inicialización.");
-    return;
-  }
+  if (settingsInitialized) return;  
   settingsInitialized = true;
 
   const sensInput = $("micSensitivity");
