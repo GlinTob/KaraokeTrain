@@ -91,8 +91,13 @@ export async function showTab(tabId) {
       if (typeof loadTrackOptionsInKaraoke === "function") await loadTrackOptionsInKaraoke();
 
       const track = $("karaokeTrack");
-      if (track && track.dataset.karaokeId && typeof loadKaraokeSong === "function") {
+      // Solo carga si tiene ID Y NO tiene el flag de prevención
+      if (track && track.dataset.karaokeId && !track.dataset.preventLoad && typeof loadKaraokeSong === "function") {
         await loadKaraokeSong(track.dataset.karaokeId);
+      }
+      // Limpiar el flag para futuras navegaciones manuales
+      if (track) delete track.dataset.preventLoad;
+
       }
     }
 
