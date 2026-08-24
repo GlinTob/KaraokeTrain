@@ -510,29 +510,35 @@ export async function testMicrophone(micNumber) {
     if (levelFill) levelFill.classList.add("active");
 
     processor.onaudioprocess = async (e) => {
-      const input = e.inputBuffer.getChannelData(0);
-      
-      // 1. Detectar Silencio usando tu Worker
-      const isSilent = await controller.detectSilence(input, 0.01);
-      
-      // 2. Calcular Nivel (RMS) para la barra visual
-      let sum = 0;
-      for(let i=0; i<input.length; i++) sum += input[i]*input[i];
-      const rms = Math.sqrt(sum / input.length);
-      const percentage = Math.min(100, rms * 400); // Ajuste de sensibilidad
+  if (!micTestStream) return; 
 
-      if (levelFill) levelFill.style.width = `${percentage}%`;
-      if (status) status.innerText = isSilent ? "Silencio detectado..." : "¡Señal OK!";
-    };
-
-    source.connect(processor);
-    processor.connect(micTestAudioContext.destination);
-
-    // Auto-stop después de 8 segundos para ahorrar recursos
-    micTestTimeoutId = setTimeout(() => stopMicTest(), 8000);
-
-  } catch (error) {
-    console.error("Error al probar mic:", error);
-    if (status) status.innerText = "❌ Error de acceso";
+  const input = e.inputBuffer.getChannelData(0);
+  
+  // 1. Detectar presencia de voz con tu Worker
+  const isSilent = await controller.detectSilence(input, 0.01);
+  
+  // 2. Calcular Volumen Real (RMS)
+  let sum = 0;
+  for (let i = 0; i < input.length; i++) {
+    sum += input[i] * input[i];
   }
-}
+  const rms = Math.sqrt(sum / input.length);
+  
+  // 3. Escalar el porcentaje (multiplicamos por 500 para que sea sensible)
+  const percentage = Math.min(100, rms * 500);
+
+  // 4. Actualizar la barra visual usando el ID del HTML que me mostraste
+  const fill = document.getElementById(`mic${micNumber}LevelFill`);
+  if (fill) {
+    fill.style.width = percentage + "%";
+    
+    // Cambiar color si hay saturación (opcional)
+    fill.style.background = percentage > 80 ? 'var(--danger)' : 'var(--accent)';
+  }
+
+  // 5. Actualizar texto
+  const status = document.getElementById(`mic${micNumber}Status`);
+  if (status) {
+    status.innerText = isSilent ? "Esperando voz..." : "🎤 ¡Señal OK!";
+  }
+};
