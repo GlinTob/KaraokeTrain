@@ -208,121 +208,129 @@ export function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2) {
   function drawRegion(pTop, pBottom, pitchVal, pitchHist, parteFiltro, etiquetaParte) {
     const pHeight = pBottom - pTop;
     const numLines = 10;
-
+  
     const midiToY = (midi) => {
       const val = (Number.isFinite(midi) && midi > 0) ? midi : 60;
       const normalized = (MIDI_MAX - val) / (MIDI_MAX - MIDI_MIN);
       return pTop + (normalized * pHeight);
     };
-
+  
     drawAvatarBlock(pTop, pBottom, etiquetaParte);
-
+  
     ctx.strokeStyle = paleta.lineas;
     ctx.lineWidth = 1;
     for (let i = 0; i <= numLines; i++) {
       const y = pTop + (pHeight / numLines) * i;
-    ctx.beginPath();
-    ctx.moveTo(pentagramStartX, y);
-    ctx.lineTo(canvas.width, y);
-    ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(pentagramStartX, y);
+      ctx.lineTo(canvas.width, y);
+      ctx.stroke();
     }
-
+  
     ctx.fillStyle = paleta.etiquetas;
     ctx.font = "bold 20px Arial";
     ctx.textAlign = "right";
     const noteLabels = ["C6", "A5", "F5", "D5", "B4", "G4", "E4", "C4", "A3", "F3", "D3", "C3"];
     noteLabels.forEach((label, i) => {
       const y = pTop + (pHeight / numLines) * i + 7;
-    ctx.fillText(label, noteLabelsX, y);
+      ctx.fillText(label, noteLabelsX, y);
     });
-
+  
     if (Array.isArray(datos) && datos.length > 0) {
       datos.forEach((seg) => {
         const parteSeg = seg.parte || "P1";
+  
         if (parteFiltro && parteSeg !== parteFiltro && parteSeg !== "DUO") return;
-
+  
         const words = Array.isArray(seg.words) ? seg.words : [];
-        words.forEach(w => {
-          const start = Number.isFinite(w.start) ? w.start : (w.startTime || seg.start || 0);
-          const end = Number.isFinite(w.end) ? w.end : (start + (w.duration || 0.5));
-
+        words.forEach((w) => {
+          const start = Number.isFinite(w.start) ? w.start : (seg.start || 0);
+          const end = Number.isFinite(w.end) ? w.end : (start + 0.35);
+  
           if (end < currentTime - 1 || start > currentTime + (canvas.width / pixelsPerSecond)) return;
-
+  
           const x = dynLineX + (start - currentTime) * pixelsPerSecond;
-          const width = (end - start) * pixelsPerSecond;
-
+          const width = Math.max((end - start) * pixelsPerSecond, 25);
+  
           const midi = Number.isFinite(w.midi)
             ? w.midi
             : Number.isFinite(seg.midi)
               ? seg.midi
-              : null;
-
-          const hasTargetMidi = Number.isFinite(midi);
-          const y = hasTargetMidi ? midiToY(midi) : ((pTop + pBottom) / 2);
+              : 60;
+  
+          const y = midiToY(midi);
           const h = 24;
-
+  
           const isActive = currentTime >= start && currentTime <= end;
           const isPast = currentTime > end;
-
+  
           let barColor = paleta.barraFutura;
           let strokeColor = paleta.bordeFuturo;
-
-          if (!hasTargetMidi) {
-            barColor = "rgba(148, 163, 184, 0.35)";
-            strokeColor = "rgba(148, 163, 184, 0.7)";
-          }
-
+  
           if (parteSeg === "DUO") {
-            barColor = hasTargetMidi ? "#7c3aed" : "rgba(124, 58, 237, 0.35)";
+            barColor = "#7c3aed";
             strokeColor = "#a855f7";
           } else if (parteSeg === "P2") {
-            barColor = hasTargetMidi ? "#9a3412" : "rgba(249, 115, 22, 0.30)";
+            barColor = "#9a3412";
             strokeColor = "#f97316";
+          } else {
+            barColor = "#1d4ed8";
+            strokeColor = "#60a5fa";
           }
-
+  
           if (isPast) {
-            barColor = hasTargetMidi ? "#4b5563" : "rgba(75, 85, 99, 0.30)";
+            barColor = "#4b5563";
+            strokeColor = "#6b7280";
           }
-
-          if (isActive && hasTargetMidi) {
-            const userMidi = Math.round(12 * Math.log2(pitchVal / 440) + 69);
-            const isCorrect = pitchVal > 0 && Math.abs(userMidi - midi) <= 2;
-            barColor = isCorrect ? "#22c55e" : strokeColor;
+  
+          if (isActive) {
+            let isCorrect = false;
+  
+            if (pitchVal > 0) {
+              const userMidi = Math.round(12 * Math.log2(pitchVal / 440) + 69);
+              if (Math.abs(userMidi - midi) <= 2) {
+                isCorrect = true;
+              }
+            }
+  
+            barColor = isCorrect ? "#22c55e" : barColor;
             strokeColor = "white";
           }
-
+  
           ctx.fillStyle = barColor;
           ctx.beginPath();
+  
           if (ctx.roundRect) {
-            ctx.roundRect(x, y - h / 2, Math.max(width, 25), h, 5);
+            ctx.roundRect(x, y - h / 2, width, h, 5);
           } else {
-            ctx.fillRect(x, y - h / 2, Math.max(width, 25), h);
+            ctx.fillRect(x, y - h / 2, width, h);
           }
+  
           ctx.fill();
-
+  
           if (isActive || !isPast) {
             ctx.strokeStyle = strokeColor;
             ctx.lineWidth = isActive ? 3 : 1;
             ctx.stroke();
           }
-
-          ctx.fillStyle = hasTargetMidi ? "white" : "#cbd5e1";
-          ctx.font = `${hasTargetMidi ? "bold" : "normal"} ${paleta.tamanoTexto || "15px"} Arial`;
+  
+          ctx.fillStyle = "white";
+          ctx.font = `bold ${paleta.tamanoTexto || "15px"} Arial`;
           ctx.textAlign = "center";
-          ctx.fillText(w.word || w.text || "", x + Math.max(width, 25) / 2, y + 5);
+          ctx.fillText(w.word || w.text || "", x + width / 2, y + 5);
         });
       });
     }
-
+  
     if (pitchVal > 0) {
       const userMidi = Math.round(12 * Math.log2(pitchVal / 440) + 69);
       const userY = midiToY(userMidi);
-
+  
       ctx.beginPath();
       ctx.strokeStyle = "rgba(250, 204, 21, 0.5)";
       ctx.lineWidth = 4;
       let started = false;
-
+  
       pitchHist.forEach((f, i) => {
         if (f) {
           const x = dynLineX - (pitchHist.length - i) * 3;
@@ -336,9 +344,9 @@ export function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2) {
           }
         }
       });
-
+  
       ctx.stroke();
-
+  
       ctx.beginPath();
       ctx.fillStyle = "#facc15";
       ctx.arc(dynLineX, userY, 9, 0, Math.PI * 2);
@@ -347,7 +355,7 @@ export function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2) {
       ctx.lineWidth = 2;
       ctx.stroke();
     }
-
+  
     ctx.strokeStyle = "#ef4444";
     ctx.lineWidth = 2;
     ctx.beginPath();
@@ -355,7 +363,6 @@ export function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2) {
     ctx.lineTo(dynLineX, pBottom + 2);
     ctx.stroke();
   }
-
   if (karaokeDuoSplitMode) {
     const TELE_H = 100;
     const GAP = 14;
@@ -1184,6 +1191,60 @@ function normalizeKaraokeSegments(rawSegments = []) {
     };
   });
 }
+
+function normalizeKaraokeSegments(rawSegments = []) {
+  if (!Array.isArray(rawSegments)) return [];
+
+  return rawSegments.map((seg) => {
+    const rawWords = Array.isArray(seg.words) ? seg.words : [];
+
+    const words = rawWords.map((w, wordIndex) => {
+      const start = Number.isFinite(w.start)
+        ? w.start
+        : (Number.isFinite(w.startTime) ? w.startTime : 0);
+
+      const nextWord = rawWords[wordIndex + 1];
+      const end = Number.isFinite(w.end)
+        ? w.end
+        : (
+            Number.isFinite(nextWord?.start)
+              ? nextWord.start
+              : Number.isFinite(nextWord?.startTime)
+                ? nextWord.startTime
+                : start + 0.35
+          );
+
+      return {
+        word: w.word || w.text || "",
+        text: w.text || w.word || "",
+        start,
+        end,
+        midi: Number.isFinite(w.midi) ? w.midi : null,
+        parte: w.parte || seg.parte || "P1"
+      };
+    });
+
+    const segStart = Number.isFinite(seg.start)
+      ? seg.start
+      : (words[0]?.start ?? 0);
+
+    const segEnd = Number.isFinite(seg.end)
+      ? seg.end
+      : (words[words.length - 1]?.end ?? segStart + 0.5);
+
+    return {
+      start: segStart,
+      end: segEnd,
+      text: seg.text || words.map(w => w.word).join(" "),
+      parte: seg.parte || words[0]?.parte || "P1",
+      midi: Number.isFinite(seg.midi)
+        ? seg.midi
+        : (Number.isFinite(words[0]?.midi) ? words[0].midi : 60),
+      words
+    };
+  });
+}
+
 
 export async function loadKaraokeSong(id) {
   try {
