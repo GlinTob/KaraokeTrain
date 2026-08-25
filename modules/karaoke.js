@@ -361,34 +361,41 @@ export function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2) {
     ctx.lineTo(dynLineX, pBottom + 2);
     ctx.stroke();
   }
-  if (karaokeDuoSplitMode) {
-    const TELE_H = 100;
-    const GAP = 14;
-    const totalUsable = canvas.height - TELE_H - 20;
+   if (karaokeDuoSplitMode) {
+    const TELE_H = 100; // Espacio para la letra abajo
+    const GAP = 14;     // Separación entre cantantes
+    const topMargin = 20;
+    const totalUsable = canvas.height - TELE_H - topMargin;
     const regionH = (totalUsable - GAP) / 2;
-    const topP1 = 20;
+
+    const topP1 = topMargin;
     const bottomP1 = topP1 + regionH;
     const topP2 = bottomP1 + GAP;
     const bottomP2 = topP2 + regionH;
 
+    // Actualizar históricos
     pitchHistoryP1.push(currentFreq > 0 ? currentFreq : null);
-    if (pitchHistoryP1.length > 60) pitchHistoryP1.shift();
+    if (pitchHistoryP1.length > 100) pitchHistoryP1.shift();
     pitchHistoryP2.push(currentFreq2 > 0 ? currentFreq2 : null);
-    if (pitchHistoryP2.length > 60) pitchHistoryP2.shift();
+    if (pitchHistoryP2.length > 100) pitchHistoryP2.shift();
 
-    ctx.fillStyle = "rgba(255,255,255,0.06)";
+    // Dibujar separador visual
+    ctx.fillStyle = "rgba(255,255,255,0.1)";
     ctx.fillRect(0, bottomP1, canvas.width, GAP);
 
-    drawRegion(topP1, bottomP1, currentFreq, pitchHistoryP1, "P1", "P1");
-    drawRegion(topP2, bottomP2, currentFreq2, pitchHistoryP2, "P2", "P2");
+    // Dibujar regiones con sus respectivos límites calculados
+    drawRegion(topP1, bottomP1, karaokePitchP1, pitchHistoryP1, "P1", "P1");
+    drawRegion(topP2, bottomP2, karaokePitchP2, pitchHistoryP2, "P2", "P2");
+    
   } else {
-    const P_TOP = 40;
-    const P_BOTTOM = canvas.height - 110;
+    // Modo individual
     pitchHistory.push(currentFreq > 0 ? currentFreq : null);
-    if (pitchHistory.length > 60) pitchHistory.shift();
-    drawRegion(P_TOP, P_BOTTOM, currentFreq, pitchHistory, null, null);
+    if (pitchHistory.length > 100) pitchHistory.shift();
+    
+    // Usar el área completa menos el espacio de la letra
+    drawRegion(20, canvas.height - 110, karaokePitchP1, pitchHistory, null, null);
   }
-
+  
   // 1. Dibujar el rastro (siempre, aunque no esté cantando ahora)
   if (Array.isArray(pitchHist) && pitchHist.length > 0) {
     ctx.beginPath();
