@@ -95,7 +95,7 @@ export class VocalProcessor extends AudioWorkletProcessor {
       this.gateEnv[ch] = gateEnv; this.compEnv[ch] = compEnv;
     }
 
-    // --- NUEVO CÓDIGO DE VOLUMEN ---
+    // --- CÁLCULO DE VOLUMEN PARA LA BARRA ---
     let maxVolume = 0;
     if (input[0]) {
       for (let i = 0; i < input[0].length; i++) {
@@ -104,7 +104,7 @@ export class VocalProcessor extends AudioWorkletProcessor {
       }
     }
     this.port.postMessage({ volume: maxVolume });
-    // ------------------------------
+    // ----------------------------------------
 
     return true;
   }
