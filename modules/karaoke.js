@@ -397,13 +397,13 @@ export function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2) {
   }
   
   // 1. Dibujar el rastro (siempre, aunque no esté cantando ahora)
-  if (Array.isArray(pitchHist) && pitchHist.length > 0) {
+  if (Array.isArray(pitchHistory) && pitchHistory.length > 0) {
     ctx.beginPath();
     ctx.strokeStyle = (etiquetaParte === "P2") ? "rgba(249, 115, 22, 0.6)" : "rgba(34, 197, 94, 0.6)";
     ctx.lineWidth = 4;
     let started = false;
 
-    pitchHist.forEach((p) => {
+    pitchHistory.forEach((p) => {
       // Usar el tiempo guardado para que el rastro se desplace con la música
       const x = dynLineX + (p.time - currentTime) * pixelsPerSecond;
       
