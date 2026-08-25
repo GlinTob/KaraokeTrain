@@ -70,6 +70,22 @@ export class VocalProcessor extends AudioWorkletProcessor {
     if (!output || output.length === 0 || !input || input.length === 0) {
       return true;
     }
+    // ... al final de la función process(inputs, outputs, parameters) ...
+
+    // Calculamos el volumen máximo (peak) de este bloque de audio
+    let maxVolume = 0;
+    const inputChannel = inputs[0][0]; // Canal 1
+    if (inputChannel) {
+      for (let i = 0; i < inputChannel.length; i++) {
+        const absVal = Math.abs(inputChannel[i]);
+        if (absVal > maxVolume) maxVolume = absVal;
+      }
+    }
+    
+    // Enviamos el volumen al hilo principal (cada ~128 samples)
+    this.port.postMessage({ volume: maxVolume });
+    
+    return true;
 
     const outChannels = output.length;
 
