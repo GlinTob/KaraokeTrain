@@ -62,7 +62,7 @@ function toggleKaraokeDuoSplitMode() {
   drawKaraokeMonitor(currentTime, karaokePitchP1 || -1, karaokePitchP2 || -1);
 }
 
-export function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2) {
+function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2) {
   const canvas = $("karaokeCanvas");
   if (!canvas) return;
   const ctx = canvas.getContext("2d");
