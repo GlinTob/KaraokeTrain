@@ -3,8 +3,7 @@ import { getLibraryItemsByIdFromSupabase } from "./biblioteca.js";
 import { getAudioController, destroyAudioController, exportStereoWav, interleave } from "./audio-controller.js";
 import { startLiveAudio, stopLiveAudio, getLiveAudioState, setMonitoringEnabled } from "./liveAudioService.js";
 import { noteToFrequency, frequencyToMidi, midiToNoteName, frequencyToNoteName } from "./afinador.js";
-import { VocalProcessor } from "./vocal-processor.js";
-import { AudioProcessor } from "./audio-processor-worker.js";
+
 
 
 let textSegments = [];
@@ -434,207 +433,67 @@ export function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2) {
 }
 
 export async function startKaraokeRecording() {
-  const track = $("karaokeTrack") || $("trackPlayer");
-
-  if (!karaokeSelectedTrackBlob) {
-    alert("⚠️ Primero selecciona un karaoke de la lista.");
-    return;
-  }
-
-  if (!track) {
-    alert("⚠️ No se encontró el reproductor de karaoke.");
-    return;
-  }
-
   try {
-    const micCount = $("micCount");
-    const isDuo = !!(micCount && micCount.value === "2");
+    // 1. Obtener los IDs de los micrófonos (suponiendo que tienes selectores para Mic 1 y Mic 2)
+    const micId1 = typeof getSelectedMicId === "function" ? getSelectedMicId() : null;
+    const micId2 = document.getElementById("micSelect2")?.value || null; // Ejemplo para el segundo mic
 
-    karaokeChunks = [];
-    karaokeRecordedBlob = null;
-
-    const voicePlayer = $("karaokeVoicePlayer");
-    if (voicePlayer) {
-      voicePlayer.src = "";
-    }
-
-    if (!track.src || track.src !== karaokeSelectedTrackBlob) {
-      track.pause();
-      track.currentTime = 0;
-      track.src = karaokeSelectedTrackBlob;
-      track.volume = 0.6;
-
-      await new Promise((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          reject(new Error("Audio load timeout (60s)"));
-        }, 60000);
-
-        const onCanPlay = () => {
-          clearTimeout(timeout);
-          track.removeEventListener("canplay", onCanPlay);
-          track.removeEventListener("error", onError);
-          resolve();
-        };
-
-        const onError = () => {
-          clearTimeout(timeout);
-          track.removeEventListener("canplay", onCanPlay);
-          track.removeEventListener("error", onError);
-          reject(new Error("Error cargando la pista de karaoke (Cloudflare R2 / CORS)"));
-        };
-
-        track.addEventListener("canplay", onCanPlay);
-        track.addEventListener("error", onError);
-        track.load();
-      });
-    }
-
-    const mic1Id = getSelectedMicId?.(1);
-    const mic2Id = getSelectedMicId?.(2);
-
-    karaokeStream = await navigator.mediaDevices.getUserMedia({
-      audio: mic1Id
-        ? {
-            deviceId: { exact: mic1Id },
-            echoCancellation: false,
-            noiseSuppression: false,
-            autoGainControl: false
-          }
-        : {
-            echoCancellation: false,
-            noiseSuppression: false,
-            autoGainControl: false
-          }
+    // 2. Pedir permisos para los streams
+    karaokeStream = await navigator.mediaDevices.getUserMedia({ 
+      audio: micId1 ? { deviceId: { exact: micId1 } } : true 
     });
 
-    finalStream = karaokeStream;
+    if (karaokeDuoSplitMode) {
+      karaokeStream2 = await navigator.mediaDevices.getUserMedia({ 
+        audio: micId2 ? { deviceId: { exact: micId2 } } : true 
+      });
+    }
 
-    if (isDuo && mic2Id) {
-      karaokeStream2 = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          deviceId: { exact: mic2Id },
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false
+    // 3. Inicializar AudioContext y CARGAR EL MÓDULO (Solución al error AudioWorkletProcessor)
+    karaokePitchDetectionAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    
+    // IMPORTANTE: Borra las líneas "import { VocalProcessor }..." al principio del archivo
+    await karaokePitchDetectionAudioCtx.audioWorklet.addModule('./modules/vocal-processor.js');
+
+    // 4. Configurar Micrófono 1
+    const source1 = karaokePitchDetectionAudioCtx.createMediaStreamSource(karaokeStream);
+    const processor1 = new AudioWorkletNode(karaokePitchDetectionAudioCtx, 'vocal-processor');
+    
+    processor1.port.onmessage = (e) => {
+      if (e.data.volume !== undefined) {
+        const fill1 = document.querySelector('.mic-tester-card .mic-level-fill'); // Mic 1
+        if (fill1) fill1.style.width = Math.min(e.data.volume * 100, 100) + '%';
+      }
+      if (e.data.pitch) karaokePitchP1 = e.data.pitch;
+    };
+    
+    source1.connect(processor1);
+    processor1.connect(karaokePitchDetectionAudioCtx.destination);
+
+    // 5. Configurar Micrófono 2 (Si está en modo Dúo)
+    if (karaokeDuoSplitMode && karaokeStream2) {
+      const source2 = karaokePitchDetectionAudioCtx.createMediaStreamSource(karaokeStream2);
+      const processor2 = new AudioWorkletNode(karaokePitchDetectionAudioCtx, 'vocal-processor');
+      
+      processor2.port.onmessage = (e) => {
+        if (e.data.volume !== undefined) {
+          // Buscamos la segunda barra de volumen en el HTML
+          const fill2 = document.querySelectorAll('.mic-level-fill')[1]; 
+          if (fill2) fill2.style.width = Math.min(e.data.volume * 100, 100) + '%';
         }
-      });
-      console.log("Stream 2 capturado:", karaokeStream2.id);
-      await ensureP2PitchTracking();
+        if (e.data.pitch) karaokePitchP2 = e.data.pitch;
+      };
 
-      const mergeCtx = new (window.AudioContext || window.webkitAudioContext)({
-        sampleRate: 48000
-      });
-
-      karaokeDuoAudioContext = mergeCtx;
-      karaokeDuoAnalyser1 = mergeCtx.createAnalyser();
-      karaokeDuoAnalyser2 = mergeCtx.createAnalyser();
-
-      const merger = mergeCtx.createChannelMerger(2);
-      const destination = mergeCtx.createMediaStreamDestination();
-
-      const src1 = mergeCtx.createMediaStreamSource(karaokeStream);
-      const src2 = mergeCtx.createMediaStreamSource(karaokeStream2);
-
-      src1.connect(karaokeDuoAnalyser1);
-      src2.connect(karaokeDuoAnalyser2);
-
-      karaokeDuoAnalyser1.connect(merger, 0, 0);
-      karaokeDuoAnalyser2.connect(merger, 0, 1);
-      merger.connect(destination);
-
-      finalStream = destination.stream;
-
-      const duoIndicator = $("karaokeDuoIndicator");
-      if (duoIndicator) {
-        duoIndicator.style.display = "block";
-      }
-
-      startKaraokeDuoLevelMonitor?.();
+      source2.connect(processor2);
+      processor2.connect(karaokePitchDetectionAudioCtx.destination);
     }
 
-    const options = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-      ? { mimeType: "audio/webm;codecs=opus" }
-      : {};
-
-    karaokeMediaRecorder = new MediaRecorder(finalStream, options);
-
-    karaokeMediaRecorder.ondataavailable = (e) => {
-      if (e.data && e.data.size > 0) {
-        karaokeChunks.push(e.data);
-      }
-    };
-
-    karaokeMediaRecorder.onstop = () => {
-      karaokeRecordedBlob = new Blob(karaokeChunks, {
-        type: "audio/webm"
-      });
-
-      const voicePlayerEl = $("karaokeVoicePlayer");
-      if (voicePlayerEl) {
-        voicePlayerEl.src = URL.createObjectURL(karaokeRecordedBlob);
-      }
-
-      const statusEl = $("karaokeStatus");
-      if (statusEl) {
-        statusEl.textContent = "Estado: Grabación finalizada ✅";
-      }
-
-      const duoIndicator = $("karaokeDuoIndicator");
-      if (duoIndicator) {
-        duoIndicator.style.display = "none";
-      }
-
-      stopKaraokeDuoLevelMonitor?.();
-    };
-
-    karaokeMediaRecorder.start();
-
-    await startKaraokePitchDetection();
-    await track.play();
-
-    const startBtn = $("karaokeStartBtn");
-    if (startBtn) {
-      startBtn.disabled = true;
-    }
-
-    const statusEl = $("karaokeStatus");
-    if (statusEl) {
-      statusEl.textContent = "Estado: Grabando... 🎤";
-    }
+    // 6. Iniciar el bucle de dibujo del Canvas
+    startKaraokePitchDetection(); 
+    
+    console.log("Sistema Dúo iniciado correctamente.");
   } catch (err) {
-    console.error("Error iniciando grabación karaoke:", err);
-
-    if (karaokeDuoAudioContext) {
-      try { await karaokeDuoAudioContext.close(); } catch (e) {}
-      karaokeDuoAudioContext = null;
-    }
-
-    if (karaokeStream) {
-      karaokeStream.getTracks().forEach(t => t.stop());
-      karaokeStream = null;
-    }
-
-    if (karaokeStream2) {
-      karaokeStream2.getTracks().forEach(t => t.stop());
-      karaokeStream2 = null;
-    }
-
-    karaokeLoopBusy = false;
-
-    if (karaokeAudioController) {
-      destroyAudioController();
-      karaokeAudioController = null;
-    }
-
-    await stopP2PitchTracking().catch(() => {});
-    stopKaraokeDuoLevelMonitor?.();
-
-    const duoIndicator = $("karaokeDuoIndicator");
-    if (duoIndicator) {
-      duoIndicator.style.display = "none";
-    }
-
-    alert("❌ No se pudo iniciar la grabación de karaoke: " + err.message);
+    console.error("Error crítico en grabación Dúo:", err);
   }
 }
 
