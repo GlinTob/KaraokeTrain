@@ -1524,3 +1524,37 @@ audio {
   transition: width 0.1s ease-out;
 }
 */
+/* El contenedor "vacío" de la barra */
+.mic-level-bar {
+  height: 12px;
+  background-color: #334155; /* Un gris oscuro para el fondo */
+  border-radius: 6px;
+  overflow: hidden; /* Para que el relleno respete los bordes redondeados */
+  margin: 10px 0;
+  width: 100%;
+}
+
+/* El relleno que indica el nivel */
+.mic-level-fill {
+  height: 100%;
+  background-color: #22c55e; /* Un verde vibrante */
+  width: 0%; /* Empezamos en 0 */
+  transition: width 0.1s ease; /* Transición suave para el movimiento */
+}
+/* 1. Estilo para el contenedor (el fondo de la barra) */
+.mic-level-bar {
+  height: 12px;
+  background-color: #e2e8f0; /* Color gris claro de fondo */
+  border-radius: 6px;
+  overflow: hidden;
+  margin: 10px 0;
+  width: 100%;
+}
+
+/* 2. Estilo para el relleno (la parte que sube y baja) */
+.mic-level-fill {
+  height: 100%;
+  background-color: #22c55e; /* Color verde */
+  width: 0%; /* JavaScript cambiará esto dinámicamente */
+  transition: width 0.1s ease;
+}
