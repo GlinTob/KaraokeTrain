@@ -71,296 +71,157 @@ export function toggleKaraokeDuoSplitMode() {
 export function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2) {
   const canvas = $("karaokeCanvas");
   if (!canvas) return;
-
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
 
-  const hueFiesta = (currentTime * 50) % 360;
-  const paleta = obtenerPaletaTema(hueFiesta);
-
-  if (typeof currentFreq === "number") karaokePitchP1 = currentFreq;
-  if (typeof currentFreq2 === "number") karaokePitchP2 = currentFreq2;
-
-  const MIDI_MIN = 36;
-  const MIDI_MAX = 84;
-  const lineX = 80;
-  const pixelsPerSecond = (canvas.width - 50) / 7;
-
-  function obtenerPaletaTema(hue = 0) {
+  // 1. Definición de Temas (VITAL para no perder opciones)
+  function obtenerPaleta(hue = 0) {
     const temaActual = localStorage.getItem("vocalApp_stage") || "theme-clasico";
-    let config = {
-      fondo: "#111827",
-      lineas: "#333333",
-      etiquetas: "#666666",
-      barraFutura: "#1e40af",
-      bordeFuturo: "#3b82f6",
-      tamanoTexto: "15px"
-    };
+    let config = { fondo: "#111827", lineas: "#333333", etiquetas: "#666666", barraFutura: "#1e40af", bordeFuturo: "#3b82f6", tamanoTexto: "15px" };
+    
     switch (temaActual) {
-      case "theme-moderno":
-        config = {
-          fondo: "#082f49",
-          lineas: "rgba(6, 182, 212, 0.2)",
-          etiquetas: "#06b6d4",
-          barraFutura: "#1e3a8a",
-          bordeFuturo: "#06b6d4",
-          tamanoTexto: "16px"
-        };
-        break;
-      case "theme-disco":
-        config = {
-          fondo: "#2e1065",
-          lineas: "rgba(219, 39, 119, 0.25)",
-          etiquetas: "#facc15",
-          barraFutura: "#701a75",
-          bordeFuturo: "#db2777",
-          tamanoTexto: "18px"
-        };
-        break;
-      case "theme-acustico":
-        config = {
-          fondo: "#451a03",
-          lineas: "rgba(120, 53, 15, 0.4)",
-          etiquetas: "#fcd34d",
-          barraFutura: "#78350f",
-          bordeFuturo: "#b45309",
-          tamanoTexto: "14px"
-        };
-        break;
-      case "theme-fiesta":
-        config = {
-          fondo: `hsl(${hue}, 40%, 12%)`,
-          lineas: "rgba(255, 255, 255, 0.15)",
-          etiquetas: "#ff007f",
-          barraFutura: `hsl(${(hue + 180) % 360}, 50%, 25%)`,
-          bordeFuturo: `hsl(${(hue + 180) % 360}, 70%, 50%)`,
-          tamanoTexto: "19px"
-        };
-        break;
+      case "theme-moderno": config = { fondo: "#082f49", lineas: "rgba(6, 182, 212, 0.2)", etiquetas: "#06b6d4", barraFutura: "#1e3a8a", bordeFuturo: "#06b6d4", tamanoTexto: "16px" }; break;
+      case "theme-disco": config = { fondo: "#2e1065", lineas: "rgba(219, 39, 119, 0.25)", etiquetas: "#facc15", barraFutura: "#701a75", bordeFuturo: "#db2777", tamanoTexto: "18px" }; break;
+      case "theme-acustico": config = { fondo: "#451a03", lineas: "rgba(120, 53, 15, 0.4)", etiquetas: "#fcd34d", barraFutura: "#78350f", bordeFuturo: "#b45309", tamanoTexto: "14px" }; break;
+      case "theme-fiesta": config = { fondo: `hsl(${hue}, 40%, 12%)`, lineas: "rgba(255, 255, 255, 0.15)", etiquetas: "#ff007f", barraFutura: `hsl(${(hue + 180) % 360}, 50%, 25%)`, bordeFuturo: `hsl(${(hue + 180) % 360}, 70%, 50%)`, tamanoTexto: "19px" }; break;
     }
     return config;
   }
 
+  const paleta = obtenerPaleta((currentTime * 50) % 360);
+
+  // 2. Limpiar Canvas
   ctx.fillStyle = paleta.fondo;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  const datos = Array.isArray(textSegments) ? textSegments : [];
+  // 3. Actualizar Históricos y Frecuencias
+  if (typeof currentFreq === "number") karaokePitchP1 = currentFreq;
+  if (typeof currentFreq2 === "number") karaokePitchP2 = currentFreq2;
 
-  const AVATAR_BLOCK_W = karaokeDuoSplitMode ? 110 : 0;
-  const noteLabelsX = 28 + AVATAR_BLOCK_W;
-  const pentagramStartX = 35 + AVATAR_BLOCK_W;
-  const dynLineX = lineX + AVATAR_BLOCK_W;
+  if (karaokeDuoSplitMode) {
+    const TELE_H = 100; // Espacio inferior para letra
+    const regionH = (canvas.height - TELE_H - 40) / 2;
+    
+    pitchHistoryP1.push(karaokePitchP1 > 0 ? karaokePitchP1 : null);
+    if (pitchHistoryP1.length > 80) pitchHistoryP1.shift();
+    pitchHistoryP2.push(karaokePitchP2 > 0 ? karaokePitchP2 : null);
+    if (pitchHistoryP2.length > 80) pitchHistoryP2.shift();
 
-  function drawAvatarBlock(pTop, pBottom, parte) {
-    if (!parte || parte === "DUO") return;
-    const isP1 = (parte === "P1");
-    const nombre = isP1 ? "Wen-dolyne" : "To-bonito";
-    const avatarEmoji = isP1 ? "👩" : "🧔🏾";
+    // Dibujar Cantante 1 y 2
+    drawRegion(20, 20 + regionH, karaokePitchP1, pitchHistoryP1, "P1", "P1", paleta, currentTime);
+    drawRegion(20 + regionH + 20, 20 + regionH * 2 + 20, karaokePitchP2, pitchHistoryP2, "P2", "P2", paleta, currentTime);
+  } else {
+    pitchHistory.push(karaokePitchP1 > 0 ? karaokePitchP1 : null);
+    if (pitchHistory.length > 80) pitchHistory.shift();
+    drawRegion(20, canvas.height - 110, karaokePitchP1, pitchHistory, null, null, paleta, currentTime);
+  }
+}
 
-    const cx = 5 + AVATAR_BLOCK_W / 2;
-    const blockTop = pTop + 10;
-    const avatarSize = 56;
-    const halfSize = 28;
-    const nameH = 22;
-    const gap = 6;
+// Función interna de dibujo por zona
+export function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2) {
+  const canvas = $("karaokeCanvas");
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
 
-    ctx.fillStyle = "white";
-    ctx.font = "bold 13px Arial";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "alphabetic";
-    ctx.fillText(nombre, cx, blockTop + nameH - 4);
+  const paleta = obtenerPaletaTema((currentTime * 50) % 360);
+  
+  // Actualizar frecuencias globales
+  if (typeof currentFreq === "number") karaokePitchP1 = currentFreq;
+  if (typeof currentFreq2 === "number") karaokePitchP2 = currentFreq2;
 
-    const avTop = blockTop + nameH + gap;
-    ctx.font = `${avatarSize}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",Arial`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(avatarEmoji, cx, avTop + avatarSize / 2);
+  ctx.fillStyle = paleta.fondo;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    const rowTop = avTop + avatarSize + gap;
-    const iconHalfFont = `${halfSize}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",Arial`;
+  if (karaokeDuoSplitMode) {
+    const TELE_H = 100; 
+    const GAP = 20;
+    const regionH = (canvas.height - TELE_H - 40) / 2;
+    
+    // Actualizar históricos individuales
+    pitchHistoryP1.push(karaokePitchP1 > 0 ? karaokePitchP1 : null);
+    if (pitchHistoryP1.length > 80) pitchHistoryP1.shift();
+    pitchHistoryP2.push(karaokePitchP2 > 0 ? karaokePitchP2 : null);
+    if (pitchHistoryP2.length > 80) pitchHistoryP2.shift();
 
-    if (isP1) {
-      const sqX = cx - halfSize - gap / 2;
-      ctx.fillStyle = "#7c3aed";
-      ctx.fillRect(sqX, rowTop, halfSize, halfSize);
-      ctx.strokeStyle = "#a855f7";
-      ctx.lineWidth = 1;
-      ctx.strokeRect(sqX, rowTop, halfSize, halfSize);
+    // DIBUJAR AMBAS REGIONES
+    drawRegion(20, 20 + regionH, karaokePitchP1, pitchHistoryP1, "P1", "P1", paleta, currentTime);
+    drawRegion(20 + regionH + GAP, 20 + regionH * 2 + GAP, karaokePitchP2, pitchHistoryP2, "P2", "P2", paleta, currentTime);
+    
+  } else {
+    pitchHistory.push(karaokePitchP1 > 0 ? karaokePitchP1 : null);
+    if (pitchHistory.length > 80) pitchHistory.shift();
+    drawRegion(20, canvas.height - 110, karaokePitchP1, pitchHistory, null, null, paleta, currentTime);
+  }
+}
 
-      ctx.font = iconHalfFont;
-      ctx.fillStyle = "white";
-      ctx.textBaseline = "middle";
-      ctx.textAlign = "center";
-      ctx.fillText("⚛️", cx + halfSize / 2 + gap / 2, rowTop + halfSize / 2);
-    } else {
-      ctx.font = iconHalfFont;
-      ctx.fillStyle = "white";
-      ctx.textBaseline = "middle";
-      ctx.textAlign = "center";
-      ctx.fillText("🐱", cx - halfSize / 2 - gap / 2, rowTop + halfSize / 2);
-      ctx.fillText("🤔", cx + halfSize / 2 + gap / 2, rowTop + halfSize / 2);
-    }
-    ctx.textBaseline = "alphabetic";
+function drawRegion(pTop, pBottom, pVal, pHist, filtro, etiqueta, paleta, currentTime) {
+  const canvas = $("karaokeCanvas");
+  const ctx = canvas.getContext("2d");
+  const pHeight = pBottom - pTop;
+  const pixelsPerSecond = (canvas.width - 150) / 7;
+  const dynLineX = 80 + (karaokeDuoSplitMode ? 110 : 0);
+  const pentagramStartX = 35 + (karaokeDuoSplitMode ? 110 : 0);
+
+  const midiToY = (midi) => pTop + ((84 - (midi > 0 ? midi : 60)) / (84 - 36) * pHeight);
+
+  if (karaokeDuoSplitMode) drawAvatarBlock(pTop, pBottom, etiqueta);
+
+  // Notas de la canción
+  if (Array.isArray(textSegments)) {
+    textSegments.forEach(seg => {
+      if (filtro && seg.parte !== filtro && seg.parte !== "DUO") return;
+      (seg.words || []).forEach(w => {
+        if (w.end < currentTime - 1 || w.start > currentTime + 8) return;
+        const x = dynLineX + (w.start - currentTime) * pixelsPerSecond;
+        const y = midiToY(w.midi || seg.midi || 60);
+        
+        let color = paleta.barraFutura;
+        if (currentTime >= w.start && currentTime <= w.end && pVal > 0) {
+          const userMidi = Math.round(12 * Math.log2(pVal / 440) + 69);
+          if (Math.abs(userMidi - (w.midi || 60)) <= 2) color = "#22c55e"; 
+        }
+        if (currentTime > w.end) color = "#4b5563";
+
+        ctx.fillStyle = color;
+        ctx.fillRect(x, y - 11, Math.max((w.end - w.start) * pixelsPerSecond, 30), 22);
+        
+        ctx.fillStyle = "white";
+        ctx.font = `bold ${paleta.tamanoTexto} Arial`;
+        ctx.fillText(w.word || "", x + 5, y + 5);
+      });
+    });
   }
 
-  function drawRegion(pTop, pBottom, pitchVal, pitchHist, parteFiltro, etiquetaParte) {
-    const pHeight = pBottom - pTop;
-    const numLines = 10;
-  
-    const midiToY = (midi) => {
-      const val = (Number.isFinite(midi) && midi > 0) ? midi : 60;
-      const normalized = (MIDI_MAX - val) / (MIDI_MAX - MIDI_MIN);
-      return pTop + (normalized * pHeight);
-    };
-  
-    drawAvatarBlock(pTop, pBottom, etiquetaParte);
-  
-    ctx.strokeStyle = paleta.lineas;
-    ctx.lineWidth = 1;
-    for (let i = 0; i <= numLines; i++) {
-      const y = pTop + (pHeight / numLines) * i;
-      ctx.beginPath();
-      ctx.moveTo(pentagramStartX, y);
-      ctx.lineTo(canvas.width, y);
-      ctx.stroke();
-    }
-  
-    ctx.fillStyle = paleta.etiquetas;
-    ctx.font = "bold 20px Arial";
-    ctx.textAlign = "right";
-    const noteLabels = ["C6", "A5", "F5", "D5", "B4", "G4", "E4", "C4", "A3", "F3", "D3", "C3"];
-    noteLabels.forEach((label, i) => {
-      const y = pTop + (pHeight / numLines) * i + 7;
-      ctx.fillText(label, noteLabelsX, y);
-    });
-  
-    if (Array.isArray(datos) && datos.length > 0) {
-      datos.forEach((seg) => {
-        const parteSeg = seg.parte || "P1";
-  
-        if (parteFiltro && parteSeg !== parteFiltro && parteSeg !== "DUO") return;
-  
-        const words = Array.isArray(seg.words) ? seg.words : [];
-        words.forEach((w) => {
-          const start = Number.isFinite(w.start) ? w.start : (seg.start || 0);
-          const end = Number.isFinite(w.end) ? w.end : (start + 0.35);
-  
-          if (end < currentTime - 1 || start > currentTime + (canvas.width / pixelsPerSecond)) return;
-  
-          const x = dynLineX + (start - currentTime) * pixelsPerSecond;
-          const width = Math.max((end - start) * pixelsPerSecond, 25);
-  
-          const midi = Number.isFinite(w.midi)
-            ? w.midi
-            : Number.isFinite(seg.midi)
-              ? seg.midi
-              : 60;
-  
-          const y = midiToY(midi);
-          const h = 24;
-  
-          const isActive = currentTime >= start && currentTime <= end;
-          const isPast = currentTime > end;
-  
-          let barColor = paleta.barraFutura;
-          let strokeColor = paleta.bordeFuturo;
-  
-          if (parteSeg === "DUO") {
-            barColor = "#7c3aed";
-            strokeColor = "#a855f7";
-          } else if (parteSeg === "P2") {
-            barColor = "#9a3412";
-            strokeColor = "#f97316";
-          } else {
-            barColor = "#1d4ed8";
-            strokeColor = "#60a5fa";
-          }
-  
-          if (isPast) {
-            barColor = "#4b5563";
-            strokeColor = "#6b7280";
-          }
-  
-          if (isActive) {
-            let isCorrect = false;
-  
-            if (pitchVal > 0) {
-              const userMidi = Math.round(12 * Math.log2(pitchVal / 440) + 69);
-              if (Math.abs(userMidi - midi) <= 2) {
-                isCorrect = true;
-              }
-            }
-  
-            barColor = isCorrect ? "#22c55e" : barColor;
-            strokeColor = "white";
-          }
-  
-          ctx.fillStyle = barColor;
-          ctx.beginPath();
-  
-          if (ctx.roundRect) {
-            ctx.roundRect(x, y - h / 2, width, h, 5);
-          } else {
-            ctx.fillRect(x, y - h / 2, width, h);
-          }
-  
-          ctx.fill();
-  
-          if (isActive || !isPast) {
-            ctx.strokeStyle = strokeColor;
-            ctx.lineWidth = isActive ? 3 : 1;
-            ctx.stroke();
-          }
-  
-          ctx.fillStyle = "white";
-          ctx.font = `bold ${paleta.tamanoTexto || "15px"} Arial`;
-          ctx.textAlign = "center";
-          ctx.fillText(w.word || w.text || "", x + width / 2, y + 5);
-        });
-      });
-    }
-  
-    if (pitchVal > 0) {
-      const userMidi = Math.round(12 * Math.log2(pitchVal / 440) + 69);
-      const userY = midiToY(userMidi);
-  
-      ctx.beginPath();
-      ctx.strokeStyle = "rgba(250, 204, 21, 0.5)";
-      ctx.lineWidth = 4;
-      let started = false;
-  
-      pitchHist.forEach((f, i) => {
-        if (f) {
-          const x = dynLineX - (pitchHist.length - i) * 3;
-          const yPos = midiToY(Math.round(12 * Math.log2(f / 440) + 69));
-          if (x < pentagramStartX) return;
-          if (!started) {
-            ctx.moveTo(x, yPos);
-            started = true;
-          } else {
-            ctx.lineTo(x, yPos);
-          }
-        }
-      });
-  
-      ctx.stroke();
-  
-      ctx.beginPath();
-      ctx.fillStyle = "#facc15";
-      ctx.arc(dynLineX, userY, 9, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = "white";
-      ctx.lineWidth = 2;
-      ctx.stroke();
-    }
-  
-    ctx.strokeStyle = "#ef4444";
-    ctx.lineWidth = 2;
+  // --- RASTRO DIFERENCIADO POR COLORES ---
+  if (pVal > 0) {
+    // Definimos color: Cantante 1 (Cian), Cantante 2 (Rojo), Individual (Amarillo)
+    let colorRastro = "#facc15"; 
+    if (etiqueta === "P1") colorRastro = "#06b6d4";
+    if (etiqueta === "P2") colorRastro = "#f43f5e";
+
     ctx.beginPath();
-    ctx.moveTo(dynLineX, pTop - 2);
-    ctx.lineTo(dynLineX, pBottom + 2);
+    ctx.strokeStyle = colorRastro;
+    ctx.lineWidth = 4;
+    let started = false;
+    pHist.forEach((f, i) => {
+      if (f) {
+        const x = dynLineX - (pHist.length - i) * 4;
+        const y = midiToY(Math.round(12 * Math.log2(f / 440) + 69));
+        if (x < pentagramStartX) return;
+        if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
+      }
+    });
+    ctx.stroke();
+    
+    ctx.beginPath();
+    ctx.fillStyle = colorRastro;
+    ctx.arc(dynLineX, midiToY(Math.round(12 * Math.log2(pVal / 440) + 69)), 10, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "white";
     ctx.stroke();
   }
+}
   // --- Lógica de Dibujo Real ---
   if (karaokeDuoSplitMode) {
     const TELE_H = 100; // Espacio para letra
