@@ -47,13 +47,9 @@ export function toggleKaraokeDuoSplitMode() {
   const btn = $("karaokeDuoSplitToggleBtn");
   if (btn) {
     btn.textContent = karaokeDuoSplitMode
+    btn.style.background = karaokeDuoSplitMode ? "#16a34a" : "#3b82f6";
       ? "👩‍🎤🎤👨 Modo Dúo Split: Activo. Haz click para desactivarlo."
       : "👩‍🎤🎤👨 Modo Dúo Split: Inactivo. Haz click aquí para activarlo.";
-  }
-
-  // Si quieres, cambia también color visual
-  if (btn) {
-    btn.style.background = karaokeDuoSplitMode ? "#16a34a" : "#3b82f6";
   }
 
   // Reset de históricos para evitar arrastre visual raro
@@ -61,6 +57,7 @@ export function toggleKaraokeDuoSplitMode() {
   pitchHistoryP1 = [];
   pitchHistoryP2 = [];
 
+  if (typeof drawKaraokeMonitor === "function") {
   // Redibujar inmediatamente aunque no haya grabación en curso
   const track = $("karaokeTrack") || $("karaokeAudio") || $("audioKaraoke") || $("trackPlayer");
   const currentTime = track ? track.currentTime : 0;
@@ -98,9 +95,200 @@ export function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2) {
   if (typeof currentFreq === "number") karaokePitchP1 = currentFreq;
   if (typeof currentFreq2 === "number") karaokePitchP2 = currentFreq2;
 
-  ctx.fillStyle = paleta.fondo;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  //const datos = (textSegments && textSegments.length > 0) ? textSegments : transcriptionSegments;
 
+  const AVATAR_BLOCK_W = karaokeDuoSplitMode ? 110 : 0;
+  const noteLabelsX = 28 + AVATAR_BLOCK_W;
+  const pentagramStartX = 35 + AVATAR_BLOCK_W;
+  const dynLineX = lineX + AVATAR_BLOCK_W;
+
+  function drawAvatarBlock(pTop, pBottom, parte) {
+    if (!parte || parte === "DUO") return;
+    const isP1 = (parte === "P1");
+    const nombre = isP1 ? "Wen-dolyne" : "To-bonito";
+    // P1: mujer. P2: persona con barba + piel morena (forma compacta sin ZWJ
+    // para evitar que algunos sistemas pinten un ♂ extra al lado).
+    const avatarEmoji = isP1 ? "👩" : "🧔🏾";
+
+    const cx = 5 + AVATAR_BLOCK_W / 2;
+    const blockTop = pTop + 10;
+    const avatarSize = 56;
+    const halfSize = 28; // mitad del tamaño original del cuadrado
+    const nameH = 22;
+    const gap = 6;
+
+    // 1) Nombre (arriba)
+    ctx.fillStyle = "white";
+    ctx.font = "bold 16px Arial";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "alphabetic";
+    ctx.fillText(nombre, cx, blockTop + nameH - 4);
+
+    // 2) Avatar emoji (centro, sin círculo de fondo)
+    const avTop = blockTop + nameH + gap;
+    ctx.font = `${avatarSize}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",Arial`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(avatarEmoji, cx, avTop + avatarSize / 2);
+
+    // 3) Fila inferior con dos íconos al lado (cada uno de halfSize)
+    const rowTop = avTop + avatarSize + gap;
+    const iconHalfFont = `${halfSize}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",Arial`;
+
+    if (isP1) {
+      // Izquierda: cuadrado morado (mitad de tamaño)
+      const sqX = cx - halfSize - gap / 2;
+      ctx.fillStyle = "#7c3aed";
+      ctx.fillRect(sqX, rowTop, halfSize, halfSize);
+      ctx.strokeStyle = "#a855f7";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(sqX, rowTop, halfSize, halfSize);
+      // Derecha: átomo ⚛️
+      ctx.font = iconHalfFont;
+      ctx.fillStyle = "white";
+      ctx.textBaseline = "middle";
+      ctx.textAlign = "center";
+      ctx.fillText("⚛️", cx + halfSize / 2 + gap / 2, rowTop + halfSize / 2);
+    } else {
+      // Izquierda: cara de gato 🐱 (mitad de tamaño)
+      ctx.font = iconHalfFont;
+      ctx.fillStyle = "white";
+      ctx.textBaseline = "middle";
+      ctx.textAlign = "center";
+      ctx.fillText("🐱", cx - halfSize / 2 - gap / 2, rowTop + halfSize / 2);
+      // Derecha: hombre pensante 🤔
+      ctx.fillText("🤔", cx + halfSize / 2 + gap / 2, rowTop + halfSize / 2);
+    }
+
+    // Reset baseline para no romper otros dibujos
+    ctx.textBaseline = "alphabetic";
+  }
+
+  function drawRegion(pTop, pBottom, pVal, pHist, filtro, etiqueta, paleta, currentTime) {
+    const canvas = $("karaokeCanvas");
+    const ctx = canvas.getContext("2d");
+    const pHeight = pBottom - pTop;
+    const pixelsPerSecond = (canvas.width - 150) / 7;
+    const dynLineX = 80 + (karaokeDuoSplitMode ? 110 : 0);
+    const pentagramStartX = 35 + (karaokeDuoSplitMode ? 110 : 0);
+    const midiToY = (midi) => pTop + ((84 - (midi > 0 ? midi : 60)) / (84 - 36) * pHeight);
+
+    // Avatar block (sólo en split mode)
+    drawAvatarBlock(pTop, pBottom, etiquetaParte);
+
+    // Pentagrama
+    ctx.strokeStyle = paleta.lineas;
+    ctx.lineWidth = 1;
+    const numLines = 10;
+    for (let i = 0; i <= numLines; i++) {
+      const y = pTop + (pHeight / numLines) * i;
+      ctx.beginPath();
+      ctx.moveTo(pentagramStartX, y);
+      ctx.lineTo(canvas.width, y);
+      ctx.stroke();
+    }
+
+    // Notas a la izquierda
+    ctx.fillStyle = paleta.etiquetas;
+    ctx.font = "bold 20px Arial";
+    ctx.textAlign = "right";
+    const noteLabels = ["C6", "A5", "F5", "D5", "B4", "G4", "E4", "C4", "A3", "F3", "D3", "C3"];
+    noteLabels.forEach((label, i) => {
+      const y = pTop + (pHeight / numLines) * i + 7;
+      ctx.fillText(label, noteLabelsX, y);
+    });
+
+    if (Array.isArray(textSegments)) {
+    textSegments.forEach(seg => {
+      if (filtro && seg.parte !== filtro && seg.parte !== "DUO") return;
+      (seg.words || []).forEach(w => {
+        if (w.end < currentTime - 1 || w.start > currentTime + 8) return;
+        const x = dynLineX + (w.start - currentTime) * pixelsPerSecond;
+        const y = midiToY(w.midi || seg.midi || 60);
+        
+        let color = paleta.barraFutura;
+        if (currentTime >= w.start && currentTime <= w.end && pVal > 0) {
+          const userMidi = Math.round(12 * Math.log2(pVal / 440) + 69);
+          if (Math.abs(userMidi - (w.midi || 60)) <= 2) color = "#22c55e"; 
+        }
+        if (currentTime > w.end) color = "#4b5563";
+
+        const isActive = currentTime >= start && currentTime <= end;
+        const isPast = currentTime > end;
+
+        if (parteSeg === "DUO") {
+            barColor = "#7c3aed";
+            strokeColor = "#a855f7";
+          } else if (parteSeg === "P2") {
+            barColor = "#9a3412";
+            strokeColor = "#f97316";
+          }
+
+          if (isPast) barColor = "#4b5563";
+
+          if (isActive) {
+            const userMidi = Math.round(12 * Math.log2(pitchVal / 440) + 69);
+            const isCorrect = pitchVal > 0 && Math.abs(userMidi - midi) <= 2;
+            barColor = isCorrect ? "#22c55e" : strokeColor;
+            strokeColor = "white";
+          }
+
+          ctx.fillStyle = barColor;
+          ctx.beginPath();
+          if (ctx.roundRect) ctx.roundRect(x, y - h / 2, Math.max(width, 25), h, 5);
+          else ctx.fillRect(x, y - h / 2, Math.max(width, 25), h);
+          ctx.fill();
+
+          if (isActive || !isPast) {
+            ctx.strokeStyle = strokeColor;
+            ctx.lineWidth = isActive ? 3 : 1;
+            ctx.stroke();
+          }
+
+          ctx.fillStyle = "white";
+          ctx.font = `bold ${paleta.tamanoTexto || "15px"} Arial`;
+          ctx.textAlign = "center";
+          ctx.fillText(w.word || w.text || "", x + Math.max(width, 25) / 2, y + 5);
+        });
+      });
+    }
+
+    // Rastro de pitch y punto del usuario (por región)
+    if (pitchVal > 0) {
+      const userMidi = Math.round(12 * Math.log2(pitchVal / 440) + 69);
+      const userY = midiToY(userMidi);
+
+      ctx.beginPath();
+      ctx.strokeStyle = "rgba(250, 204, 21, 0.5)";
+      ctx.lineWidth = 4;
+      let started = false;
+      pitchHist.forEach((f, i) => {
+        if (f) {
+          const x = dynLineX - (pitchHist.length - i) * 3;
+          const yPos = midiToY(Math.round(12 * Math.log2(f / 440) + 69));
+          if (x < pentagramStartX) return;
+          if (!started) { ctx.moveTo(x, yPos); started = true; } else { ctx.lineTo(x, yPos); }
+        }
+      });
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.fillStyle = "#facc15";
+      ctx.arc(dynLineX, userY, 9, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "white";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+
+    // Línea roja (Ahora) que cruza solo esta región
+    ctx.strokeStyle = "#ef4444";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(dynLineX, pTop - 2);
+    ctx.lineTo(dynLineX, pBottom + 2);
+    ctx.stroke();
+  }
   if (karaokeDuoSplitMode) {
     const TELE_H = 100; 
     const GAP = 20;
@@ -121,76 +309,32 @@ export function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2) {
     if (pitchHistory.length > 80) pitchHistory.shift();
     drawRegion(20, canvas.height - 110, karaokePitchP1, pitchHistory, null, null, paleta, currentTime);
   }
-}
-
-function drawRegion(pTop, pBottom, pVal, pHist, filtro, etiqueta, paleta, currentTime) {
-  const canvas = $("karaokeCanvas");
-  const ctx = canvas.getContext("2d");
-  const pHeight = pBottom - pTop;
-  const pixelsPerSecond = (canvas.width - 150) / 7;
-  const dynLineX = 80 + (karaokeDuoSplitMode ? 110 : 0);
-  const pentagramStartX = 35 + (karaokeDuoSplitMode ? 110 : 0);
-
-  const midiToY = (midi) => pTop + ((84 - (midi > 0 ? midi : 60)) / (84 - 36) * pHeight);
-
-  if (karaokeDuoSplitMode) drawAvatarBlock(pTop, pBottom, etiqueta);
-
-  // Notas de la canción
   if (Array.isArray(textSegments)) {
     textSegments.forEach(seg => {
-      if (filtro && seg.parte !== filtro && seg.parte !== "DUO") return;
-      (seg.words || []).forEach(w => {
-        if (w.end < currentTime - 1 || w.start > currentTime + 8) return;
-        const x = dynLineX + (w.start - currentTime) * pixelsPerSecond;
-        const y = midiToY(w.midi || seg.midi || 60);
-        
-        let color = paleta.barraFutura;
-        if (currentTime >= w.start && currentTime <= w.end && pVal > 0) {
-          const userMidi = Math.round(12 * Math.log2(pVal / 440) + 69);
-          if (Math.abs(userMidi - (w.midi || 60)) <= 2) color = "#22c55e"; 
-        }
-        if (currentTime > w.end) color = "#4b5563";
-
-        ctx.fillStyle = color;
-        ctx.fillRect(x, y - 11, Math.max((w.end - w.start) * pixelsPerSecond, 30), 22);
-        
+      const idx = datos.findIndex(s => currentTime >= (s.start || 0) && currentTime <= (s.end || (s.start + 1)));
+      if (idx !== -1) {
+        ctx.fillStyle = "rgba(0, 0, 0, 0.8)";
+        ctx.fillRect(0, canvas.height - 100, canvas.width, 100);
+  
+        ctx.textAlign = "center";
         ctx.fillStyle = "white";
-        ctx.font = `bold ${paleta.tamanoTexto} Arial`;
-        ctx.fillText(w.word || "", x + 5, y + 5);
+        ctx.font = "bold 30px Arial";
+
+        // En split, mostramos también la parte cantando
+        const parteActual = datos[idx].parte || "P1";
+        const prefijo = karaokeDuoSplitMode ? (parteActual === "DUO" ? "🟪 DÚO · " : (parteActual === "P2" ? "🟧 P2 · " : "🟦 P1 · ")) : "";
+        ctx.fillText(prefijo + (datos[idx].text || ""), canvas.width / 2, canvas.height - 65);
+        
+        if (datos[idx + 1]) {
+          ctx.fillStyle = "#94a3b8";
+          ctx.font = "italic 22px Arial";
+          ctx.fillText(datos[idx + 1].text || "", canvas.width / 2, canvas.height - 25);
+        }
       });
     });
   }
-
-  // --- RASTRO DIFERENCIADO POR COLORES ---
-  if (pVal > 0) {
-    // Definimos color: Cantante 1 (Cian), Cantante 2 (Rojo), Individual (Amarillo)
-    let colorRastro = "#facc15"; 
-    if (etiqueta === "P1") colorRastro = "#06b6d4";
-    if (etiqueta === "P2") colorRastro = "#f43f5e";
-
-    ctx.beginPath();
-    ctx.strokeStyle = colorRastro;
-    ctx.lineWidth = 4;
-    let started = false;
-    pHist.forEach((f, i) => {
-      if (f) {
-        const x = dynLineX - (pHist.length - i) * 4;
-        const y = midiToY(Math.round(12 * Math.log2(f / 440) + 69));
-        if (x < pentagramStartX) return;
-        if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
-      }
-    });
-    ctx.stroke();
-    
-    ctx.beginPath();
-    ctx.fillStyle = colorRastro;
-    ctx.arc(dynLineX, midiToY(Math.round(12 * Math.log2(pVal / 440) + 69)), 10, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = "white";
-    ctx.stroke();
-  }
 }
-
+  
 export async function startKaraokeRecording() {
   try {
     // 1. Obtener micrófonos
