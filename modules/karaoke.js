@@ -434,45 +434,53 @@ export function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2) {
 
 export async function startKaraokeRecording() {
   try {
-    // 1. Obtener el micrófono (puedes usar tu lógica actual aquí)
-    const micId = typeof getSelectedMicId === "function" ? getSelectedMicId() : null;
-    karaokeStream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: micId ? { exact: micId } : undefined } });
+    // 1. Obtener IDs de micrófonos
+    const micId1 = typeof getSelectedMicId === "function" ? getSelectedMicId() : null;
+    // Asumimos que tienes un selector para el Mic 2 o usas el segundo disponible
+    const micId2 = document.getElementById("micSelect2")?.value || null;
 
-    // 2. Configurar el contexto de audio
+    // 2. Pedir permisos para los streams
+    karaokeStream = await navigator.mediaDevices.getUserMedia({ 
+      audio: micId1 ? { deviceId: { exact: micId1 } } : true 
+    });
+
+    if (karaokeDuoSplitMode) {
+      karaokeStream2 = await navigator.mediaDevices.getUserMedia({ 
+        audio: micId2 ? { deviceId: { exact: micId2 } } : true 
+      });
+    }
+
+    // 3. Inicializar AudioContext y cargar procesador
     karaokePitchDetectionAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    
-    // 3. CARGAR EL PROCESADOR (Vital: nombre del archivo debe ser exacto)
     await karaokePitchDetectionAudioCtx.audioWorklet.addModule('./modules/vocal-processor.js');
 
-    // 4. Crear los nodos
-    const source = karaokePitchDetectionAudioCtx.createMediaStreamSource(karaokeStream);
-    karaokePitchWorkletNode = new AudioWorkletNode(karaokePitchDetectionAudioCtx, 'vocal-processor');
-
-    // 5. ESCUCHAR EL VOLUMEN PARA MOVER LA BARRA VERDE
-    karaokePitchWorkletNode.port.onmessage = (event) => {
-      if (event.data.volume !== undefined) {
-        const fill = document.querySelector('.mic-level-fill');
-        if (fill) {
-          // El volumen viene de 0 a 1, lo pasamos a 0% - 100%
-          fill.style.width = (event.data.volume * 100) + '%';
-        }
+    // --- CONFIGURACIÓN MICRÓFONO 1 ---
+    const source1 = karaokePitchDetectionAudioCtx.createMediaStreamSource(karaokeStream);
+    const processor1 = new AudioWorkletNode(karaokePitchDetectionAudioCtx, 'vocal-processor');
+    
+    processor1.port.onmessage = (e) => {
+      if (e.data.volume !== undefined) {
+        // Primera barra de volumen
+        const fill1 = document.querySelector('.mic-tester-card .mic-level-fill');
+        if (fill1) fill1.style.width = Math.min(e.data.volume * 100, 100) + '%';
       }
+      if (e.data.pitch) karaokePitchP1 = e.data.pitch;
     };
+    
+    source1.connect(processor1);
+    processor1.connect(karaokePitchDetectionAudioCtx.destination);
+    karaokePitchWorkletNode = processor1; // Referencia global
 
-    // 6. Conectar todo
-    source.connect(karaokePitchWorkletNode);
-    karaokePitchWorkletNode.connect(karaokePitchDetectionAudioCtx.destination);
-
-    // 7. Configurar Micrófono 2 (Si está en modo Dúo)
+    // --- CONFIGURACIÓN MICRÓFONO 2 (Solo si es Dúo) ---
     if (karaokeDuoSplitMode && karaokeStream2) {
       const source2 = karaokePitchDetectionAudioCtx.createMediaStreamSource(karaokeStream2);
       const processor2 = new AudioWorkletNode(karaokePitchDetectionAudioCtx, 'vocal-processor');
       
       processor2.port.onmessage = (e) => {
         if (e.data.volume !== undefined) {
-          // Buscamos la segunda barra de volumen en el HTML
-          const fill2 = document.querySelectorAll('.mic-level-fill')[1]; 
-          if (fill2) fill2.style.width = Math.min(e.data.volume * 100, 100) + '%';
+          // Buscamos la segunda barra de volumen (ajusta el selector según tu HTML)
+          const fills = document.querySelectorAll('.mic-level-fill');
+          if (fills[1]) fills[1].style.width = Math.min(e.data.volume * 100, 100) + '%';
         }
         if (e.data.pitch) karaokePitchP2 = e.data.pitch;
       };
@@ -481,13 +489,17 @@ export async function startKaraokeRecording() {
       processor2.connect(karaokePitchDetectionAudioCtx.destination);
     }
 
-    // 8. Iniciar el bucle de dibujo del Canvas
-    startKaraokePitchDetection(); 
-    
-    console.log("Grabación y monitor de volumen activos");
-    
+    // 4. Iniciar bucle de dibujo y grabación
+    karaokeChunks = [];
+    karaokeMediaRecorder = new MediaRecorder(karaokeStream);
+    karaokeMediaRecorder.ondataavailable = (e) => e.data.size > 0 && karaokeChunks.push(e.data);
+    karaokeMediaRecorder.start();
+
+    startKaraokePitchDetection();
+    console.log(karaokeDuoSplitMode ? "🎙️🎙️ Modo Dúo Iniciado" : "🎙️ Modo Individual Iniciado");
+
   } catch (err) {
-    console.error("Error al iniciar karaoke:", err);
+    console.error("Error en grabación:", err);
   }
 }
 
