@@ -434,71 +434,47 @@ export function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2) {
 
 export async function startKaraokeRecording() {
   try {
-    // 1. Identificar micrófonos
+    // 1. Obtener micrófonos
     const micId1 = typeof getSelectedMicId === "function" ? getSelectedMicId() : null;
-    // Buscamos el selector del segundo micro en tu sección de configuración
-    const micId2 = document.getElementById("micSelect2")?.value || null;
+    karaokeStream = await navigator.mediaDevices.getUserMedia({ audio: micId1 ? { deviceId: micId1 } : true });
 
-    // 2. Inicializar Contexto de Audio y Cargar el Procesador de Voces
-    karaokePitchDetectionAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    // VITAL: Sin este paso, las barras no se moverán
+    // 2. AudioContext y Carga de Procesador
+    karaokePitchDetectionAudioCtx = new AudioContext();
     await karaokePitchDetectionAudioCtx.audioWorklet.addModule('./modules/vocal-processor.js');
 
-    // --- CANTANTE 1 (Siempre activo) ---
-    karaokeStream = await navigator.mediaDevices.getUserMedia({ 
-      audio: micId1 ? { deviceId: { exact: micId1 } } : true 
-    });
+    // 3. Configurar Cantante 1
     const source1 = karaokePitchDetectionAudioCtx.createMediaStreamSource(karaokeStream);
-    const processor1 = new AudioWorkletNode(karaokePitchDetectionAudioCtx, 'vocal-processor');
+    karaokePitchWorkletNode = new AudioWorkletNode(karaokePitchDetectionAudioCtx, 'vocal-processor');
     
-    processor1.port.onmessage = (e) => {
+    karaokePitchWorkletNode.port.onmessage = (e) => {
       if (e.data.volume !== undefined) {
-        // Actualiza la barra del Cantante 1
-        const bar1 = document.querySelector('#mic1Group .mic-level-fill') || document.querySelector('.mic-level-fill');
-        if (bar1) bar1.style.width = Math.min(e.data.volume * 150, 100) + '%';
+        const bar = document.querySelector('.mic-tester-card .mic-level-fill');
+        if (bar) bar.style.width = (e.data.volume * 100) + '%';
       }
-      if (e.data.pitch) karaokePitchP1 = e.data.pitch;
     };
-    source1.connect(processor1);
-    processor1.connect(karaokePitchDetectionAudioCtx.destination);
+    source1.connect(karaokePitchWorkletNode).connect(karaokePitchDetectionAudioCtx.destination);
 
-    // --- CANTANTE 2 (Solo si DuoMode está activo) ---
+    // 4. Configurar Cantante 2 (Dúo)
     if (karaokeDuoSplitMode) {
-      try {
-        karaokeStream2 = await navigator.mediaDevices.getUserMedia({ 
-          audio: micId2 ? { deviceId: { exact: micId2 } } : true 
-        });
-        const source2 = karaokePitchDetectionAudioCtx.createMediaStreamSource(karaokeStream2);
-        const processor2 = new AudioWorkletNode(karaokePitchDetectionAudioCtx, 'vocal-processor');
-        
-        processor2.port.onmessage = (e) => {
-          if (e.data.volume !== undefined) {
-            // Actualiza la barra del Cantante 2
-            const bar2 = document.querySelector('#mic2Group .mic-level-fill');
-            if (bar2) bar2.style.width = Math.min(e.data.volume * 150, 100) + '%';
-          }
-          if (e.data.pitch) karaokePitchP2 = e.data.pitch;
-        };
-        source2.connect(processor2);
-        processor2.connect(karaokePitchDetectionAudioCtx.destination);
-      } catch (err2) {
-        console.warn("No se pudo iniciar el segundo micrófono para el dúo:", err2);
-      }
+      const micId2 = document.getElementById("micSelect2")?.value;
+      karaokeStream2 = await navigator.mediaDevices.getUserMedia({ audio: micId2 ? { deviceId: micId2 } : true });
+      const source2 = karaokePitchDetectionAudioCtx.createMediaStreamSource(karaokeStream2);
+      const proc2 = new AudioWorkletNode(karaokePitchDetectionAudioCtx, 'vocal-processor');
+      
+      proc2.port.onmessage = (e) => {
+        if (e.data.volume !== undefined) {
+          const fills = document.querySelectorAll('.mic-level-fill');
+          if (fills[1]) fills[1].style.width = (e.data.volume * 100) + '%';
+        }
+      };
+      source2.connect(proc2).connect(karaokePitchDetectionAudioCtx.destination);
     }
 
-    // 3. Grabación y Visualización
-    startKaraokePitchDetection(); // Inicia el dibujo en el canvas
-    
-    karaokeMediaRecorder = new MediaRecorder(karaokeStream);
-    karaokeChunks = [];
-    karaokeMediaRecorder.ondataavailable = (e) => e.data.size > 0 && karaokeChunks.push(e.data);
-    karaokeMediaRecorder.start();
-
+    startKaraokePitchDetection();
   } catch (err) {
-    console.error("Error crítico al iniciar el karaoke:", err);
+    console.error("Error al iniciar karaoke:", err);
   }
 }
-
 export async function startKaraokePitchDetection() {
   // Limpiar sesión previa
   if (karaokePitchLoopRafId) {
