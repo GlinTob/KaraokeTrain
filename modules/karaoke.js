@@ -41,15 +41,12 @@ let karaokeDuoAudioContext = null;
 let karaokeDuoAnalyser1 = null;
 let karaokeDuoAnalyser2 = null;
 
-export function toggleKaraokeDuoSplitMode() {
+function toggleKaraokeDuoSplitMode() {
   karaokeDuoSplitMode = !karaokeDuoSplitMode;
-
   const btn = $("karaokeDuoSplitToggleBtn");
   if (btn) {
-    btn.textContent = karaokeDuoSplitMode
-    btn.style.background = karaokeDuoSplitMode ? "#16a34a" : "#3b82f6";
-      ? "👩‍🎤🎤👨 Modo Dúo Split: Activo. Haz click para desactivarlo."
-      : "👩‍🎤🎤👨 Modo Dúo Split: Inactivo. Haz click aquí para activarlo.";
+    btn.textContent = karaokeDuoSplitMode ? "🎤🎤 Modo Dúo Split: ON" : "🎤🎤 Modo Dúo Split: OFF";
+    btn.style.background = karaokeDuoSplitMode ? "#22c55e" : "#3b82f6";
   }
 
   // Reset de históricos para evitar arrastre visual raro
