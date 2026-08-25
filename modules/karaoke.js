@@ -48,18 +48,27 @@ function toggleKaraokeDuoSplitMode() {
     btn.textContent = karaokeDuoSplitMode ? "🎤🎤 Modo Dúo Split: ON" : "🎤🎤 Modo Dúo Split: OFF";
     btn.style.background = karaokeDuoSplitMode ? "#22c55e" : "#3b82f6";
   }
+}
 
-  // Reset de históricos para evitar arrastre visual raro
-  pitchHistory = [];
-  pitchHistoryP1 = [];
-  pitchHistoryP2 = [];
+// Reset de históricos para evitar arrastre visual raro
+pitchHistory = [];
+pitchHistoryP1 = [];
+pitchHistoryP2 = [];
 
-  if (typeof drawKaraokeMonitor === "function") {
-  // Redibujar inmediatamente aunque no haya grabación en curso
-  const track = $("karaokeTrack") || $("karaokeAudio") || $("audioKaraoke") || $("trackPlayer");
-  const currentTime = track ? track.currentTime : 0;
 
-  drawKaraokeMonitor(currentTime, karaokePitchP1 || -1, karaokePitchP2 || -1);
+// 1. Definición de Temas (VITAL para no perder opciones)
+function obtenerPaleta(hue = 0) {
+  const temaActual = localStorage.getItem("vocalApp_stage") || "theme-clasico";
+  let config = { fondo: "#111827", lineas: "#333333", etiquetas: "#666666", barraFutura: "#1e40af", bordeFuturo: "#3b82f6", tamanoTexto: "15px" };
+    
+  switch (temaActual) {
+    case "theme-moderno": config = { fondo: "#082f49", lineas: "rgba(6, 182, 212, 0.2)", etiquetas: "#06b6d4", barraFutura: "#1e3a8a", bordeFuturo: "#06b6d4", tamanoTexto: "16px" }; break;
+    case "theme-disco": config = { fondo: "#2e1065", lineas: "rgba(219, 39, 119, 0.25)", etiquetas: "#facc15", barraFutura: "#701a75", bordeFuturo: "#db2777", tamanoTexto: "18px" }; break;
+    case "theme-acustico": config = { fondo: "#451a03", lineas: "rgba(120, 53, 15, 0.4)", etiquetas: "#fcd34d", barraFutura: "#78350f", bordeFuturo: "#b45309", tamanoTexto: "14px" }; break;
+    case "theme-fiesta": config = { fondo: `hsl(${hue}, 40%, 12%)`, lineas: "rgba(255, 255, 255, 0.15)", etiquetas: "#ff007f", barraFutura: `hsl(${(hue + 180) % 360}, 50%, 25%)`, bordeFuturo: `hsl(${(hue + 180) % 360}, 70%, 50%)`, tamanoTexto: "19px" }; break;
+  }
+  return config;
+  const paleta = obtenerPaleta((currentTime * 50) % 360);
 }
 
 function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2) {
@@ -68,100 +77,89 @@ function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2) {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
 
-  // 1. Definición de Temas (VITAL para no perder opciones)
-  function obtenerPaleta(hue = 0) {
-    const temaActual = localStorage.getItem("vocalApp_stage") || "theme-clasico";
-    let config = { fondo: "#111827", lineas: "#333333", etiquetas: "#666666", barraFutura: "#1e40af", bordeFuturo: "#3b82f6", tamanoTexto: "15px" };
-    
-    switch (temaActual) {
-      case "theme-moderno": config = { fondo: "#082f49", lineas: "rgba(6, 182, 212, 0.2)", etiquetas: "#06b6d4", barraFutura: "#1e3a8a", bordeFuturo: "#06b6d4", tamanoTexto: "16px" }; break;
-      case "theme-disco": config = { fondo: "#2e1065", lineas: "rgba(219, 39, 119, 0.25)", etiquetas: "#facc15", barraFutura: "#701a75", bordeFuturo: "#db2777", tamanoTexto: "18px" }; break;
-      case "theme-acustico": config = { fondo: "#451a03", lineas: "rgba(120, 53, 15, 0.4)", etiquetas: "#fcd34d", barraFutura: "#78350f", bordeFuturo: "#b45309", tamanoTexto: "14px" }; break;
-      case "theme-fiesta": config = { fondo: `hsl(${hue}, 40%, 12%)`, lineas: "rgba(255, 255, 255, 0.15)", etiquetas: "#ff007f", barraFutura: `hsl(${(hue + 180) % 360}, 50%, 25%)`, bordeFuturo: `hsl(${(hue + 180) % 360}, 70%, 50%)`, tamanoTexto: "19px" }; break;
-    }
-    return config;
+  if (typeof drawKaraokeMonitor === "function") {
+  // Redibujar inmediatamente aunque no haya grabación en curso
+  const track = $("karaokeTrack") || $("karaokeAudio") || $("audioKaraoke") || $("trackPlayer");
+  const currentTime = track ? track.currentTime : 0;
+
+  drawKaraokeMonitor(currentTime, karaokePitchP1 || -1, karaokePitchP2 || -1);
   }
-
-  const paleta = obtenerPaleta((currentTime * 50) % 360);
-
-  // 2. Limpiar Canvas
-  ctx.fillStyle = paleta.fondo;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
   // Actualizar frecuencias globales
   if (typeof currentFreq === "number") karaokePitchP1 = currentFreq;
   if (typeof currentFreq2 === "number") karaokePitchP2 = currentFreq2;
-
-  //const datos = (textSegments && textSegments.length > 0) ? textSegments : transcriptionSegments;
 
   const AVATAR_BLOCK_W = karaokeDuoSplitMode ? 110 : 0;
   const noteLabelsX = 28 + AVATAR_BLOCK_W;
   const pentagramStartX = 35 + AVATAR_BLOCK_W;
   const dynLineX = lineX + AVATAR_BLOCK_W;
 
-  function drawAvatarBlock(pTop, pBottom, parte) {
-    if (!parte || parte === "DUO") return;
-    const isP1 = (parte === "P1");
-    const nombre = isP1 ? "Wen-dolyne" : "To-bonito";
-    // P1: mujer. P2: persona con barba + piel morena (forma compacta sin ZWJ
-    // para evitar que algunos sistemas pinten un ♂ extra al lado).
-    const avatarEmoji = isP1 ? "👩" : "🧔🏾";
+   // 2. Limpiar Canvas
+  ctx.fillStyle = paleta.fondo;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+}
 
-    const cx = 5 + AVATAR_BLOCK_W / 2;
-    const blockTop = pTop + 10;
-    const avatarSize = 56;
-    const halfSize = 28; // mitad del tamaño original del cuadrado
-    const nameH = 22;
-    const gap = 6;
+function drawAvatarBlock(pTop, pBottom, parte) {
+  if (!parte || parte === "DUO") return;
+  const isP1 = (parte === "P1");
+  const nombre = isP1 ? "Wen-dolyne" : "To-bonito";
+  // P1: mujer. P2: persona con barba + piel morena (forma compacta sin ZWJ
+  // para evitar que algunos sistemas pinten un ♂ extra al lado).
+  const avatarEmoji = isP1 ? "👩" : "🧔🏾";
 
-    // 1) Nombre (arriba)
+  const cx = 5 + AVATAR_BLOCK_W / 2;
+  const blockTop = pTop + 10;
+  const avatarSize = 56;
+  const halfSize = 28; // mitad del tamaño original del cuadrado
+  const nameH = 22;
+  const gap = 6;
+
+  // 1) Nombre (arriba)
+  ctx.fillStyle = "white";
+  ctx.font = "bold 16px Arial";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "alphabetic";
+  ctx.fillText(nombre, cx, blockTop + nameH - 4);
+
+  // 2) Avatar emoji (centro, sin círculo de fondo)
+  const avTop = blockTop + nameH + gap;
+  ctx.font = `${avatarSize}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",Arial`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(avatarEmoji, cx, avTop + avatarSize / 2);
+
+  // 3) Fila inferior con dos íconos al lado (cada uno de halfSize)
+  const rowTop = avTop + avatarSize + gap;
+  const iconHalfFont = `${halfSize}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",Arial`;
+
+  if (isP1) {
+    // Izquierda: cuadrado morado (mitad de tamaño)
+    const sqX = cx - halfSize - gap / 2;
+    ctx.fillStyle = "#7c3aed";
+    ctx.fillRect(sqX, rowTop, halfSize, halfSize);
+    ctx.strokeStyle = "#a855f7";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(sqX, rowTop, halfSize, halfSize);
+    // Derecha: átomo ⚛️
+    ctx.font = iconHalfFont;
     ctx.fillStyle = "white";
-    ctx.font = "bold 16px Arial";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "alphabetic";
-    ctx.fillText(nombre, cx, blockTop + nameH - 4);
-
-    // 2) Avatar emoji (centro, sin círculo de fondo)
-    const avTop = blockTop + nameH + gap;
-    ctx.font = `${avatarSize}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",Arial`;
-    ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(avatarEmoji, cx, avTop + avatarSize / 2);
-
-    // 3) Fila inferior con dos íconos al lado (cada uno de halfSize)
-    const rowTop = avTop + avatarSize + gap;
-    const iconHalfFont = `${halfSize}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",Arial`;
-
-    if (isP1) {
-      // Izquierda: cuadrado morado (mitad de tamaño)
-      const sqX = cx - halfSize - gap / 2;
-      ctx.fillStyle = "#7c3aed";
-      ctx.fillRect(sqX, rowTop, halfSize, halfSize);
-      ctx.strokeStyle = "#a855f7";
-      ctx.lineWidth = 1;
-      ctx.strokeRect(sqX, rowTop, halfSize, halfSize);
-      // Derecha: átomo ⚛️
-      ctx.font = iconHalfFont;
-      ctx.fillStyle = "white";
-      ctx.textBaseline = "middle";
-      ctx.textAlign = "center";
-      ctx.fillText("⚛️", cx + halfSize / 2 + gap / 2, rowTop + halfSize / 2);
-    } else {
-      // Izquierda: cara de gato 🐱 (mitad de tamaño)
-      ctx.font = iconHalfFont;
-      ctx.fillStyle = "white";
-      ctx.textBaseline = "middle";
-      ctx.textAlign = "center";
-      ctx.fillText("🐱", cx - halfSize / 2 - gap / 2, rowTop + halfSize / 2);
-      // Derecha: hombre pensante 🤔
-      ctx.fillText("🤔", cx + halfSize / 2 + gap / 2, rowTop + halfSize / 2);
-    }
-
-    // Reset baseline para no romper otros dibujos
-    ctx.textBaseline = "alphabetic";
+    ctx.textAlign = "center";
+    ctx.fillText("⚛️", cx + halfSize / 2 + gap / 2, rowTop + halfSize / 2);
+  } else {
+    // Izquierda: cara de gato 🐱 (mitad de tamaño)
+    ctx.font = iconHalfFont;
+    ctx.fillStyle = "white";
+    ctx.textBaseline = "middle";
+    ctx.textAlign = "center";
+    ctx.fillText("🐱", cx - halfSize / 2 - gap / 2, rowTop + halfSize / 2);
+    // Derecha: hombre pensante 🤔
+    ctx.fillText("🤔", cx + halfSize / 2 + gap / 2, rowTop + halfSize / 2);
   }
+  // Reset baseline para no romper otros dibujos
+  ctx.textBaseline = "alphabetic";
+}
 
-  function drawRegion(pTop, pBottom, pVal, pHist, filtro, etiqueta, paleta, currentTime) {
+function drawRegion(pTop, pBottom, pVal, pHist, filtro, etiqueta, paleta, currentTime) {
     const canvas = $("karaokeCanvas");
     const ctx = canvas.getContext("2d");
     const pHeight = pBottom - pTop;
