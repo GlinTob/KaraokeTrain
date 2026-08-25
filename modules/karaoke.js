@@ -327,7 +327,7 @@ function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2) {
           ctx.font = "italic 22px Arial";
           ctx.fillText(datos[idx + 1].text || "", canvas.width / 2, canvas.height - 25);
         }
-      });
+      }
     });
   }
 }
