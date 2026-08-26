@@ -7,9 +7,9 @@
 // Helper para obtener variables de entorno (Compatible con Vite, Vercel y fallbacks)
 function getEnv(key, fallback = '') {
   // 1. PRIMERA OPCIÓN (Obligatoria para Vite en Vercel): Buscar en el objeto nativo de Vite
-  if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env[key]) {
-    return import.meta.env[key];
-  }
+  //if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env[key]) {
+    //return import.meta.env[key];
+  //}
   
   // 2. SEGUNDA OPCIÓN: En Vercel dev o configuraciones globales antiguas
   if (typeof window !== 'undefined' && window.__ENV__ && window.__ENV__[key]) {
