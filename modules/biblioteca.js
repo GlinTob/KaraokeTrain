@@ -244,6 +244,9 @@ export async function renderLibrary(filter = "todos") {
       if (filter === "voces") {
         return item.type === "voz";
       }
+      if (filter === "pista") {
+        return item.type === "pista";
+      }
     return item.type === filter;
     });
     
