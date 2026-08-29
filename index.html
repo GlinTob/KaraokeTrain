@@ -330,12 +330,10 @@
                 Monitor dividido.
               </span>
             </div>
-            <div class="card monitor-karaoke" style="background: #1a1a1a; padding: 0; border: 2px solid var(--border); overflow: hidden;">
+            <div class="card monitor-karaoke" style="background: #1a1a1a; padding: 0; border: 2px solid var(--border); overflow: hidden; position: relative;">
               <canvas id="karaokeCanvas" width="1800" height="600" style="width: 100%; display: block; border-radius: 12px; min-height: 500px;"></canvas>
+              <div id="karaokeLiveLyrics" class="karaoke-live-teleprompter" style="display: block;"></div>
             </div>
-
-            <div id="karaokeLyrics" class="karaoke-lyrics" style="display: none;"></div>
-            <div id="karaokeLiveLyrics" class="karaoke-lyrics" style="display: none;"></div>
           </div>
           
           <div class="card">
@@ -474,11 +472,43 @@
 
           <!-- AVATAR -->
           <div class="config-section">
-            <h2>👤 Avatar / Personaje en Monitor</h2>
-            <p class="section-desc">Elige tu avatar para el monitor de karaoke.</p>
-            <div class="avatar-category-tabs" id="avatarCategoryTabs"></div>
-            <div class="avatar-grid" id="avatarGrid"></div>
-            <p class="avatar-selected-info" id="avatarSelectedInfo">Ningún avatar seleccionado (se usará avatar por defecto)</p>
+            <h2>👤 Avatares / Personajes en Monitor</h2>
+            <p class="section-desc">Cada usuario elige su avatar y sus emojis para el monitor de karaoke.</p>
+
+            <div class="avatar-user-tabs">
+              <button type="button" class="avatar-user-tab active" data-avatar-user="P1">🟦 Usuario 1</button>
+              <button type="button" class="avatar-user-tab" data-avatar-user="P2">🟧 Usuario 2</button>
+            </div>
+
+            <div id="avatarUserPanelP1" class="avatar-user-panel">
+              <div class="avatar-category-tabs" id="avatarCategoryTabsP1"></div>
+              <div class="avatar-grid" id="avatarGridP1"></div>
+              <div class="avatar-emoji-picker">
+                <label>✨ Emojis junto al avatar (Usuario 1)</label>
+                <div class="avatar-emoji-row">
+                  <span>Emoji 1:</span>
+                  <select id="avatarEmoji1P1"></select>
+                  <span>Emoji 2:</span>
+                  <select id="avatarEmoji2P1"></select>
+                </div>
+              </div>
+              <p class="avatar-selected-info" id="avatarSelectedInfoP1">Ningún avatar seleccionado (se usará avatar por defecto)</p>
+            </div>
+
+            <div id="avatarUserPanelP2" class="avatar-user-panel" style="display:none;">
+              <div class="avatar-category-tabs" id="avatarCategoryTabsP2"></div>
+              <div class="avatar-grid" id="avatarGridP2"></div>
+              <div class="avatar-emoji-picker">
+                <label>✨ Emojis junto al avatar (Usuario 2)</label>
+                <div class="avatar-emoji-row">
+                  <span>Emoji 1:</span>
+                  <select id="avatarEmoji1P2"></select>
+                  <span>Emoji 2:</span>
+                  <select id="avatarEmoji2P2"></select>
+                </div>
+              </div>
+              <p class="avatar-selected-info" id="avatarSelectedInfoP2">Ningún avatar seleccionado (se usará avatar por defecto)</p>
+            </div>
           </div>
 
           <!-- MICROFONOS -->
