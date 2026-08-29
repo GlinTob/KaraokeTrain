@@ -105,8 +105,8 @@ export async function getLibraryItemsByTypeFromSupabase(type) {
     // ✅ PERMISOS FLEXIBLES: Si el frontend pide "texto", buscamos tanto "texto" como "letra" en Supabase
     let query = db.from('library').select('*');
     
-    if (type === "pista" || type === "voz" || type === "texto") {
-      query = query.or(`type.eq.pista,type.eq.vox,type.eq.texto`);
+    if (type === "texto" || type === "letra" || type === "letras") {
+      query = query.or(`type.eq.texto,type.eq.letra,type.eq.texto_plano`);
     } else {
       query = query.eq('type', type);
     }
@@ -235,19 +235,21 @@ export async function renderLibrary(filter = "todos") {
       if (filter === "todos") return true;
   
       // Si el usuario da clic en la carpeta "KARAOKE", mostramos cualquier archivo 
+      // que tenga la bandera 'isSincronizada' en verdadero o cuyo tipo sea 'karaoke'
       if (filter === "karaoke") {
         return item.isSincronizada === true || item.type === "karaoke";
       }
+  
       if (filter === "letras") {
         return item.type === "texto";
       }
+  
       if (filter === "voces") {
         return item.type === "voz";
       }
-      if (filter === "pista") {
-        return item.type === "pista";
-      }
-    return item.type === filter;
+
+      // Filtro por defecto para carpetas exactas (pistas, etc.)
+      return item.type === filter;
     });
     
     filteredItems.forEach(item => {
@@ -255,13 +257,9 @@ export async function renderLibrary(filter = "todos") {
       div.className = "library-item"; // Conserva tus estilos neón oscuros
   
       // 1. Selección visual del icono según tu interfaz
-      
-      if (item.type === "pista" || item.type === "voz") {
-        iconoVisual = "🎵";
-        
-      } else if (item.type === "letra" || item.type === "texto" || item.type === "texto_plano") {
+      let iconoVisual = "🎵";
+      if (item.type === "letra" || item.type === "texto" || item.type === "texto_plano") {
         iconoVisual = "📄";
-        
       } else if (item.type === "karaoke" || item.isSincronizada) {
         iconoVisual = "🎤";
       }
@@ -328,35 +326,6 @@ export async function renderLibrary(filter = "todos") {
   }
 }
 
-export async function enviarAlMonitorKaraoke(karaokeItem) {
-  if (!karaokeItem) return;
-
-  try {
-    // Dentro de enviarAlMonitorKaraoke(karaokeItem) en biblioteca.js
-    const track = document.getElementById("karaokeTrack");
-    if (track && karaokeItem.file_url) {
-        track.src = karaokeItem.file_url;
-        track.dataset.karaokeId = String(karaokeItem.id);
-        track.load();
-    
-        // Sincronizamos el módulo Karaoke
-        const { setKaraokeData } = await import("./karaoke.js");
-        setKaraokeData(
-            karaokeItem.lyrics || karaokeItem.transcription || [],
-            karaokeItem.name,
-            karaokeItem.file_url
-        );
-        
-        // Navegamos
-        const { showTab } = await import("../script.js");
-        showTab("karaoke");
-    }
-
-  } catch (error) {
-    console.error("Error al transferir datos al monitor:", error);
-  }
-} 
-
 export function asignarEventosBiblioteca(filter) {
   document.querySelectorAll(".delete-library-btn").forEach((btn) => {
     btn.onclick = async () => {
@@ -387,7 +356,7 @@ export async function saveManualFileToLibrary() {
   const type = typeSelect?.value || "audio";
 
   if (!files || files.length === 0) {
-    alert(type === "texto" || type === "pista" || type === "voz" ? "⚠️ Selecciona un .txt" : "⚠️ Selecciona al menos un archivo");
+    alert(type === "texto" || type === "texto_plano" || type === "ultrastar_txt" ? "⚠️ Selecciona un .txt" : "⚠️ Selecciona al menos un archivo");
     return;
   }
 
@@ -490,7 +459,7 @@ export async function saveManualFileToLibrary() {
 function validateFilesForUpload(files, type) {
   const isTextType = ["texto", "ultrastar_txt"].includes(type);
   const audioTypes = ["audio/mpeg", "audio/wav", "audio/ogg", "audio/webm", "audio/mp4", "audio/m4a", "audio/mp3", "audio/x-wav"];
-  const textTypes = ["text/plain", "texto"];
+  const textTypes = ["text/plain"];
   const maxSize = 500 * 1024 * 1024; // 500 MB
 
   for (const file of files) {
@@ -513,7 +482,6 @@ function validateFilesForUpload(files, type) {
       }
     }
 
-    /*
     // 3. Validar archivos de audio
     if (!isTextType) {
       const hasValidMime = audioTypes.includes(file.type);
@@ -526,7 +494,6 @@ function validateFilesForUpload(files, type) {
         };
       }
     }
-    */
   }
 
   return { valid: true };
@@ -631,6 +598,34 @@ export function showStatus(message, type) {
   }
 }
 
+export async function enviarAlMonitorKaraoke(karaokeItem) {
+  if (!karaokeItem) return;
+
+  try {
+    // Dentro de enviarAlMonitorKaraoke(karaokeItem) en biblioteca.js
+    const track = document.getElementById("karaokeTrack");
+    if (track && karaokeItem.file_url) {
+        track.src = karaokeItem.file_url;
+        track.dataset.karaokeId = String(karaokeItem.id);
+        track.load();
+    
+        // Sincronizamos el módulo Karaoke
+        const { setKaraokeData } = await import("./karaoke.js");
+        setKaraokeData(
+            karaokeItem.lyrics || karaokeItem.transcription || [],
+            karaokeItem.name,
+            karaokeItem.file_url
+        );
+        
+        // Navegamos
+        const { showTab } = await import("../script.js");
+        showTab("karaoke");
+    }
+
+  } catch (error) {
+    console.error("Error al transferir datos al monitor:", error);
+  }
+} // <--- AQUÍ se cierra la función
 /*
 } else {
       const navBtn =
