@@ -80,7 +80,8 @@ export async function showTab(tabId) {
       console.log("🎵 [Lazy Load] Módulo Afinador Vocal listo.");
     } else if (normalizedTabId === "cambiarTono") {
       console.log("🧭 [Lazy Load] Cargando herramientas de cambio de tono...");
-      const { loadPitchKaraokeOptions } = await import("./modules/cambiar-tono.js");
+      const { initCambiarTono, loadPitchKaraokeOptions } = await import("./modules/cambiar-tono.js");
+      if (typeof initCambiarTono === "function") initCambiarTono();
       if (typeof loadPitchKaraokeOptions === "function") await loadPitchKaraokeOptions();
     } else if (normalizedTabId === "karaoke") {
       console.log("🎤 [Lazy Load] Inicializando Canvas e Históricos de Canto...");
