@@ -159,7 +159,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (typeof window.syncKaraokeMonitor === "function") {
         window.syncKaraokeMonitor(karaokePlayer.currentTime);
       }
-      if (typeof drawKaraokeMonitor === "function" && (typeof window.karaokeMediaRecorder === "undefined" || window.karaokeMediaRecorder.state !== "recording")) {
+      if (typeof drawKaraokeMonitor === "function" && (typeof window.karaokeMediaRecorder === "undefined" || !window.karaokeMediaRecorder || window.karaokeMediaRecorder.state !== "recording")) {
         drawKaraokeMonitor(karaokePlayer.currentTime, -1, -1);
       }
     });
