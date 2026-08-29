@@ -367,6 +367,15 @@ export async function saveManualFileToLibrary() {
     return;
   }
 
+  // Pre-cargar estudio.js para exponer segmentarTextoPlano en window (sin dependencia circular)
+  try {
+    if (typeof window.segmentarTextoPlano !== "function") {
+      await import("./estudio.js");
+    }
+  } catch (e) {
+    console.warn("⚠️ No se pudo pre-cargar estudio.js:", e);
+  }
+
   if (!window.CloudflareStorage?.getCloudflareConfig) {
     showStatus("❌ Cloudflare R2 no está configurado. Define VITE_CLOUDFLARE_R2_BASE_URL en .env y reinicia el servidor.", "error");
     return;
@@ -399,10 +408,11 @@ export async function saveManualFileToLibrary() {
 
       try {
         const isTextType = ["texto", "texto_plano", "letra", "ultrastar_txt"].includes(type);
+        let saveResult = null;
         if (isTextType) {
           const text = await file.text();
           console.log(`📝 Guardando archivo de texto: ${file.name}`);
-          await window.CloudflareStorage.saveLibraryItemToCloudflare({
+          saveResult = await window.CloudflareStorage.saveLibraryItemToCloudflare({
             name: file.name,
             type,
             blob: file,
@@ -412,7 +422,7 @@ export async function saveManualFileToLibrary() {
           });
         } else {
           console.log(`🎵 Subiendo audio: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
-          await window.CloudflareStorage.saveLibraryItemToCloudflare({
+          saveResult = await window.CloudflareStorage.saveLibraryItemToCloudflare({
             name: file.name,
             type,
             blob: file,
@@ -423,6 +433,17 @@ export async function saveManualFileToLibrary() {
 
         updateFileStatus(file.name, "success", "", i);
         uploadedCount++;
+
+        // 🔄 AUTO-CARGA EN ESTUDIO: refrescar y cargar el ítem recién guardado
+        try {
+          const estudio = await import("./estudio.js");
+          if (typeof estudio.autoLoadSelectedInEstudio === "function") {
+            await estudio.autoLoadSelectedInEstudio(type, saveResult?.id);
+          }
+        } catch (autoErr) {
+          console.warn("⚠️ No se pudo auto-cargar en Estudio:", autoErr);
+        }
+
         await new Promise(r => setTimeout(r, 200));
       } catch (err) {
         console.error(`Error subiendo ${file.name}:`, err);
