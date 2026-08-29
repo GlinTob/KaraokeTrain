@@ -321,6 +321,35 @@ export async function renderLibrary(filter = "todos") {
   }
 }
 
+export async function enviarAlMonitorKaraoke(karaokeItem) {
+  if (!karaokeItem) return;
+
+  try {
+    // Dentro de enviarAlMonitorKaraoke(karaokeItem) en biblioteca.js
+    const track = document.getElementById("karaokeTrack");
+    if (track && karaokeItem.file_url) {
+        track.src = karaokeItem.file_url;
+        track.dataset.karaokeId = String(karaokeItem.id);
+        track.load();
+    
+        // Sincronizamos el módulo Karaoke
+        const { setKaraokeData } = await import("./karaoke.js");
+        setKaraokeData(
+            karaokeItem.lyrics || karaokeItem.transcription || [],
+            karaokeItem.name,
+            karaokeItem.file_url
+        );
+        
+        // Navegamos
+        const { showTab } = await import("../script.js");
+        showTab("karaoke");
+    }
+
+  } catch (error) {
+    console.error("Error al transferir datos al monitor:", error);
+  }
+} 
+
 export function asignarEventosBiblioteca(filter) {
   document.querySelectorAll(".delete-library-btn").forEach((btn) => {
     btn.onclick = async () => {
@@ -593,34 +622,6 @@ export function showStatus(message, type) {
   }
 }
 
-export async function enviarAlMonitorKaraoke(karaokeItem) {
-  if (!karaokeItem) return;
-
-  try {
-    // Dentro de enviarAlMonitorKaraoke(karaokeItem) en biblioteca.js
-    const track = document.getElementById("karaokeTrack");
-    if (track && karaokeItem.file_url) {
-        track.src = karaokeItem.file_url;
-        track.dataset.karaokeId = String(karaokeItem.id);
-        track.load();
-    
-        // Sincronizamos el módulo Karaoke
-        const { setKaraokeData } = await import("./karaoke.js");
-        setKaraokeData(
-            karaokeItem.lyrics || karaokeItem.transcription || [],
-            karaokeItem.name,
-            karaokeItem.file_url
-        );
-        
-        // Navegamos
-        const { showTab } = await import("../script.js");
-        showTab("karaoke");
-    }
-
-  } catch (error) {
-    console.error("Error al transferir datos al monitor:", error);
-  }
-} // <--- AQUÍ se cierra la función
 /*
 } else {
       const navBtn =
