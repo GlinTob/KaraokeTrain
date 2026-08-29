@@ -326,7 +326,7 @@ export function drawRegion(pTop, pBottom, pVal, pHist, filtro, etiqueta, paleta,
   }
 }
   
-export async function startKaraokeRecording() {
+async function startKaraokeRecording() {
   try {
     // 1. Obtener micrófonos
     const micId1 = typeof getSelectedMicId === "function" ? getSelectedMicId() : null;
