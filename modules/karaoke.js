@@ -369,7 +369,8 @@ async function startKaraokeRecording() {
     console.error("Error al iniciar karaoke:", err);
   }
 }
-export async function startKaraokePitchDetection() {
+  
+async function startKaraokePitchDetection() {
   // Limpiar sesión previa
   if (karaokePitchLoopRafId) {
     cancelAnimationFrame(karaokePitchLoopRafId);
