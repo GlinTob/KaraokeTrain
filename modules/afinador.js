@@ -16,6 +16,7 @@ const pitchBuffer = new Float32Array(2048);
 let audioContext = null;
 let analyser = null;
 let stream = null;
+let recordingSession = 0;
 
 // ==========================================================
 // UTILIDADES MUSICALES
@@ -532,20 +533,21 @@ export async function toggleRecording() {
       btn.classList.add('recording');
       btn.setAttribute('aria-pressed', 'true');
 
-      await startAfinador();
-    } catch (error) {
-      console.error('No se pudo iniciar el afinador:', error);
+await startAfinador();
+  } catch (error) {
+    console.error('No se pudo iniciar el afinador:', error);
 
-      state.isRecording = false;
-      if (btnText) btnText.textContent = 'Iniciar';
-      btn.classList.remove('recording');
-      btn.setAttribute('aria-pressed', 'false');
-
-      alert('❌ No se pudo iniciar el micrófono del afinador: ' + error.message);
-      stopAfinador();
-    }
-  } else {
     state.isRecording = false;
+    if (btnText) btnText.textContent = 'Iniciar';
+    btn.classList.remove('recording');
+    btn.setAttribute('aria-pressed', 'false');
+
+    alert('❌ No se pudo iniciar el micrófono del afinador: ' + error.message);
+    stopAfinador();
+  }
+} else {
+    state.isRecording = false;
+    recordingSession++;
     if (btnText) btnText.textContent = 'Iniciar';
     btn.classList.remove('recording');
     btn.setAttribute('aria-pressed', 'false');
@@ -577,6 +579,8 @@ function resetAfinadorUI() {
 }
 
 async function startAfinador() {
+  const session = recordingSession;
+
   if (afinadorVisual) {
     afinadorVisual.destroy();
     afinadorVisual = null;
@@ -604,8 +608,20 @@ async function startAfinador() {
 
   audioContext = new (window.AudioContext || window.webkitAudioContext)();
 
+  if (session !== recordingSession) {
+    audioContext.close().catch(() => {});
+    audioContext = null;
+    return;
+  }
+
   if (audioContext.state === 'suspended') {
     await audioContext.resume();
+  }
+
+  if (session !== recordingSession) {
+    audioContext.close().catch(() => {});
+    audioContext = null;
+    return;
   }
 
   stream = await navigator.mediaDevices.getUserMedia({
@@ -616,13 +632,23 @@ async function startAfinador() {
     }
   });
 
+  if (session !== recordingSession) {
+    stream.getTracks().forEach(t => t.stop());
+    stream = null;
+    if (audioContext) {
+      audioContext.close().catch(() => {});
+      audioContext = null;
+    }
+    return;
+  }
+
   const mic = audioContext.createMediaStreamSource(stream);
   analyser = audioContext.createAnalyser();
   analyser.fftSize = 2048;
   mic.connect(analyser);
 
   setTimeout(() => {
-    if (state.isRecording) runPitchDetectionLoop();
+    if (state.isRecording && session === recordingSession) runPitchDetectionLoop();
   }, 200);
 }
 
