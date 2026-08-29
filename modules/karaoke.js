@@ -1,5 +1,5 @@
 import { $, safeAdd } from "../script.js";
-import { getLibraryItemsByIdFromSupabase } from "./biblioteca.js";
+import { getLibraryItemsByIdFromSupabase, getLibraryItemsByTypeFromSupabase } from "./biblioteca.js";
 import { getAudioController, destroyAudioController, exportStereoWav, interleave } from "./audio-controller.js";
 import { startLiveAudio, stopLiveAudio, getLiveAudioState, setMonitoringEnabled } from "./liveAudioService.js";
 import { noteToFrequency, frequencyToMidi, midiToNoteName, frequencyToNoteName } from "./afinador.js";
