@@ -1508,6 +1508,23 @@ audio {
    ESTUDIO — Botones de parte (MODO LIGERO)
 ========================================== */
 
+#lyricsText {
+  width: 33.33%;
+  background: var(--bg-card);
+  border: 1px solid #334155;
+  border-radius: 8px;
+  color: #f97316;
+  font-size: 16px;
+  text-align: left;
+  padding: 10px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+#lyricsText::placeholder {
+  color: var(--text-muted);
+}
+
 #estudio .btn-tap-part {
   padding: 12px 24px;
   border-radius: 8px;
