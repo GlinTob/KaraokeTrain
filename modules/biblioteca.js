@@ -398,7 +398,7 @@ export async function saveManualFileToLibrary() {
       addFileToUploadList(uploadFilesList, file.name, "pending", i);
 
       try {
-        const isTextType = ["texto", "texto_plano", "ultrastar_txt"].includes(type);
+        const isTextType = ["texto", "texto_plano", "letra", "ultrastar_txt"].includes(type);
         if (isTextType) {
           const text = await file.text();
           console.log(`📝 Guardando archivo de texto: ${file.name}`);
@@ -410,7 +410,6 @@ export async function saveManualFileToLibrary() {
             transcription: [],
             metadata: {}
           });
-          /*
         } else {
           console.log(`🎵 Subiendo audio: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
           await window.CloudflareStorage.saveLibraryItemToCloudflare({
@@ -420,7 +419,6 @@ export async function saveManualFileToLibrary() {
             transcription: [],
             metadata: {}
           });
-          */
         }
 
         updateFileStatus(file.name, "success", "", i);
@@ -457,7 +455,7 @@ export async function saveManualFileToLibrary() {
 }
   
 function validateFilesForUpload(files, type) {
-  const isTextType = ["texto", "ultrastar_txt"].includes(type);
+  const isTextType = ["texto", "texto_plano", "letra", "ultrastar_txt"].includes(type);
   const audioTypes = ["audio/mpeg", "audio/wav", "audio/ogg", "audio/webm", "audio/mp4", "audio/m4a", "audio/mp3", "audio/x-wav"];
   const textTypes = ["text/plain"];
   const maxSize = 500 * 1024 * 1024; // 500 MB
