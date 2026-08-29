@@ -26,6 +26,7 @@ let karaokeSplitAnalyser2 = null;
 let karaokePitchWorkletNode = null;
 let karaokePitchLoopRafId = null;
 let karaokeLoopBusy = false;
+let karaokeRecordingActive = false;
 let karaokeSelectedTrackBlob = null;
 let karaokeSelectedTrackName = "";
 let karaokeLoadedItem = null;
@@ -281,13 +282,19 @@ function drawAvatarBlock(pTop, pBottom, parte, avatarBlockW, ctx) {
 }
 
 function drawLyricsBar(canvas, ctx, currentTime) {
+  if (!karaokeRecordingActive) return;
   if (!Array.isArray(textSegments) || !textSegments.length) return;
+
   const idx = textSegments.findIndex(s =>
     currentTime >= (s.start || 0) && currentTime <= ((s.end || 0) + 1.5)
   );
-  if (idx === -1) return;
+  let currentIdx = idx;
+  if (currentIdx === -1) {
+    currentIdx = textSegments.findIndex(s => (s.start || 0) > currentTime);
+    if (currentIdx === -1) currentIdx = textSegments.length - 1;
+  }
 
-  const seg = textSegments[idx];
+  const seg = textSegments[currentIdx];
   const parteActual = seg.parte || "P1";
   const prefijo = karaokeDuoSplitMode
     ? (parteActual === "DUO" ? "🟪 DÚO · " : parteActual === "P2" ? "🟧 P2 · " : "🟦 P1 · ")
@@ -302,7 +309,7 @@ function drawLyricsBar(canvas, ctx, currentTime) {
   ctx.textBaseline = "alphabetic";
   ctx.fillText(prefijo + (seg.text || ""), canvas.width / 2, canvas.height - 65);
 
-  const next = textSegments[idx + 1];
+  const next = textSegments[currentIdx + 1];
   if (next) {
     ctx.fillStyle = "#94a3b8";
     ctx.font = "italic 22px Arial";
@@ -452,6 +459,7 @@ export async function startKaraokeRecording() {
     }
 
     karaokeLoopBusy = false;
+    karaokeRecordingActive = true;
     loop();
   } catch (err) {
     console.error("Error al iniciar karaoke:", err);
@@ -461,6 +469,7 @@ export async function startKaraokeRecording() {
     }
     if (karaokeStream) { karaokeStream.getTracks().forEach(t => t.stop()); karaokeStream = null; }
     if (karaokeStream2) { karaokeStream2.getTracks().forEach(t => t.stop()); karaokeStream2 = null; }
+    karaokeRecordingActive = false;
     alert("❌ No se pudo iniciar la grabación. Revisa que el micrófono esté permitido.");
   }
 }
@@ -572,6 +581,7 @@ export function stopKaraokeRecording() {
   }
 
   karaokeLoopBusy = false;
+  karaokeRecordingActive = false;
 
   const duoIndicator = $("karaokeDuoIndicator");
   if (duoIndicator) duoIndicator.style.display = "none";
@@ -734,16 +744,7 @@ export function cargarLetrasEnMonitor() {
   const container = $("karaokeLiveLyrics");
   if (!container) return;
   container.innerHTML = "";
-  container.style.display = "block";
-  if (!Array.isArray(textSegments) || !textSegments.length) {
-    const empty = document.createElement("p");
-    empty.className = "karaoke-live-line";
-    empty.textContent = karaokeSelectedTrackName
-      ? "🎵 Esperando letra sincronizada..."
-      : "Selecciona un karaoke desde la Biblioteca";
-    container.appendChild(empty);
-    return;
-  }
+  if (!Array.isArray(textSegments) || !textSegments.length) return;
 
   textSegments.forEach(seg => {
     const line = document.createElement("div");
@@ -752,12 +753,12 @@ export function cargarLetrasEnMonitor() {
     line.dataset.end = String(seg.end);
 
     const items = (seg.words && seg.words.length) ? seg.words : [seg];
-    items.forEach(w => {
+    items.forEach((w, i) => {
       const span = document.createElement("span");
       span.className = "karaoke-live-word";
       span.dataset.start = String(w.start);
       span.dataset.end = String(w.end);
-      span.textContent = w.word || w.text || "";
+      span.textContent = (i > 0 ? " " : "") + (w.word || w.text || "");
       line.appendChild(span);
     });
 
@@ -988,7 +989,3 @@ window.addEventListener("avatarChanged", () => {
   const currentTime = track ? track.currentTime : 0;
   drawKaraokeMonitor(currentTime, karaokePitchP1, karaokePitchP2);
 });
-
-if (typeof window.cargarLetrasEnMonitor === "function") {
-  window.cargarLetrasEnMonitor();
-}
