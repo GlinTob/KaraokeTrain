@@ -191,9 +191,9 @@ function drawRegion(pTop, pBottom, pVal, pHist, filtro, etiqueta, paleta, curren
         ctx.textAlign = "center";
         ctx.textBaseline = "alphabetic";
         ctx.fillText(w.word || w.text || "", x + width / 2, y + 5);
-      };
+      });
     });
-  });
+  }
 
   const points = (pHist || []).filter(f => f && f > 0);
   let started = false;
