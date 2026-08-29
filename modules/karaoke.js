@@ -160,47 +160,47 @@ function drawAvatarBlock(pTop, pBottom, parte) {
 }
 
 function drawRegion(pTop, pBottom, pVal, pHist, filtro, etiqueta, paleta, currentTime) {
-    const canvas = $("karaokeCanvas");
-    const ctx = canvas.getContext("2d");
-    const pHeight = pBottom - pTop;
-    const pixelsPerSecond = (canvas.width - 150) / 7;
-    const dynLineX = 80 + (karaokeDuoSplitMode ? 110 : 0);
-    const pentagramStartX = 35 + (karaokeDuoSplitMode ? 110 : 0);
-    const midiToY = (midi) => pTop + ((84 - (midi > 0 ? midi : 60)) / (84 - 36) * pHeight);
+  const canvas = $("karaokeCanvas");
+  const ctx = canvas.getContext("2d");
+  const pHeight = pBottom - pTop;
+  const pixelsPerSecond = (canvas.width - 150) / 7;
+  const dynLineX = 80 + (karaokeDuoSplitMode ? 110 : 0);
+  const pentagramStartX = 35 + (karaokeDuoSplitMode ? 110 : 0);
+  const midiToY = (midi) => pTop + ((84 - (midi > 0 ? midi : 60)) / (84 - 36) * pHeight);
 
-    // Avatar block (sólo en split mode)
-    drawAvatarBlock(pTop, pBottom, etiquetaParte);
+  // Avatar block (sólo en split mode)
+  drawAvatarBlock(pTop, pBottom, etiquetaParte);
 
-    // Pentagrama
-    ctx.strokeStyle = paleta.lineas;
-    ctx.lineWidth = 1;
-    const numLines = 10;
-    for (let i = 0; i <= numLines; i++) {
-      const y = pTop + (pHeight / numLines) * i;
-      ctx.beginPath();
-      ctx.moveTo(pentagramStartX, y);
-      ctx.lineTo(canvas.width, y);
-      ctx.stroke();
-    }
+  // Pentagrama
+  ctx.strokeStyle = paleta.lineas;
+  ctx.lineWidth = 1;
+  const numLines = 10;
+  for (let i = 0; i <= numLines; i++) {
+    const y = pTop + (pHeight / numLines) * i;
+    ctx.beginPath();
+    ctx.moveTo(pentagramStartX, y);
+    ctx.lineTo(canvas.width, y);
+    ctx.stroke();
+  }
 
-    // Notas a la izquierda
-    ctx.fillStyle = paleta.etiquetas;
-    ctx.font = "bold 20px Arial";
-    ctx.textAlign = "right";
-    const noteLabels = ["C6", "A5", "F5", "D5", "B4", "G4", "E4", "C4", "A3", "F3", "D3", "C3"];
-    noteLabels.forEach((label, i) => {
-      const y = pTop + (pHeight / numLines) * i + 7;
-      ctx.fillText(label, noteLabelsX, y);
-    });
+  // Notas a la izquierda
+  ctx.fillStyle = paleta.etiquetas;
+  ctx.font = "bold 20px Arial";
+  ctx.textAlign = "right";
+  const noteLabels = ["C6", "A5", "F5", "D5", "B4", "G4", "E4", "C4", "A3", "F3", "D3", "C3"];
+  noteLabels.forEach((label, i) => {
+    const y = pTop + (pHeight / numLines) * i + 7;
+    ctx.fillText(label, noteLabelsX, y);
+  });
 
-    if (Array.isArray(textSegments)) {
+  if (Array.isArray(textSegments)) {
     textSegments.forEach(seg => {
       if (filtro && seg.parte !== filtro && seg.parte !== "DUO") return;
       (seg.words || []).forEach(w => {
         if (w.end < currentTime - 1 || w.start > currentTime + 8) return;
         const x = dynLineX + (w.start - currentTime) * pixelsPerSecond;
         const y = midiToY(w.midi || seg.midi || 60);
-        
+      
         let color = paleta.barraFutura;
         if (currentTime >= w.start && currentTime <= w.end && pVal > 0) {
           const userMidi = Math.round(12 * Math.log2(pVal / 440) + 69);
@@ -218,28 +218,23 @@ function drawRegion(pTop, pBottom, pVal, pHist, filtro, etiqueta, paleta, curren
             barColor = "#9a3412";
             strokeColor = "#f97316";
           }
-
           if (isPast) barColor = "#4b5563";
-
           if (isActive) {
             const userMidi = Math.round(12 * Math.log2(pitchVal / 440) + 69);
             const isCorrect = pitchVal > 0 && Math.abs(userMidi - midi) <= 2;
             barColor = isCorrect ? "#22c55e" : strokeColor;
             strokeColor = "white";
           }
-
           ctx.fillStyle = barColor;
           ctx.beginPath();
           if (ctx.roundRect) ctx.roundRect(x, y - h / 2, Math.max(width, 25), h, 5);
           else ctx.fillRect(x, y - h / 2, Math.max(width, 25), h);
           ctx.fill();
-
           if (isActive || !isPast) {
             ctx.strokeStyle = strokeColor;
             ctx.lineWidth = isActive ? 3 : 1;
             ctx.stroke();
           }
-
           ctx.fillStyle = "white";
           ctx.font = `bold ${paleta.tamanoTexto || "15px"} Arial`;
           ctx.textAlign = "center";
@@ -283,7 +278,7 @@ function drawRegion(pTop, pBottom, pVal, pHist, filtro, etiqueta, paleta, curren
     ctx.moveTo(dynLineX, pTop - 2);
     ctx.lineTo(dynLineX, pBottom + 2);
     ctx.stroke();
-  }
+  
   if (karaokeDuoSplitMode) {
     const TELE_H = 100; 
     const GAP = 20;
