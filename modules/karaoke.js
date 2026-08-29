@@ -244,7 +244,7 @@ export function drawRegion(pTop, pBottom, pVal, pHist, filtro, etiqueta, paleta,
           ctx.fillText(w.word || w.text || "", x + Math.max(width, 25) / 2, y + 5);
         };
       });
-    }
+    });
 
     // Rastro de pitch y punto del usuario (por región)
     if (pitchVal > 0) {
