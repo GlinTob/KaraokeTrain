@@ -125,31 +125,133 @@ export function saveSetting(key, element) {
 // ESCENARIO / TEMAS
 // ====================================================================
 
-export function inicializarEscenarioDesdeMemoria() {
-  const select = document.getElementById("karaokeThemeSelect");
+const APP_THEMES = [
+  { id: "oscuro", name: "Oscuro" },
+  { id: "claro", name: "Claro" },
+  { id: "neon", name: "Neón" }
+];
+
+const KARAOKE_STAGES = [
+  { id: "theme-clasico", name: "Clásico", pv: { fondo: "#111827", linea: "#334155", texto: "#3b82f6" } },
+  { id: "theme-moderno", name: "Moderno", pv: { fondo: "#082f49", linea: "rgba(6,182,212,0.25)", texto: "#06b6d4" } },
+  { id: "theme-disco", name: "Disco", pv: { fondo: "#2e1065", linea: "rgba(219,39,119,0.3)", texto: "#facc15" } },
+  { id: "theme-acustico", name: "Acústico", pv: { fondo: "#451a03", linea: "rgba(120,53,15,0.5)", texto: "#fcd34d" } },
+  { id: "theme-fiesta", name: "Fiesta", pv: { fondo: "#3b1230", linea: "rgba(255,0,127,0.3)", texto: "#ff007f" } },
+  { id: "theme-retrowave", name: "RetroWave", pv: { fondo: "#1a1155", linea: "rgba(255,45,149,0.35)", texto: "#00e5ff" } }
+];
+
+export function applyAppTheme(theme) {
+  const safeTheme = theme || "oscuro";
+  document.documentElement.setAttribute("data-theme", safeTheme);
+  document.body?.setAttribute("data-theme", safeTheme);
+  syncAppThemeCard(safeTheme);
+  console.log("🎨 Tema aplicado de forma nativa:", safeTheme);
+}
+
+function syncAppThemeCard(theme) {
+  document.querySelectorAll("#themeGrid .theme-card").forEach((card) => {
+    card.classList.toggle("active", card.dataset.themeId === theme);
+  });
+}
+
+export function renderAppThemeGrid() {
+  const grid = $("themeGrid");
+  if (!grid) return;
+
+  const current = localStorage.getItem("vocalApp_theme") || "oscuro";
+
+  grid.innerHTML = "";
+  APP_THEMES.forEach((theme) => {
+    const card = document.createElement("div");
+    card.className = "theme-card" + (current === theme.id ? " active" : "");
+    card.dataset.themeId = theme.id;
+    card.innerHTML = `
+      <div class="theme-preview ${theme.id}">
+        <div class="pv-sidebar">
+          <div class="pv-bar"></div>
+          <div class="pv-bar"></div>
+          <div class="pv-bar"></div>
+          <div class="pv-bar"></div>
+        </div>
+        <div class="pv-content">
+          <div class="pv-line"></div>
+          <div class="pv-line short"></div>
+          <div class="pv-block"></div>
+        </div>
+      </div>
+      <div class="theme-card-name">${theme.name}</div>
+      <span class="theme-card-check">${current === theme.id ? "✓ Activo" : ""}</span>
+    `;
+    card.addEventListener("click", () => {
+      localStorage.setItem("vocalApp_theme", theme.id);
+      applyAppTheme(theme.id);
+      showSaveNotification();
+    });
+    grid.appendChild(card);
+  });
+}
+
+export function renderKaraokeThemeGrid() {
+  const grid = $("karaokeThemeGrid");
+  if (!grid) return;
+
+  const current = localStorage.getItem("vocalApp_stage") || "theme-clasico";
+
+  grid.innerHTML = "";
+  KARAOKE_STAGES.forEach((stage) => {
+    const card = document.createElement("div");
+    card.className = "theme-card" + (current === stage.id ? " active" : "");
+    card.dataset.themeId = stage.id;
+    card.innerHTML = `
+      <div class="theme-preview stage" style="background: ${stage.pv.fondo};">
+        <div class="pv-lyric" style="color: ${stage.pv.texto}; background: ${stage.pv.linea};">♫ La canción ♫</div>
+        <div class="pv-line-row" style="background: ${stage.pv.texto};"></div>
+      </div>
+      <div class="theme-card-name">${stage.name}</div>
+      <span class="theme-card-check">${current === stage.id ? "✓ Activo" : ""}</span>
+    `;
+    card.addEventListener("click", () => selectKaraokeStage(stage.id));
+    grid.appendChild(card);
+  });
+}
+
+function selectKaraokeStage(stageId) {
+  localStorage.setItem("vocalApp_stage", stageId);
+
+  document.querySelectorAll("#karaokeThemeGrid .theme-card").forEach((card) => {
+    card.classList.toggle("active", card.dataset.themeId === stageId);
+    const check = card.querySelector(".theme-card-check");
+    if (check) check.textContent = card.dataset.themeId === stageId ? "✓ Activo" : "";
+  });
+
   const contenedorKaraoke =
     document.getElementById("karaokeLiveLyrics") ||
     document.getElementById("karaokeLyrics") ||
     document.querySelector(".karaoke-lyrics");
 
-  if (!select || !contenedorKaraoke) return;
+  if (contenedorKaraoke) {
+    KARAOKE_STAGES.forEach((t) => contenedorKaraoke.classList.remove(t.id));
+    contenedorKaraoke.classList.add(stageId);
+  }
+
+  showSaveNotification();
+}
+
+export function inicializarEscenarioDesdeMemoria() {
+  const contenedorKaraoke =
+    document.getElementById("karaokeLiveLyrics") ||
+    document.getElementById("karaokeLyrics") ||
+    document.querySelector(".karaoke-lyrics");
 
   let temaGuardado = localStorage.getItem("vocalApp_stage") || "theme-clasico";
   if (temaGuardado === "undefined" || !temaGuardado) temaGuardado = "theme-clasico";
 
-  select.value = temaGuardado;
+  renderKaraokeThemeGrid();
 
-  const todosLosTemas = [
-    "theme-clasico",
-    "theme-moderno",
-    "theme-disco",
-    "theme-acustico",
-    "theme-fiesta",
-    "theme-retrowave"
-  ];
-
-  todosLosTemas.forEach((tema) => contenedorKaraoke.classList.remove(tema));
-  contenedorKaraoke.classList.add(temaGuardado);
+  if (contenedorKaraoke) {
+    KARAOKE_STAGES.forEach((tema) => contenedorKaraoke.classList.remove(tema.id));
+    contenedorKaraoke.classList.add(temaGuardado);
+  }
 }
 
 // ====================================================================
@@ -170,10 +272,8 @@ export function initSettings() {
 
   const settings = {
     micCount: "vocalApp_micCount",
-    karaokeThemeSelect: "vocalApp_stage",
     difficultyLevel: "vocalApp_difficulty",
-    karaokeDifficultyLevel: "vocalApp_karaoke_difficulty",
-    appTheme: "vocalApp_theme"
+    karaokeDifficultyLevel: "vocalApp_karaoke_difficulty"
   };
 
   Object.entries(settings).forEach(([id, storageKey]) => {
@@ -187,30 +287,6 @@ export function initSettings() {
       const value = e.target.value;
       localStorage.setItem(storageKey, value);
       showSaveNotification();
-
-      if (id === "appTheme") {
-        applyAppTheme(value);
-      }
-
-      if (id === "karaokeThemeSelect") {
-        const contenedorKaraoke =
-          document.getElementById("karaokeLiveLyrics") ||
-          document.getElementById("karaokeLyrics") ||
-          document.querySelector(".karaoke-lyrics");
-
-        if (contenedorKaraoke) {
-          const todosLosTemas = [
-            "theme-clasico",
-            "theme-moderno",
-            "theme-disco",
-            "theme-acustico",
-            "theme-fiesta",
-            "theme-retrowave"
-          ];
-          todosLosTemas.forEach((tema) => contenedorKaraoke.classList.remove(tema));
-          contenedorKaraoke.classList.add(value);
-        }
-      }
 
       if (id === "micCount") {
         toggleMic2Visibility();
@@ -227,6 +303,7 @@ export function initSettings() {
     mic2Select.addEventListener("change", () => saveMicSelection(2));
   }
 
+  renderAppThemeGrid();
   applyAppTheme(localStorage.getItem("vocalApp_theme") || "oscuro");
   loadSavedAvatar();
   inicializarEscenarioDesdeMemoria();
