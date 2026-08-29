@@ -397,12 +397,14 @@ export async function startKaraokeRecording() {
     const source1 = karaokePitchDetectionAudioCtx.createMediaStreamSource(karaokeStream);
     let chainNode = source1;
 
+    // El micrófono se usa SOLO para análisis (pitch) y grabación.
+    // NUNCA se conecta al altavoz: así no se escucha la voz del usuario mientras canta.
+    // La voz se graba en crudo y se reproduce después para que el usuario la evalúe.
     if ($("vocalProcessorEnabled")?.checked) {
       try {
         karaokePitchWorkletNode = new AudioWorkletNode(karaokePitchDetectionAudioCtx, "vocal-processor");
         source1.connect(karaokePitchWorkletNode);
-        karaokePitchWorkletNode.connect(karaokePitchDetectionAudioCtx.destination);
-        chainNode = karaokePitchWorkletNode;
+        chainNode = source1;
       } catch (e) {
         console.warn("Vocal processor no aplicado en karaoke:", e);
         karaokePitchWorkletNode = null;
@@ -916,18 +918,37 @@ export async function mixKaraoke() {
       sampleRate
     );
 
+    // Balance de la pista: compresor suave para uniformar el volumen base
+    const trackCompressor = offlineCtx.createDynamicsCompressor();
+    trackCompressor.threshold.value = -14;
+    trackCompressor.knee.value = 8;
+    trackCompressor.ratio.value = 3;
+    trackCompressor.attack.value = 0.005;
+    trackCompressor.release.value = 0.2;
+
     const trackGain = offlineCtx.createGain();
-    trackGain.gain.value = 0.4;
+    trackGain.gain.value = 0.9;
     const trackSource = offlineCtx.createBufferSource();
     trackSource.buffer = trackBuffer;
-    trackSource.connect(trackGain);
+    trackSource.connect(trackCompressor);
+    trackCompressor.connect(trackGain);
     trackGain.connect(offlineCtx.destination);
 
+    // Balance de la voz: compresor dinámico para equilibrar el volumen de la voz
+    // (reduce picos y sube el nivel promedio), sin depender del volumen del archivo.
+    const voiceCompressor = offlineCtx.createDynamicsCompressor();
+    voiceCompressor.threshold.value = -18;
+    voiceCompressor.knee.value = 10;
+    voiceCompressor.ratio.value = 4;
+    voiceCompressor.attack.value = 0.003;
+    voiceCompressor.release.value = 0.25;
+
     const voiceGain = offlineCtx.createGain();
-    voiceGain.gain.value = 2.6;
+    voiceGain.gain.value = 1.6;
     const voiceSource = offlineCtx.createBufferSource();
     voiceSource.buffer = voiceBuffer;
-    voiceSource.connect(voiceGain);
+    voiceSource.connect(voiceCompressor);
+    voiceCompressor.connect(voiceGain);
     voiceGain.connect(offlineCtx.destination);
 
     trackSource.start(0);
