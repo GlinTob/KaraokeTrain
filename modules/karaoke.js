@@ -242,7 +242,7 @@ export function drawRegion(pTop, pBottom, pVal, pHist, filtro, etiqueta, paleta,
           ctx.font = `bold ${paleta.tamanoTexto || "15px"} Arial`;
           ctx.textAlign = "center";
           ctx.fillText(w.word || w.text || "", x + Math.max(width, 25) / 2, y + 5);
-        });
+        };
       });
     }
 
