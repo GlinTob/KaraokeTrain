@@ -88,18 +88,19 @@ export function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2) {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
 
-  if (typeof currentFreq === "number") karaokePitchP1 = currentFreq;
-  if (typeof currentFreq2 === "number") karaokePitchP2 = currentFreq2;
+  if (typeof currentFreq === "number" && currentFreq > 0) karaokePitchP1 = currentFreq;
+  if (typeof currentFreq2 === "number" && currentFreq2 > 0) karaokePitchP2 = currentFreq2;
 
-  const paleta = obtenerPaleta((currentTime || 0) * 50) % 360);
+  const paleta = obtenerPaleta(Math.floor((currentTime || 0) * 50) % 360);
   const AVATAR_BLOCK_W = karaokeDuoSplitMode ? 110 : 0;
+
   ctx.fillStyle = paleta.fondo;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   if (karaokeDuoSplitMode) {
-    const TELE_H = 100; 
+    const TELE_H = 100;
     const GAP = 20;
-    const regionH = (canvas.height - TELE_H - 40) / 2;
+    const regionH = (canvas.height - TELE_H - 40 - GAP) / 2;
 
     pitchHistoryP1.push(karaokePitchP1 > 0 ? karaokePitchP1 : null);
     if (pitchHistoryP1.length > 80) pitchHistoryP1.shift();
