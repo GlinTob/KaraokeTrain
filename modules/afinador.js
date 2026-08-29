@@ -78,12 +78,13 @@ export class AfinadorVisual {
     this.lastTime = 0;
 
     this.axisSparks = [];
-    this.maxAxisSparks = 220;
+    this.maxAxisSparks = 450;
 
     this.burstParticles = [];
     this.ripples = [];
 
     this.particleAccum = 0;
+    this.rippleAccum = 0;
     this.glowPulse = 0;
     this.wasTuned = false;
     this.rippleCooldown = 0;
@@ -196,14 +197,20 @@ export class AfinadorVisual {
     const cx = this.width / 2;
     const cy = this.height * 0.55;
 
-    for (let i = 0; i < 4; i++) {
+    // 3-4 ondas que abarcan 2/3 de la pantalla
+    const rippleCount = 3 + Math.floor(Math.random() * 2);
+    const maxRadius = Math.min(this.width, this.height) * (2 / 3);
+
+    for (let i = 0; i < rippleCount; i++) {
       this.ripples.push({
         x: cx,
         y: cy,
-        radius: i * 8,
-        alpha: 0.9 - i * 0.14,
-        lineWidth: 3.5 - i * 0.45,
-        maxRadius: Math.max(this.width, this.height) * 0.58
+        radius: i * 10,
+        alpha: 0.85 - i * 0.08,
+        baseAlpha: 0.85 - i * 0.08,
+        lineWidth: 4 - i * 0.5,
+        maxRadius,
+        speed: 22 + Math.random() * 10
       });
     }
   }
@@ -215,8 +222,10 @@ export class AfinadorVisual {
     const spreadY = this.height * 0.27;
     const y = centerY + (Math.random() - 0.5) * spreadY * 2;
 
-    const direction = Math.random() > 0.5 ? 1 : -1;
-    const angle = (direction === 1 ? 0 : Math.PI) + (Math.random() - 0.5) * 0.9;
+    // Más alcance: chispas que recorren hacia 2/3 de la pantalla (dentro del canvas)
+    const targetDir = Math.random() > 0.5 ? 1 : -1;
+    const targetDist = this.width * (0.28 + Math.random() * 0.18);
+    const angle = (targetDir === 1 ? 0 : Math.PI) + (Math.random() - 0.5) * 0.9;
 
     const closeness = this.currentFreq > 0
       ? 1 - Math.min(1, Math.abs(this.cents) / Math.max(this.maxCents, 1))
@@ -231,13 +240,17 @@ export class AfinadorVisual {
       else color = this.colors.marker;
     }
 
+    // Vida proporcional a la distancia objetivo para mantener la velocidad actual (px/s)
+    const horizontalFactor = Math.max(0.25, Math.abs(Math.cos(angle)));
+    const life = (targetDist / (speed * horizontalFactor)) * (0.85 + Math.random() * 0.3);
+
     this.axisSparks.push({
       x: cx + (Math.random() - 0.5) * 3,
       y,
       vx: Math.cos(angle) * speed,
       vy: Math.sin(angle) * speed * 0.35,
-      life: 0.45 + Math.random() * 0.75,
-      maxLife: 1,
+      life,
+      maxLife: life,
       alpha: 1,
       size: 1.5 + Math.random() * 3.5,
       color
@@ -259,7 +272,8 @@ export class AfinadorVisual {
       : 0;
 
     if (this.currentFreq > 0) {
-      const sparkRate = 10 + closeness * 38;
+      // Más chispas: tasa base más alta
+      const sparkRate = 22 + closeness * 48;
       this.particleAccum += dt * sparkRate;
 
       while (this.particleAccum >= 1 && this.axisSparks.length < this.maxAxisSparks) {
@@ -286,10 +300,11 @@ export class AfinadorVisual {
       return p.life > 0;
     });
 
+    // Ondas tipo agua: mucho más lentas y desvaneciéndose con la distancia
     this.ripples = this.ripples.filter(r => {
-      r.radius += dt * 150;
-      r.alpha -= dt * 0.9;
-      return r.alpha > 0 && r.radius < r.maxRadius;
+      r.radius += dt * (r.speed || 26);
+      r.alpha = Math.max(0, (r.baseAlpha != null ? r.baseAlpha : 0.85) * (1 - r.radius / r.maxRadius));
+      return r.alpha > 0.02 && r.radius < r.maxRadius;
     });
 
     this.updateThemeColors();
