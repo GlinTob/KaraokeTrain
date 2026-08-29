@@ -124,7 +124,7 @@ function drawRegion(pTop, pBottom, pVal, pHist, filtro, etiqueta, paleta, curren
   const pixelsPerSecond = (canvas.width - 150) / 7;
   const dynLineX = 80 + avatarBlockW;
   const noteLabelsX = 28 + avatarBlockW;
-  //const pentagramStartX = 35 + (karaokeDuoSplitMode ? 110 : 0);
+  const pentagramStartX = 35 + avatarBlockW;
   const midiToY = (midi) => pTop + ((84 - (midi > 0 ? midi : 60)) / (84 - 36) * pHeight);
 
   if (etiqueta) drawAvatarBlock(pTop, pBottom, etiqueta, avatarBlockW, ctx);
