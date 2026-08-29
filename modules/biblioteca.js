@@ -251,6 +251,10 @@ export async function renderLibrary(filter = "todos") {
       // Filtro por defecto para carpetas exactas (pistas, etc.)
       return item.type === filter;
     });
+
+    // ✅ CONTADOR: Refleja el número de archivos según la carpeta activa
+    const countEl = document.getElementById("libraryCount");
+    if (countEl) countEl.textContent = String(filteredItems.length);
     
     filteredItems.forEach(item => {
       const div = document.createElement("div");
@@ -614,6 +618,18 @@ export function showStatus(message, type) {
     el.textContent = message;
     el.className = "upload-status " + type;
     el.style.display = "block";
+  }
+
+  // ✅ Auto-ocultar la confirmación de éxito tras unos segundos
+  clearTimeout(window.__uploadStatusTimer);
+  if (type === "success") {
+    window.__uploadStatusTimer = setTimeout(() => {
+      if (el) {
+        el.textContent = "";
+        el.className = "upload-status";
+        el.style.display = "none";
+      }
+    }, 4000);
   }
 }
 
