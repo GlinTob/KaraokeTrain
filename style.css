@@ -320,7 +320,7 @@
 }
 
 /* ==========================================
-   RESET BÁSICO Y UTILIDADES GLOBALES
+   RESET BÃSICO Y UTILIDADES GLOBALES
 ========================================== */
 * {
   box-sizing: border-box;
@@ -333,7 +333,7 @@ body {
   color: var(--text-main);
 }
 
-/* Ocultamiento dinámico para lógica JS (Karaoke/Estudio) */
+/* Ocultamiento dinÃ¡mico para lÃ³gica JS (Karaoke/Estudio) */
 .d-none {
   display: none !important;
 }
@@ -360,7 +360,7 @@ body {
 }
 
 /* ==========================================
-   BOTONES SIDEBAR — Estilo 3D moderno
+   BOTONES SIDEBAR â€” Estilo 3D moderno
 ========================================== */
 .sidebar button {
   background: linear-gradient(180deg, #334155 0%, #1e293b 100%);
@@ -506,13 +506,6 @@ audio {
   text-align: center;
 }
 
-#noteDisplay {
-  font-size: 120px;
-  font-weight: 900;
-  margin: 0;
-  transition: color 0.3s ease;
-}
-
 #guideText {
   font-size: 32px;
   margin: 20px 0;
@@ -531,95 +524,6 @@ audio {
   background-color: #ef4444;
 }
 
-.success {
-  color: #22c55e;
-  transform: scale(1.2);
-  transition: 0.2s;
-}
-
-/* ==========================================
-   BIBLIOTECA SIMPLIFICADA (ESTILO SOBRIO)
-========================================== */
-
-.biblioteca-container {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 20px;
-  padding: 20px 0;
-}
-
-/* Tarjeta de canción: Eliminamos el brillo rosa fuerte */
-.song-card {
-  background: var(--bg-sidebar);
-  border: 1px solid #334155; /* Borde gris azulado discreto */
-  border-radius: 12px;
-  overflow: hidden;
-  transition: transform 0.2s ease, border-color 0.2s ease;
-}
-
-.song-card:hover {
-  transform: translateY(-4px);
-  border-color: var(--accent); /* Solo brilla el verde al pasar el ratón */
-  box-shadow: 0 10px 20px rgba(0,0,0,0.3);
-}
-
-/* Header de la tarjeta (imagen/arte) */
-.song-card-header {
-  height: 150px;
-  background: #0f172a; /* Fondo neutro */
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-bottom: 1px solid #334155;
-}
-
-/* Info de la canción: Tipografía clara y sin sombras rosas */
-.song-info {
-  padding: 16px;
-}
-
-.song-title {
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--text-main);
-  margin-bottom: 4px;
-  text-shadow: none; /* Eliminamos sombras de texto neón */
-}
-
-.song-artist {
-  font-size: 14px;
-  color: var(--text-muted);
-}
-
-/* Botones de acción: Menos saturados */
-.btn-play-song {
-  width: 100%;
-  padding: 10px;
-  margin-top: 12px;
-  background: #334155;
-  border: none;
-  border-radius: 8px;
-  color: var(--text-main);
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.btn-play-song:hover {
-  background: var(--accent); /* Solo cambia a verde al interactuar */
-}
-
-/* Badge de dificultad: Simple y pequeño */
-.difficulty-badge {
-  display: inline-block;
-  padding: 2px 8px;
-  font-size: 10px;
-  text-transform: uppercase;
-  border-radius: 4px;
-  background: rgba(148, 163, 184, 0.1);
-  color: var(--text-muted);
-  border: 1px solid rgba(148, 163, 184, 0.3);
-}
 
 /* ==========================================
    BIBLIOTECA - UPLOAD UI & ENHANCEMENTS
@@ -963,96 +867,72 @@ audio {
 }
 
 /* ==========================================
-   TABLA DE BIBLIOTECA
-========================================== */
-.library-table {
-  width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
-  margin-top: 10px;
-  background: var(--bg-main);
+   BIBLIOTECA â€” TARJETAS DE ARCHIVO
+========================================= */
+.library-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  margin-bottom: 8px;
+  background: var(--bg-sidebar);
+  border: 1px solid #334155;
   border-radius: 10px;
-  overflow: hidden;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  transition: border-color 0.2s, background 0.2s;
 }
 
-.library-table thead th {
-  background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
-  color: #f8fafc;
-  padding: 12px 14px;
-  text-align: left;
-  font-weight: 700;
-  font-size: 13px;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  border-bottom: 2px solid var(--border);
+.library-item:hover {
+  border-color: var(--accent);
+  background: rgba(34, 197, 94, 0.05);
 }
 
-.library-table tbody tr {
-  background: rgba(255,255,255,0.02);
-  border-bottom: 1px solid rgba(148,163,184,0.15);
-  transition: background 0.15s ease;
+.item-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1;
 }
 
-.library-table tbody tr:nth-child(even) {
-  background: rgba(255,255,255,0.04);
+.item-icon {
+  font-size: 20px;
+  line-height: 1;
+  flex-shrink: 0;
 }
 
-.library-table tbody tr:hover {
-  background: rgba(59,130,246,0.15);
-}
-
-.library-table td {
-  padding: 12px 14px;
+.item-name {
   color: var(--text-main);
-  vertical-align: middle;
-  font-size: 14px;
-}
-
-.library-table .lib-name-clickable {
-  color: #60a5fa;
-  cursor: pointer;
-  font-weight: 700;
-  text-decoration: none;
-  transition: color 0.15s;
-}
-
-.library-table .lib-name-clickable:hover {
-  color: #93c5fd;
-  text-decoration: underline;
-}
-
-.library-table .lib-badge {
-  display: inline-block;
-  padding: 3px 8px;
-  border-radius: 6px;
-  font-size: 11px;
-  font-weight: 700;
-  margin-left: 6px;
-  vertical-align: middle;
-}
-
-.library-table .lib-row-actions button {
-  background: linear-gradient(180deg, #ef4444 0%, #b91c1c 100%);
-  color: white;
-  border: none;
-  padding: 6px 12px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 12px;
   font-weight: 600;
-  box-shadow: 0 2px 0 #7f1d1d;
-  transition: transform 0.1s, box-shadow 0.1s;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.library-table .lib-row-actions button:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 3px 0 #7f1d1d;
+.item-actions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 8px;
 }
 
-.library-table .lib-row-actions button:active {
-  transform: translateY(1px);
-  box-shadow: 0 1px 0 #7f1d1d;
+.send-to-monitor-btn {
+  background: linear-gradient(135deg, #ec4899, #db2777);
+  color: #fff;
+  border: none;
+  padding: 5px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 12px;
+  box-shadow: 0 0 10px rgba(236, 72, 153, 0.5);
+  transition: filter 0.2s, box-shadow 0.2s;
+}
+
+.send-to-monitor-btn:hover {
+  filter: brightness(1.1);
+  box-shadow: 0 0 14px rgba(236, 72, 153, 0.7);
 }
 
 .delete-library-btn {
@@ -1070,203 +950,7 @@ audio {
 }
 
 /* ==========================================
-   KARAOKE SIMPLIFICADO (FOCO EN LA LETRA)
-========================================== */
-
-/* Contenedor principal: Fondo oscuro sólido */
-.karaoke-stage {
-  background: #020617; 
-  border-radius: 16px;
-  padding: 40px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 30px;
-  border: 1px solid #1e293b;
-}
-
-/* Área de letras: Sin efectos neón que dificulten la lectura */
-.lyrics-container {
-  width: 100%;
-  max-width: 800px;
-  text-align: center;
-  min-height: 200px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-}
-
-/* La línea actual: Grande, blanca y clara */
-.lyric-line.active {
-  font-size: clamp(28px, 5vw, 42px);
-  color: #ffffff;
-  font-weight: 700;
-  transform: scale(1);
-  text-shadow: none; /* Adiós al brillo rosa */
-  margin-bottom: 20px;
-}
-
-/* Líneas siguientes/anteriores: Sutiles */
-.lyric-line.next, .lyric-line.previous {
-  font-size: clamp(18px, 3vw, 24px);
-  color: var(--text-muted);
-  opacity: 0.5;
-  font-weight: 400;
-}
-
-/* Barra de Progreso de la canción: Minimalista */
-.song-progress-container {
-  width: 100%;
-  height: 4px;
-  background: #1e293b;
-  border-radius: 2px;
-  overflow: hidden;
-}
-
-.song-progress-bar {
-  height: 100%;
-  background: var(--accent); /* Verde sutil */
-  width: 0%;
-  transition: width 0.1s linear;
-}
-
-/* Panel de control de Karaoke (Play/Pause) */
-.karaoke-controls {
-  display: flex;
-  gap: 20px;
-  background: #0f172a;
-  padding: 15px 30px;
-  border-radius: 50px;
-  border: 1px solid #334155;
-}
-
-.btn-karaoke-control {
-  background: transparent;
-  border: none;
-  color: var(--text-main);
-  cursor: pointer;
-  padding: 10px;
-  transition: color 0.2s;
-}
-
-.btn-karaoke-control:hover {
-  color: var(--accent);
-}
-
-/* Feedback de afinación en Karaoke: Puntos sutiles en lugar de chispas */
-.pitch-feedback-dot {
-  width: 8px;
-  height: 8px;
-  background: var(--accent);
-  border-radius: 50%;
-  box-shadow: none;
-}
-
-/* ==========================================
-   MODO ESTUDIO (ANÁLISIS TÉCNICO)
-========================================== */
-
-/* Contenedor principal: Espacio de trabajo limpio */
-.estudio-container {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  background: var(--bg-main);
-  padding: 20px;
-}
-
-/* Área del Visualizador (Gráficos/Ondas) */
-.visualizer-card {
-  background: #0f172a; /* Fondo más profundo */
-  border: 1px solid #1e293b;
-  border-radius: 12px;
-  position: relative;
-  overflow: hidden;
-  min-height: 300px;
-}
-
-/* Rejilla de fondo (Grid) para el análisis */
-.visualizer-card::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background-image: 
-    linear-gradient(to right, rgba(255,255,255,0.05) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255,255,255,0.05) 1px, transparent 1px);
-  background-size: 40px 40px;
-  pointer-events: none;
-}
-
-/* Panel de métricas (Hz, Cents, Nota) */
-.metrics-panel {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 15px;
-}
-
-.metric-box {
-  background: var(--bg-sidebar);
-  border: 1px solid #334155;
-  padding: 15px;
-  border-radius: 10px;
-  text-align: center;
-}
-
-.metric-label {
-  font-size: 11px;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  letter-spacing: 1px;
-  margin-bottom: 5px;
-  display: block;
-}
-
-.metric-value {
-  font-size: 24px;
-  font-weight: 700;
-  color: var(--text-main);
-  font-family: 'JetBrains Mono', monospace; /* Fuente técnica */
-}
-
-/* El valor cambia a verde sutil si está en pitch */
-.metric-value.in-tune {
-  color: var(--accent);
-}
-
-/* Botones de acción en Estudio */
-.estudio-actions {
-  display: flex;
-  justify-content: center;
-  gap: 12px;
-  padding-top: 10px;
-}
-
-.btn-estudio {
-  background: #1e293b;
-  border: 1px solid #334155;
-  color: var(--text-main);
-  padding: 10px 20px;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btn-estudio:hover {
-  border-color: var(--accent);
-  background: rgba(34, 197, 94, 0.05);
-}
-
-.btn-estudio.record-active {
-  border-color: var(--danger);
-  color: var(--danger);
-  background: rgba(239, 68, 68, 0.1);
-}
-
-
-/* ==========================================
-   ESTILO AVATARES EN CONFIGURACIÓN (CARD HORIZONTAL)
+   ESTILO AVATARES EN CONFIGURACIÃ“N (CARD HORIZONTAL)
 ========================================== */
 
 #avatarGrid {
@@ -1287,10 +971,10 @@ audio {
   border-radius: 12px;
   padding: 12px 16px;
   min-width: 280px;
-  cursor: pointer; /* ✅ Esto hace que el cursor cambie a mano */
+  cursor: pointer; /* âœ… Esto hace que el cursor cambie a mano */
   transition: all 0.2s ease;
   box-shadow: 0 0 6px rgba(255, 110, 199, 0.1);
-  user-select: none; /* ✅ Evita que se seleccione texto al hacer clic */
+  user-select: none; /* âœ… Evita que se seleccione texto al hacer clic */
 }
 
 .avatar-card:hover {
@@ -1325,7 +1009,7 @@ audio {
   white-space: nowrap;
 }
 
-/* Categoría del avatar */
+/* CategorÃ­a del avatar */
 .avatar-card-category {
   font-size: 12px;
   color: #94a3b8;
@@ -1344,7 +1028,7 @@ audio {
   padding: 16px 0;
 }
 
-/* Pestañas de categoría */
+/* PestaÃ±as de categorÃ­a */
 .avatar-category-tabs {
   display: flex;
   flex-wrap: wrap;
@@ -1371,7 +1055,7 @@ audio {
   color: var(--accent);
 }
 
-/* Pestañas de usuario (P1 / P2) */
+/* PestaÃ±as de usuario (P1 / P2) */
 .avatar-user-tabs {
   display: flex;
   gap: 8px;
@@ -1442,7 +1126,7 @@ audio {
   min-width: 64px;
 }
 
-/* Info de selección */
+/* Info de selecciÃ³n */
 .avatar-selected-info {
   margin-top: 12px;
   font-size: 13px;
@@ -1483,21 +1167,6 @@ audio {
   margin-top: 10px;
 }
 
-.btn-test {
-  background: var(--bg-main);
-  border: 1px solid var(--accent);
-  color: var(--accent);
-  padding: 5px 15px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 12px;
-}
-
-.btn-test:hover {
-  background: var(--accent);
-  color: white;
-}
-
 .mic-status {
   font-size: 11px;
   color: var(--text-muted);
@@ -1505,7 +1174,7 @@ audio {
 
 
 /* ==========================================
-   ESTUDIO — Botones de parte (MODO LIGERO)
+   ESTUDIO â€” Botones de parte (MODO LIGERO)
 ========================================== */
 
 #lyricsText {
@@ -1546,25 +1215,25 @@ audio {
   border-color: rgba(255, 255, 255, 0.5);
 }
 
-/* P1: Azul Sólido */
+/* P1: Azul SÃ³lido */
 #estudio #tapPartP1Btn.active {
   background: #2563eb !important;
   box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3) !important;
 }
 
-/* P2: Naranja Sólido */
+/* P2: Naranja SÃ³lido */
 #estudio #tapPartP2Btn.active {
   background: #ea580c !important;
   box-shadow: 0 4px 12px rgba(234, 88, 12, 0.3) !important;
 }
 
-/* DÚO: Violeta Sólido */
+/* DÃšO: Violeta SÃ³lido */
 #estudio #tapPartDuoBtn.active {
   background: #7c3aed !important;
   box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3) !important;
 }
 
-/* Los no activos se ven más apagados */
+/* Los no activos se ven mÃ¡s apagados */
 
 #estudio #tapPartP1Btn:not(.active),
 #estudio #tapPartP2Btn:not(.active),
@@ -1580,124 +1249,19 @@ audio {
   outline-offset: 3px;
 }
 
-/* DISEÑO DEL CÍRCULO PROBADOR 
-.mic-tester-circle {
-  position: relative;
-  width: 120px;
-  height: 120px;
-  margin: 20px auto;
-  background: var(--bg-sidebar);
-  border-radius: 50%;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  cursor: pointer;
-  border: 2px solid var(--border);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  overflow: visible;
-}
-
-.mic-tester-circle:hover {
-  border-color: var(--neon-pink);
-  transform: scale(1.05);
-  box-shadow: 0 0 20px rgba(255, 110, 199, 0.2);
-}
-
-.mic-center .mic-icon {
-  width: 40px;
-  height: 40px;
-  color: var(--text-muted);
-  transition: color 0.3s;
-}
-
-.mic-status {
-  position: absolute;
-  bottom: -30px;
-  font-size: 12px;
-  color: var(--text-muted);
-  width: 150px;
-  text-align: center;
-}
-
-/* EFECTO CUANDO ESTÁ ACTIVO (Detección de voz) 
-.mic-tester-circle.active {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-.mic-tester-circle.active .mic-icon {
-  color: var(--accent);
-}
-
-.mic-ring {
-  position: absolute;
-  width: 100%;
-  height: 100%;
-  border-radius: 50%;
-  border: 2px solid var(--accent);
-  opacity: 0;
-  pointer-events: none;
-}
-
-.mic-tester-circle.active .mic-ring {
-  animation: mic-pulse-ring 1.5s infinite;
-}
-
-@keyframes mic-pulse-ring {
-  0% { transform: scale(1); opacity: 0.8; }
-  100% { transform: scale(1.4); opacity: 0; }
-}
-
-/* BARRA DE NIVEL 
-.mic-level-wrapper {
-  width: 100%;
-  height: 6px;
-  background: #0f172a;
-  border-radius: 10px;
-  margin-top: 40px;
+/* BARRA DE NIVEL (reutilizada en Config y Karaoke) */
+.mic-level-bar {
+  height: 12px;
+  background-color: #334155;
+  border-radius: 6px;
   overflow: hidden;
-  border: 1px solid var(--border);
+  margin: 10px 0;
+  width: 100%;
 }
 
 .mic-level-fill {
   height: 100%;
+  background-color: #22c55e;
   width: 0%;
-  background: linear-gradient(90deg, var(--accent), #4ade80);
-  transition: width 0.1s ease-out;
-}
-*/
-/* El contenedor "vacío" de la barra */
-.mic-level-bar {
-  height: 12px;
-  background-color: #334155; /* Un gris oscuro para el fondo */
-  border-radius: 6px;
-  overflow: hidden; /* Para que el relleno respete los bordes redondeados */
-  margin: 10px 0;
-  width: 100%;
-}
-
-/* El relleno que indica el nivel */
-.mic-level-fill {
-  height: 100%;
-  background-color: #22c55e; /* Un verde vibrante */
-  width: 0%; /* Empezamos en 0 */
-  transition: width 0.1s ease; /* Transición suave para el movimiento */
-}
-/* 1. Estilo para el contenedor (el fondo de la barra) */
-.mic-level-bar {
-  height: 12px;
-  background-color: #e2e8f0; /* Color gris claro de fondo */
-  border-radius: 6px;
-  overflow: hidden;
-  margin: 10px 0;
-  width: 100%;
-}
-
-/* 2. Estilo para el relleno (la parte que sube y baja) */
-.mic-level-fill {
-  height: 100%;
-  background-color: #22c55e; /* Color verde */
-  width: 0%; /* JavaScript cambiará esto dinámicamente */
   transition: width 0.1s ease;
 }
