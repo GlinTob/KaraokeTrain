@@ -212,7 +212,7 @@ function drawRegion(pTop, pBottom, pVal, pHist, filtro, etiqueta, paleta, curren
   }
 
   // Rastro
-  if (pitchVal > 0) {
+  if (pVal > 0) {
     const userY = midiToY(Math.round(12 * Math.log2(pVal / 440) + 69));
     ctx.beginPath();
     ctx.fillStyle = "#facc15";
