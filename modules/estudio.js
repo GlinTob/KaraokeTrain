@@ -5,8 +5,6 @@ import {
   getAllLibraryItemsFromSupabase,
   updateLibraryItemsFromSupabase,
   renderLibrary,
-  saveLibraryItemToSupabase,
-  saveToLibrary
 } from './biblioteca.js';
 import { noteToFrequency, frequencyToMidi, midiToNoteName, frequencyToNoteName } from "./afinador.js";
 import { getAudioController, destroyAudioController, exportStereoWav, interleave } from "./audio-controller.js";
