@@ -56,7 +56,14 @@ async function ensurePitchWorklet(ctx) {
       throw new Error(`La URL del worklet devolvió HTML en vez de JS: ${url}`);
     }
 
-    await ctx.audioWorklet.addModule(url);
+    // Cargar el worklet desde una URL blob: evita problemas de rutas, MIME y CORS
+    // al servirlo desde un servidor estático como Vercel.
+    const blobUrl = URL.createObjectURL(new Blob([text], { type: "application/javascript" }));
+    try {
+      await ctx.audioWorklet.addModule(blobUrl);
+    } finally {
+      URL.revokeObjectURL(blobUrl);
+    }
   })().catch(err => {
     _pitchWorkletLoaded.delete(ctx);
     throw err;
