@@ -19,16 +19,10 @@ let baseTextSegments = [];
 let autoScrollEnabled = true;
 let studioTrackFileName = null;
 let studioTrackBlob = null;
-let studioSelectedTrackBlob = null;
 let studioTrackId = null;
-let studioSelectedTrackId = null;
 let selectedVoiceBlob = null;
-let studioChunks = [];
 let selectedVoiceId = null;
-let studioSelectedTrackName = null;
-let selectedTextId = null;
-let studioTextBlob = null;
-let selectedTextBlob = null; 
+let selectedTextId = null; 
 
 // Variables del Motor Tap-Sync en Tiempo Real
 let tapSyncMode = false;
@@ -269,9 +263,27 @@ export async function loadSelectedVoiceFromLibrary() {
       return;
     }
 
-    selectedVoiceBlob = item.file_url || item.audioBlob;
+    const urlOrBlob = item.file_url || item.audioBlob;
+
     selectedVoiceId = item.id;
-    player.src = item.file_url || item.audioBlob || "";
+
+    if (typeof urlOrBlob === 'string') {
+      selectedVoiceBlob = urlOrBlob;
+
+      const urlConCacheBuster = urlOrBlob.includes('?')
+        ? `${urlOrBlob}&_cb=${Date.now()}`
+        : `${urlOrBlob}?_cb=${Date.now()}`;
+
+      player.src = urlConCacheBuster;
+    } else if (urlOrBlob instanceof Blob) {
+      selectedVoiceBlob = urlOrBlob;
+      player.src = URL.createObjectURL(urlOrBlob);
+    } else {
+      selectedVoiceBlob = null;
+      player.removeAttribute('src');
+      player.load();
+    }
+
     status.textContent = `Estado: voz seleccionada -> ${item.name}`;
 
     if (lyricsText && item.textoPlano) {
@@ -362,8 +374,6 @@ export async function loadSelectedTextFromLibrary() {
 
     selectedTextId = item.id;
     selectedVoiceId = item.id;
-    //studioTextFileName = item.name;
-    studioTextBlob = item.file_url || null;
 
     if (Array.isArray(item.lyrics) && item.lyrics.length > 0) {
       textSegments = item.lyrics;
@@ -746,12 +756,29 @@ export async function startTapSync() {
   if ($("tapSyncActive")) $("tapSyncActive").style.display = "block";
   if ($("tapSyncResult")) $("tapSyncResult").style.display = "none";
 
+  if (modoSeleccionado === "linea") {
+    tapSyncLines = textoActivo.split(/\r?\n/).map(line => line.trim()).filter(line => line.length > 0);
+  } else {
+    tapSyncLines = textoActivo.split(/\s+/).map(palabra => palabra.trim()).filter(palabra => palabra.length > 0);
+  }
+
+  if (tapSyncLines.length === 0) {
+    alert("⚠️ No hay elementos de texto válidos para sincronizar.");
+    return;
+  }
+
   updateTapSyncDisplay();
   activePlayer.currentTime = 0;
 
   console.log('⏳ Esperando a que el audio cargue en segundo plano...');
 
   await new Promise((resolve, reject) => {
+    if (activePlayer.readyState >= 3) {
+      window.activeTapPlayer = activePlayer;
+      resolve();
+      return;
+    }
+
     const timeout = setTimeout(() => reject(new Error('Audio load timeout (60s)')), 60000);
 
     activePlayer.addEventListener('canplay', () => {
@@ -766,19 +793,8 @@ export async function startTapSync() {
       reject(new Error('Audio error: ' + (mediaError ? getMediaErrorDesc(mediaError.code) : "Desconocido")));
     }, { once: true });
 
-    if (activePlayer.readyState < 3) activePlayer.load();
+    activePlayer.load();
   });
-
-  if (modoSeleccionado === "linea") {
-    tapSyncLines = textoActivo.split(/\r?\n/).map(line => line.trim()).filter(line => line.length > 0);
-  } else {
-    tapSyncLines = textoActivo.split(/\s+/).map(palabra => palabra.trim()).filter(palabra => palabra.length > 0);
-  }
-
-  if (tapSyncLines.length === 0) {
-    alert("⚠️ No hay elementos de texto válidos para sincronizar.");
-    return;
-  }
 
   try {
     await activePlayer.play();
@@ -899,106 +915,19 @@ function updateTapSyncDisplay() {
     const tipoUnidad = (window.currentTapSyncModeType === "palabra") ? "palabras" : "líneas";
     progressEl.textContent = `${tapSyncCurrentIndex} / ${tapSyncLines.length} ${tipoUnidad}`;
   }
-}
 
-function convertirWordsASegmentos(words) {
-  if (!Array.isArray(words) || words.length === 0) return [];
-
-  const agrupados = new Map();
-
-  words.forEach((w) => {
-    const renglon = w.renglon || 1;
-    if (!agrupados.has(renglon)) {
-      agrupados.set(renglon, []);
-    }
-    agrupados.get(renglon).push(w);
-  });
-
-  const segmentos = [];
-
-  for (const [, lineWords] of agrupados.entries()) {
-    const sorted = [...lineWords].sort((a, b) => (a.startTime || 0) - (b.startTime || 0));
-
-    const wordsNormalizadas = sorted.map((w, idx) => {
-      const start = Number.isFinite(w.start) ? w.start : (w.startTime || 0);
-      const next = sorted[idx + 1];
-      const end = Number.isFinite(w.end)
-        ? w.end
-        : (next ? (next.startTime || start + 0.6) : start + 0.6);
-
-      return {
-        word: w.word || w.text || "",
-        text: w.text || w.word || "",
-        start,
-        end,
-        midi: Number.isFinite(w.midi) ? w.midi : null
-      };
-    });
-
-    segmentos.push({
-      start: wordsNormalizadas[0]?.start || 0,
-      end: wordsNormalizadas[wordsNormalizadas.length - 1]?.end || 0,
-      text: wordsNormalizadas.map(w => w.word).join(" "),
-      parte: sorted[0]?.parte || "P1",
-      words: wordsNormalizadas,
-      midi: Number.isFinite(wordsNormalizadas[0]?.midi) ? wordsNormalizadas[0].midi : null
-    });
-  }
-
-  return segmentos.sort((a, b) => (a.start || 0) - (b.start || 0));
-}
-
-export async function applyTapSync() {
-  const player = $("selectedVoicePlayer") || $("player");
-  const total = player ? player.duration : 0;
-  const syncMode = window.currentTapSyncModeType || "linea";
-
-  const segments = tapSyncLines.map((line, i) => {
-    const start = tapSyncTimestamps[i] || 0;
-    let end = tapSyncTimestamps[i + 1] || total || start + (syncMode === "palabra" ? 0.6 : 3);
-
-    const numPalabras = line.split(/\s+/).filter(Boolean).length;
-
-    if (syncMode === "linea" && end - start > 1.2) {
-      end = start + Math.min(end - start, numPalabras * 0.45);
-    } else if (syncMode === "palabra" && end - start > 0.8) {
-      end = start + 0.8;
-    }
-
-    const seg = buildWordTimingFromSegment({ start, end, text: line });
-
-    if (Array.isArray(seg.words)) {
-      seg.words = seg.words.map(w => ({
-        ...w,
-        midi: Number.isFinite(w.midi) ? w.midi : null
-      }));
-    }
-
-    seg.midi = Number.isFinite(seg.midi) ? seg.midi : null;
-    return seg;
-  });
-
-  baseTextSegments = segments;
-  textSegments = segments;
-
-  const pistaInstrumentalActiva = studioSelectedTrackBlob || studioTrackBlob;
-  const nombrePistaActiva = studioSelectedTrackName || studioTrackFileName || "Canción Sincronizada";
-
-  if (pistaInstrumentalActiva) {
-    try {
-      console.log(`💾 [estudio.js] Guardando proyecto: "Karaoke - ${nombrePistaActiva}" en biblioteca.`);
-      await addLibraryItem({
-        name: `Karaoke - ${nombrePistaActiva}`,
-        type: "karaoke",
-        audioBlob: pistaInstrumentalActiva,
-        date: new Date().toLocaleString("es-ES"),
-        transcription: segments,
-        metadata: { title: nombrePistaActiva, origen: "Estudio Sync Master" }
-      });
-    } catch (err) {
-      console.error("❌ Error guardando karaoke:", err);
+  if (autoScrollEnabled) {
+    const lyricsTextEl = $("lyricsText");
+    if (lyricsTextEl && tapSyncLines.length > 1) {
+      const ratio = tapSyncCurrentIndex / (tapSyncLines.length - 1);
+      lyricsTextEl.scrollTop = (lyricsTextEl.scrollHeight - lyricsTextEl.clientHeight) * ratio;
     }
   }
+}
+
+export function toggleAutoScrollEstudio() {
+  autoScrollEnabled = !autoScrollEnabled;
+  return autoScrollEnabled;
 }
 
 export async function finishTapSync() {
