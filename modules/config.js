@@ -210,6 +210,15 @@ export function initSettings() {
     });
   });
 
+  const mic1Select = $("mic1Select");
+  if (mic1Select) {
+    mic1Select.addEventListener("change", () => saveMicSelection(1));
+  }
+  const mic2Select = $("mic2Select");
+  if (mic2Select) {
+    mic2Select.addEventListener("change", () => saveMicSelection(2));
+  }
+
   applyAppTheme(localStorage.getItem("vocalApp_theme") || "oscuro");
   loadSavedAvatar();
   inicializarEscenarioDesdeMemoria();
