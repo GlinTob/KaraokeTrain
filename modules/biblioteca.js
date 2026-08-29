@@ -1,5 +1,4 @@
 import { $ } from "../script.js"; 
-import { mixKaraoke } from "./modules/karaoke.js";
 
 /** 
  * MÓDULO BIBLIOTECA — Gestor de Almacenamiento Remoto, Sincronización Supabase y Cargas R2
