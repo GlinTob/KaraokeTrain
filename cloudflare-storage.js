@@ -99,8 +99,8 @@ async function saveLibraryItemToCloudflare({ name, type, blob, transcription = [
 
   // TIPO TEXTO: Guardar SOLO en Supabase (sin R2)
   if (isTextType) {
-    const lyrics = typeof segmentarTextoPlano === "function" && textoPlano
-      ? segmentarTextoPlano(textoPlano)
+    const lyrics = typeof window.segmentarTextoPlano === "function" && textoPlano
+      ? window.segmentarTextoPlano(textoPlano)
       : [];
 
     // Limpiamos la extensión también en base de datos para mostrar un nombre estético sin ".txt"
@@ -120,14 +120,14 @@ async function saveLibraryItemToCloudflare({ name, type, blob, transcription = [
       date: new Date().toISOString()
     };
 
-    const { error } = await db.from("library").insert([insertData]);
+    const { data, error } = await db.from("library").insert([insertData]).select();
 
     if (error) {
       console.error("❌ Error guardando texto en Supabase:", error);
       throw error;
     }
     console.log("✅ Archivo de texto guardado en Supabase (sin R2)");
-    return { filePath: null, fileUrl: null };
+    return { filePath: null, fileUrl: null, id: data?.[0]?.id };
   }
 
   // TIPO AUDIO: Subir a R2 + metadata en Supabase
@@ -181,7 +181,7 @@ async function saveLibraryItemToCloudflare({ name, type, blob, transcription = [
     date: new Date().toISOString()
   };
 
-  const { error } = await db.from("library").insert([insertData]);
+  const { data, error } = await db.from("library").insert([insertData]).select();
 
   if (error) {
     console.error("❌ Error guardando en Supabase:", error);
@@ -190,7 +190,7 @@ async function saveLibraryItemToCloudflare({ name, type, blob, transcription = [
   }
   console.log("✅ Item guardado en Supabase con URL de Cloudflare");
 
-  return { filePath, fileUrl };
+  return { filePath, fileUrl, id: data?.[0]?.id };
 }
 
 /**
