@@ -252,7 +252,7 @@
             <button class="folder-btn" type="button" onclick="import('./modules/biblioteca.js').then(m => m.renderLibrary('pista'))">Pista</button>
             <button class="folder-btn" type="button" onclick="import('./modules/biblioteca.js').then(m => m.renderLibrary('voz'))">Voz</button>
             <button class="folder-btn" type="button" onclick="import('./modules/biblioteca.js').then(m => m.renderLibrary('grabacion'))">Mis grabaciones</button>
-            <button class="folder-btn" type="button" onclick="import('./modules/biblioteca.js').then(m => m.renderLibrary('karaoke'))">Karaoke</button>
+            <button class="folder-btn" type="button" onclick="import('./modules/biblioteca.js').then(m => m.renderLibrary('karaoke'))">Proyecto Karaoke</button>
             <button class="folder-btn" type="button" onclick="import('./modules/biblioteca.js').then(m => m.renderLibrary('letra'))">📝 Letras</button>
           </div>
 
@@ -699,8 +699,8 @@
       </main>
     </div>
     <script>
-      window.__PITCH_WORKLET_URL__ = "/pitch-shifter-processor.js";
-      window.__VOCAL_PROCESSOR_URL__ = "/vocal-processor.js";
+      window.__PITCH_WORKLET_URL__ = "/modules/pitch-shifter-processor.js";
+      window.__VOCAL_PROCESSOR_URL__ = "/modules/vocal-processor.js";
     </script>
     <script src="cloudflare-storage.js" type="module"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
