@@ -105,13 +105,18 @@ export async function showTab(tabId) {
 }
 
 // --- CONTROLADOR COMPARTIDO DEL MONITOR DE KARAOKE GRAPHICS ---
+let _karaokeRenderPincel = null;
 export async function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2 = 0) {
   const canvas = $("karaokeCanvas");
   if (!canvas) return;
 
-  const { drawKaraokeMonitor: renderPincel } = await import('./modules/karaoke.js');
-  if (typeof renderPincel === "function") {
-    renderPincel(currentTime, currentFreq, currentFreq2);
+  // Cachear la referencia al renderizador para evitar un import dinámico por cada repintado
+  if (!_karaokeRenderPincel) {
+    const { drawKaraokeMonitor: renderPincel } = await import('./modules/karaoke.js');
+    _karaokeRenderPincel = renderPincel;
+  }
+  if (typeof _karaokeRenderPincel === "function") {
+    _karaokeRenderPincel(currentTime, currentFreq, currentFreq2);
   }
 }
 
