@@ -273,18 +273,7 @@ export async function renderLibrary(filter = "todos") {
       let botonCantarHTML = "";
         if (item.isSincronizada || item.type === "karaoke" || filter === "karaoke") {
           botonCantarHTML = `
-          <button class="send-to-monitor-btn" data-id="${item.id}" style="
-            background: linear-gradient(135deg, #ec4899, #db2777);
-            color: #fff;
-            border: none;
-            padding: 5px 12px;
-            border-radius: 4px;
-            cursor: pointer;
-            margin-right: 8px;
-            font-weight: bold;
-            font-size: 12px;
-            box-shadow: 0 0 10px rgba(236, 72, 153, 0.5);
-          ">↪️🎤 Cantar</button>
+          <button class="send-to-monitor-btn" data-id="${item.id}">↪️🎤 Cantar</button>
         `;
       }
 
@@ -294,7 +283,7 @@ export async function renderLibrary(filter = "todos") {
           <span class="item-icon">${iconoVisual}</span>
           <span class="item-name">${item.name}</span>
         </div>
-        <div class="item-actions" style="display: flex; align-items: center;">
+        <div class="item-actions">
           ${botonCantarHTML} <!-- El botón rosa aparecerá solo en los archivos listos -->
           <button class="delete-library-btn" data-id="${item.id}">🗑️</button>
         </div>
