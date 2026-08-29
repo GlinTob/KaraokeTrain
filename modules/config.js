@@ -112,6 +112,7 @@ export function applyAppTheme(theme) {
   const safeTheme = theme || "oscuro";
   document.documentElement.setAttribute("data-theme", safeTheme);
   document.body?.setAttribute("data-theme", safeTheme);
+  syncAppThemeCard(safeTheme);
   console.log("🎨 Tema aplicado de forma nativa:", safeTheme);
 }
 
@@ -139,14 +140,6 @@ const KARAOKE_STAGES = [
   { id: "theme-fiesta", name: "Fiesta", pv: { fondo: "#3b1230", linea: "rgba(255,0,127,0.3)", texto: "#ff007f" } },
   { id: "theme-retrowave", name: "RetroWave", pv: { fondo: "#1a1155", linea: "rgba(255,45,149,0.35)", texto: "#00e5ff" } }
 ];
-
-export function applyAppTheme(theme) {
-  const safeTheme = theme || "oscuro";
-  document.documentElement.setAttribute("data-theme", safeTheme);
-  document.body?.setAttribute("data-theme", safeTheme);
-  syncAppThemeCard(safeTheme);
-  console.log("🎨 Tema aplicado de forma nativa:", safeTheme);
-}
 
 function syncAppThemeCard(theme) {
   document.querySelectorAll("#themeGrid .theme-card").forEach((card) => {
