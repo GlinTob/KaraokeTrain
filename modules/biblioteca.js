@@ -255,12 +255,17 @@ export async function renderLibrary(filter = "todos") {
       div.className = "library-item"; // Conserva tus estilos neón oscuros
   
       // 1. Selección visual del icono según tu interfaz
-      let iconoVisual = "🎵";
-      if (item.type === "letra" || item.type === "texto" || item.type === "texto_plano") {
+      
+      if (item.type === "pista" || item.type === "voz") {
+        iconoVisual = "🎵";
+        
+      } else if (item.type === "letra" || item.type === "texto" || item.type === "texto_plano") {
         iconoVisual = "📄";
+        
       } else if (item.type === "karaoke" || item.isSincronizada) {
         iconoVisual = "🎤";
       }
+    });
 
       // 2. ✅ COMPROBACIÓN CRÍTICA: Si el archivo ya está sincronizado por Taps, 
       // preparamos el botón rosa de exportación al monitor de canto
@@ -383,7 +388,7 @@ export async function saveManualFileToLibrary() {
   const type = typeSelect?.value || "audio";
 
   if (!files || files.length === 0) {
-    alert(type === "texto" || type === "texto_plano" || type === "ultrastar_txt" ? "⚠️ Selecciona un .txt" : "⚠️ Selecciona al menos un archivo");
+    alert(type === "texto" || type === "pista" || type === "voz" ? "⚠️ Selecciona un .txt" : "⚠️ Selecciona al menos un archivo");
     return;
   }
 
@@ -486,7 +491,7 @@ export async function saveManualFileToLibrary() {
 function validateFilesForUpload(files, type) {
   const isTextType = ["texto", "ultrastar_txt"].includes(type);
   const audioTypes = ["audio/mpeg", "audio/wav", "audio/ogg", "audio/webm", "audio/mp4", "audio/m4a", "audio/mp3", "audio/x-wav"];
-  const textTypes = ["text/plain"];
+  const textTypes = ["text/plain", "texto"];
   const maxSize = 500 * 1024 * 1024; // 500 MB
 
   for (const file of files) {
@@ -509,6 +514,7 @@ function validateFilesForUpload(files, type) {
       }
     }
 
+    /*
     // 3. Validar archivos de audio
     if (!isTextType) {
       const hasValidMime = audioTypes.includes(file.type);
@@ -521,6 +527,7 @@ function validateFilesForUpload(files, type) {
         };
       }
     }
+    */
   }
 
   return { valid: true };
