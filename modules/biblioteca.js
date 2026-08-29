@@ -105,8 +105,8 @@ export async function getLibraryItemsByTypeFromSupabase(type) {
     // ✅ PERMISOS FLEXIBLES: Si el frontend pide "texto", buscamos tanto "texto" como "letra" en Supabase
     let query = db.from('library').select('*');
     
-    if (type === "texto" || type === "letra" || type === "letras") {
-      query = query.or(`type.eq.texto,type.eq.letra,type.eq.texto_plano`);
+    if (type === "pista" || type === "voz" || type === "texto") {
+      query = query.or(`type.eq.pista,type.eq.vox,type.eq.texto`);
     } else {
       query = query.eq('type', type);
     }
