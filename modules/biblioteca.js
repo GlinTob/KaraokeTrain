@@ -265,7 +265,6 @@ export async function renderLibrary(filter = "todos") {
       } else if (item.type === "karaoke" || item.isSincronizada) {
         iconoVisual = "🎤";
       }
-    });
 
       // 2. ✅ COMPROBACIÓN CRÍTICA: Si el archivo ya está sincronizado por Taps, 
       // preparamos el botón rosa de exportación al monitor de canto
