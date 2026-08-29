@@ -108,7 +108,7 @@ function drawRegion(pTop, pBottom, pVal, pHist, filtro, etiqueta, paleta, curren
   const ctx = canvas.getContext("2d");
   const pHeight = pBottom - pTop;
   const pixelsPerSecond = (canvas.width - 150) / 7;
-  const dynLineX = 80 + avatarBlockW;
+  const dynLineX = 130 + avatarBlockW;
   const pentagramStartX = 35 + avatarBlockW;
   const noteLabelsX = 28 + avatarBlockW;
   const midiToY = (midi) => pTop + ((84 - (midi > 0 ? midi : 60)) / (84 - 36) * pHeight);
@@ -216,13 +216,11 @@ function drawRegion(pTop, pBottom, pVal, pHist, filtro, etiqueta, paleta, curren
   ctx.stroke();
 }
 
-function getSavedAvatar() {
+function getAvatarForUser(user) {
   try {
-    const saved = localStorage.getItem("vocalApp_selectedAvatar");
-    if (!saved) return null;
-    const parsed = JSON.parse(saved);
-    if (parsed && parsed.emoji && parsed.name) {
-      return parsed;
+    if (typeof window.getAvatarForUser === "function") {
+      const info = window.getAvatarForUser(user);
+      if (info && info.avatar) return info;
     }
   } catch (e) {}
   return null;
@@ -231,9 +229,12 @@ function getSavedAvatar() {
 function drawAvatarBlock(pTop, pBottom, parte, avatarBlockW, ctx) {
   if (!parte || parte === "DUO") return;
   const isP1 = parte === "P1";
-  const saved = getSavedAvatar();
-  const nombre = saved ? saved.name : (isP1 ? "Wen-dolyne" : "To-bonito");
-  const avatarEmoji = saved ? saved.emoji : (isP1 ? "👩" : "🧔🏾");
+  const user = isP1 ? "P1" : "P2";
+  const info = getAvatarForUser(user);
+  const nombre = info && info.avatar ? info.name : (isP1 ? "Wen-dolyne" : "To-bonito");
+  const avatarEmoji = info && info.avatar ? info.avatar.emoji : (isP1 ? "👩" : "🧔🏾");
+  const emoji1 = info && info.emoji1 ? info.emoji1 : (isP1 ? "⚛️" : "🐱");
+  const emoji2 = info && info.emoji2 ? info.emoji2 : (isP1 ? "🤖" : "🤔");
 
   const cx = 5 + avatarBlockW / 2;
   const blockTop = pTop + 10;
@@ -257,6 +258,11 @@ function drawAvatarBlock(pTop, pBottom, parte, avatarBlockW, ctx) {
   const rowTop = avTop + avatarSize + gap;
   const iconHalfFont = `${halfSize}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",Arial`;
 
+  ctx.font = iconHalfFont;
+  ctx.fillStyle = "white";
+  ctx.textBaseline = "middle";
+  ctx.textAlign = "center";
+
   if (isP1) {
     const sqX = cx - halfSize - gap / 2;
     ctx.fillStyle = "#7c3aed";
@@ -264,18 +270,11 @@ function drawAvatarBlock(pTop, pBottom, parte, avatarBlockW, ctx) {
     ctx.strokeStyle = "#a855f7";
     ctx.lineWidth = 1;
     ctx.strokeRect(sqX, rowTop, halfSize, halfSize);
-    ctx.font = iconHalfFont;
-    ctx.fillStyle = "white";
-    ctx.textBaseline = "middle";
-    ctx.textAlign = "center";
-    ctx.fillText("⚛️", cx + halfSize / 2 + gap / 2, rowTop + halfSize / 2);
+    ctx.fillText(emoji1, sqX + halfSize / 2, rowTop + halfSize / 2);
+    ctx.fillText(emoji2, cx + halfSize / 2 + gap / 2, rowTop + halfSize / 2);
   } else {
-    ctx.font = iconHalfFont;
-    ctx.fillStyle = "white";
-    ctx.textBaseline = "middle";
-    ctx.textAlign = "center";
-    ctx.fillText("🐱", cx - halfSize / 2 - gap / 2, rowTop + halfSize / 2);
-    ctx.fillText("🤔", cx + halfSize / 2 + gap / 2, rowTop + halfSize / 2);
+    ctx.fillText(emoji1, cx - halfSize / 2 - gap / 2, rowTop + halfSize / 2);
+    ctx.fillText(emoji2, cx + halfSize / 2 + gap / 2, rowTop + halfSize / 2);
   }
 
   ctx.textBaseline = "alphabetic";
@@ -735,7 +734,16 @@ export function cargarLetrasEnMonitor() {
   const container = $("karaokeLiveLyrics");
   if (!container) return;
   container.innerHTML = "";
-  if (!Array.isArray(textSegments) || !textSegments.length) return;
+  container.style.display = "block";
+  if (!Array.isArray(textSegments) || !textSegments.length) {
+    const empty = document.createElement("p");
+    empty.className = "karaoke-live-line";
+    empty.textContent = karaokeSelectedTrackName
+      ? "🎵 Esperando letra sincronizada..."
+      : "Selecciona un karaoke desde la Biblioteca";
+    container.appendChild(empty);
+    return;
+  }
 
   textSegments.forEach(seg => {
     const line = document.createElement("div");
@@ -974,3 +982,13 @@ function limpiarVariablesMonitor() {
 }
 
 window.syncKaraokeMonitor = syncKaraokeMonitor;
+
+window.addEventListener("avatarChanged", () => {
+  const track = $("karaokeTrack") || $("karaokeAudio") || $("audioKaraoke") || $("trackPlayer");
+  const currentTime = track ? track.currentTime : 0;
+  drawKaraokeMonitor(currentTime, karaokePitchP1, karaokePitchP2);
+});
+
+if (typeof window.cargarLetrasEnMonitor === "function") {
+  window.cargarLetrasEnMonitor();
+}
