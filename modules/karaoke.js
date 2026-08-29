@@ -675,7 +675,7 @@ function restartKaraokeRecording() {
   $("karaokeStartBtn").disabled = false;
 }
 
-export function syncKaraokeMonitor(currentTime) {
+function syncKaraokeMonitor(currentTime) {
   const lines = document.querySelectorAll(".karaoke-live-line");
   if (!lines.length) return;
 
