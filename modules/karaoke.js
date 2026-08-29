@@ -41,7 +41,7 @@ let karaokeDuoAudioContext = null;
 let karaokeDuoAnalyser1 = null;
 let karaokeDuoAnalyser2 = null;
 
-function toggleKaraokeDuoSplitMode() {
+export function toggleKaraokeDuoSplitMode() {
   karaokeDuoSplitMode = !karaokeDuoSplitMode;
   const btn = $("karaokeDuoSplitToggleBtn");
   if (btn) {
