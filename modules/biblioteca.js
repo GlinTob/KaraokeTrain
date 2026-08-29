@@ -235,21 +235,16 @@ export async function renderLibrary(filter = "todos") {
       if (filter === "todos") return true;
   
       // Si el usuario da clic en la carpeta "KARAOKE", mostramos cualquier archivo 
-      // que tenga la bandera 'isSincronizada' en verdadero o cuyo tipo sea 'karaoke'
       if (filter === "karaoke") {
         return item.isSincronizada === true || item.type === "karaoke";
       }
-  
       if (filter === "letras") {
         return item.type === "texto";
       }
-  
       if (filter === "voces") {
         return item.type === "voz";
       }
-
-      // Filtro por defecto para carpetas exactas (pistas, etc.)
-      return item.type === filter;
+    return item.type === filter;
     });
     
     filteredItems.forEach(item => {
