@@ -112,8 +112,9 @@ export function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2) {
   } else {
     pitchHistory.push(karaokePitchP1 > 0 ? karaokePitchP1 : null);
     if (pitchHistory.length > 80) pitchHistory.shift();
-    drawRegion(20, canvas.height - 110, karaokePitchP1, pitchHistory, null, null, paleta, currentTime, canvas, 0);
+    drawRegion(20, canvas.height - 100, karaokePitchP1, pitchHistory, null, null, paleta, currentTime, canvas, 0);
   }
+
   drawLyricsBar(canvas, ctx, currentTime);
 }
 
