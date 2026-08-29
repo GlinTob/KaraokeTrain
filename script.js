@@ -153,11 +153,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   applyKaraokeTheme();
 
-  const karaokeThemeSelect = $("karaokeThemeSelect", "change", async (e) => {
-    localStorage.setItem("vocalApp_stage", e.target.value);
-    applyKaraokeTheme();
-  });
-
   const karaokePlayer = $("karaokeTrack") || $("trackPlayer");
   if (karaokePlayer) {
     karaokePlayer.addEventListener("timeupdate", () => {
@@ -228,12 +223,16 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (typeof applyCorrectedLyrics === "function") applyCorrectedLyrics();
   });
 
-  safeAdd("toggleAutoScrollBtn", "click", () => {
-    autoScrollEnabled = !autoScrollEnabled;
+  safeAdd("toggleAutoScrollBtn", "click", async () => {
+    const { toggleAutoScrollEstudio } = await import("./modules/estudio.js");
+    const enabled = typeof toggleAutoScrollEstudio === "function"
+      ? toggleAutoScrollEstudio()
+      : !autoScrollEnabled;
+    autoScrollEnabled = enabled;
     const btn = $("toggleAutoScrollBtn");
     if (btn) {
-      btn.textContent = autoScrollEnabled ? "🔒 Auto-scroll: ON" : "🔓 Auto-scroll: OFF";
-      btn.style.background = autoScrollEnabled ? "#f59e0b" : "#6b7280";
+      btn.textContent = enabled ? "🔒 Auto-scroll: ON" : "🔓 Auto-scroll: OFF";
+      btn.style.background = enabled ? "#f59e0b" : "#6b7280";
     }
   });
 
