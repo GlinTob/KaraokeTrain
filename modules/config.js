@@ -19,7 +19,15 @@ let micTestTimeoutId = null;
 
 let selectedAvatar = null;
 let currentAvatarCategory = "videojuegos";
+let activeAvatarUser = "P1";
 let settingsInitialized = false;
+
+const EMOJI_OPTIONS = [
+  "⚛️", "🐱", "🤔", "😺", "🐶", "🦊", "🐻", "🐼", "🐰",
+  "🕷️", "🦇", "🦸", "👸", "🤖", "💚", "🛡️", "⭐", "🔥",
+  "💎", "🎵", "🎤", "👑", "🧠", "🎩", "🎼", "🎨", "📜",
+  "🍄", "🦔", "⚔️", "👽", "🎈", "⚡", "🦍", "🌈", "🍀"
+];
 
 // ====================================================================
 // BASE DE DATOS DE AVATARES
@@ -230,67 +238,103 @@ export function initSettings() {
 // AVATARES
 // ====================================================================
 
+function storageKeysForUser(user) {
+  const prefix = user === "P2" ? "vocalApp_p2" : "vocalApp_p1";
+  return {
+    avatar: prefix + "_avatar",
+    emoji1: prefix + "_emoji1",
+    emoji2: prefix + "_emoji2"
+  };
+}
+
+function getUserPrefix(user) {
+  return user === "P2" ? "P2" : "P1";
+}
+
 export function initializeAvatarSelector() {
-  const tabsContainer = $("avatarCategoryTabs");
-  const gridContainer = $("avatarGrid");
+  initializeAvatarUserTabs();
 
-  if (!tabsContainer || !gridContainer) {
-    console.warn("Componentes del selector de avatares no encontrados en el DOM");
-    return;
-  }
+  ["P1", "P2"].forEach((user) => {
+    const tabsContainer = $("avatarCategoryTabs" + user);
+    if (tabsContainer) tabsContainer.innerHTML = "";
 
-  tabsContainer.innerHTML = "";
+    Object.entries(AVATAR_CATEGORIES).forEach(([key, category]) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "avatar-category-tab" + (key === "videojuegos" ? " active" : "");
+      btn.dataset.category = key;
+      btn.innerHTML = `${category.icon} ${category.name}`;
+      btn.onclick = () => switchAvatarCategory(user, key);
+      tabsContainer.appendChild(btn);
+    });
 
-  Object.entries(AVATAR_CATEGORIES).forEach(([key, category]) => {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "avatar-category-tab" + (key === currentAvatarCategory ? " active" : "");
-    btn.dataset.category = key;
-    btn.innerHTML = `${category.icon} ${category.name}`;
-    btn.onclick = () => switchAvatarCategory(key);
-    tabsContainer.appendChild(btn);
+    populateEmojiSelects(user);
+    renderAvatarGrid(user, "videojuegos");
+    loadSavedAvatar(user);
+    renderAvatarSelectedInfo(user);
   });
+}
 
-  renderAvatarGrid();
+function initializeAvatarUserTabs() {
+  const tabs = document.querySelectorAll(".avatar-user-tab");
+  tabs.forEach((tab) => {
+    tab.addEventListener("click", () => {
+      const user = tab.dataset.avatarUser || "P1";
+      activeAvatarUser = user;
+      const panel = $("avatarUserPanel" + user);
+      document.querySelectorAll(".avatar-user-panel").forEach((p) => (p.style.display = "none"));
+      document.querySelectorAll(".avatar-user-tab").forEach((t) => t.classList.remove("active"));
+      if (panel) panel.style.display = "block";
+      tab.classList.add("active");
+    });
+  });
+}
 
-  if (selectedAvatar) {
-    const infoEl = $("avatarSelectedInfo");
-    const avatarCategory = AVATAR_CATEGORIES[selectedAvatar.category];
-    if (infoEl && avatarCategory) {
-      infoEl.innerHTML = `
-        <div class="avatar-selected-title">${selectedAvatar.emoji} ${selectedAvatar.name}</div>
-        <div class="avatar-selected-sub">${avatarCategory.icon} ${avatarCategory.name}</div>
-      `;
-      infoEl.classList.add("has-selection");
+function populateEmojiSelects(user) {
+  const keys = storageKeysForUser(user);
+  [[keys.emoji1, "avatarEmoji1" + user], [keys.emoji2, "avatarEmoji2" + user]].forEach(([storageKey, selectId]) => {
+    const select = $(selectId);
+    if (!select) return;
+    select.innerHTML = "";
+    EMOJI_OPTIONS.forEach((emoji) => {
+      const option = document.createElement("option");
+      option.value = emoji;
+      option.textContent = emoji;
+      select.appendChild(option);
+    });
+    const saved = localStorage.getItem(storageKey);
+    if (saved && EMOJI_OPTIONS.includes(saved)) {
+      select.value = saved;
     }
-  }
-}
-
-export function switchAvatarCategory(categoryKey) {
-  if (!AVATAR_CATEGORIES[categoryKey]) return;
-
-  currentAvatarCategory = categoryKey;
-  document.querySelectorAll(".avatar-category-tab").forEach((btn) => {
-    btn.classList.toggle("active", btn.dataset.category === categoryKey);
+    select.addEventListener("change", () => {
+      localStorage.setItem(storageKey, select.value);
+      notifyAvatarChange(user);
+    });
   });
-  renderAvatarGrid();
 }
 
-export function renderAvatarGrid() {
-  const gridContainer = $("avatarGrid");
+export function switchAvatarCategory(user, categoryKey) {
+  if (!AVATAR_CATEGORIES[categoryKey]) return;
+  const tabs = document.querySelectorAll('#avatarCategoryTabs' + user + ' .avatar-category-tab');
+  tabs.forEach((btn) => btn.classList.toggle("active", btn.dataset.category === categoryKey));
+  renderAvatarGrid(user, categoryKey);
+}
+
+export function renderAvatarGrid(user, categoryKey) {
+  const gridContainer = $("avatarGrid" + user);
   if (!gridContainer) return;
 
-  const category = AVATAR_CATEGORIES[currentAvatarCategory];
-  if (!category) return;
-
+  const category = AVATAR_CATEGORIES[categoryKey] || AVATAR_CATEGORIES.videojuegos;
   gridContainer.innerHTML = "";
+
+  const saved = loadAvatarFromStorage(user);
 
   category.characters.forEach((character) => {
     const card = document.createElement("div");
-    const isSelected = selectedAvatar && selectedAvatar.id === character.id;
+    const isSelected = saved && saved.id === character.id;
     card.className = "avatar-card" + (isSelected ? " selected" : "");
     card.dataset.avatarId = character.id;
-    card.onclick = () => selectAvatar(character);
+    card.onclick = () => selectAvatar(user, character);
     card.innerHTML = `
       <div class="avatar-card-emoji">${character.emoji}</div>
       <div class="avatar-card-name">${character.name}</div>
@@ -300,71 +344,92 @@ export function renderAvatarGrid() {
   });
 }
 
-export function selectAvatar(character) {
+export function selectAvatar(user, character) {
   if (!character || !character.id || !character.category) return;
 
-  const avatarCategory = AVATAR_CATEGORIES[character.category];
-  if (!avatarCategory) {
-    console.warn("Categoría de avatar no válida:", character);
-    return;
-  }
+  const keys = storageKeysForUser(user);
+  localStorage.setItem(keys.avatar, JSON.stringify(character));
 
-  selectedAvatar = character;
-
-  document.querySelectorAll(".avatar-card").forEach((card) => {
+  document.querySelectorAll('#avatarGrid' + user + ' .avatar-card').forEach((card) => {
     card.classList.toggle("selected", card.dataset.avatarId === character.id);
   });
 
-  const infoEl = $("avatarSelectedInfo");
-  if (infoEl) {
-    infoEl.innerHTML = `
-      <div class="avatar-selected-title">${character.emoji} ${character.name}</div>
-      <div class="avatar-selected-sub">${avatarCategory.icon} ${avatarCategory.name}</div>
-    `;
-    infoEl.classList.add("has-selection");
-  }
-
-  localStorage.setItem("vocalApp_selectedAvatar", JSON.stringify(character));
-
-  if (typeof window.updateMonitorAvatar === "function") {
-    window.updateMonitorAvatar(character);
-  }
-
-  window.dispatchEvent(new CustomEvent("avatarChanged", { detail: character }));
+  renderAvatarSelectedInfo(user);
+  notifyAvatarChange(user);
 }
 
-export function loadSavedAvatar() {
+function renderAvatarSelectedInfo(user) {
+  const infoEl = $("avatarSelectedInfo" + user);
+  if (!infoEl) return;
+
+  const saved = loadAvatarFromStorage(user);
+  const label = user === "P2" ? "Usuario 2" : "Usuario 1";
+  if (!saved) {
+    infoEl.innerHTML = `${label}: ningún avatar seleccionado (se usará avatar por defecto)`;
+    infoEl.classList.remove("has-selection");
+    return;
+  }
+
+  const avatarCategory = AVATAR_CATEGORIES[saved.category];
+  infoEl.innerHTML = `
+    <div class="avatar-selected-title">${saved.emoji} ${saved.name}</div>
+    <div class="avatar-selected-sub">${label} · ${avatarCategory ? avatarCategory.icon + " " + avatarCategory.name : ""}</div>
+  `;
+  infoEl.classList.add("has-selection");
+}
+
+export function loadSavedAvatar(user = "P1") {
+  const saved = loadAvatarFromStorage(user);
+  if (!saved) {
+    renderAvatarSelectedInfo(user);
+    return;
+  }
+  renderAvatarSelectedInfo(user);
+}
+
+function loadAvatarFromStorage(user) {
   try {
-    const saved = localStorage.getItem("vocalApp_selectedAvatar");
-    if (!saved) return;
-
+    const keys = storageKeysForUser(user);
+    const saved = localStorage.getItem(keys.avatar);
+    if (!saved) return null;
     const parsed = JSON.parse(saved);
-    if (!parsed || !parsed.id || !parsed.category) {
-      localStorage.removeItem("vocalApp_selectedAvatar");
-      return;
-    }
-
-    let found = false;
-    for (const [key, category] of Object.entries(AVATAR_CATEGORIES)) {
+    if (!parsed || !parsed.id || !parsed.category) return null;
+    for (const [, category] of Object.entries(AVATAR_CATEGORIES)) {
       const char = category.characters.find((c) => c.id === parsed.id);
-      if (char) {
-        selectedAvatar = char;
-        currentAvatarCategory = key;
-        found = true;
-        break;
-      }
+      if (char) return char;
     }
-
-    if (!found) {
-      localStorage.removeItem("vocalApp_selectedAvatar");
-      selectedAvatar = null;
-    }
+    return null;
   } catch (e) {
-    console.warn("No se pudo cargar avatar guardado:", e);
-    localStorage.removeItem("vocalApp_selectedAvatar");
-    selectedAvatar = null;
+    return null;
   }
 }
+
+function notifyAvatarChange(user) {
+  const avatar = loadAvatarFromStorage(user);
+  const keys = storageKeysForUser(user);
+  const emoji1 = localStorage.getItem(keys.emoji1) || "";
+  const emoji2 = localStorage.getItem(keys.emoji2) || "";
+  window.dispatchEvent(new CustomEvent("avatarChanged", {
+    detail: {
+      user,
+      avatar,
+      emoji1,
+      emoji2
+    }
+  }));
+}
+
+window.getAvatarForUser = function (user) {
+  const avatar = loadAvatarFromStorage(user);
+  const keys = storageKeysForUser(user);
+  return {
+    avatar: avatar || null,
+    name: avatar ? avatar.name : null,
+    emoji: avatar ? avatar.emoji : null,
+    emoji1: localStorage.getItem(keys.emoji1) || "",
+    emoji2: localStorage.getItem(keys.emoji2) || ""
+  };
+};
 
 // ====================================================================
 // MICRÓFONOS
