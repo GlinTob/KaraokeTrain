@@ -583,7 +583,7 @@ async function loop() {
   }
 }
 
-export function stopKaraokeRecording() {
+function stopKaraokeRecording() {
   if (karaokePitchLoopRafId) {
     cancelAnimationFrame(karaokePitchLoopRafId);
     karaokePitchLoopRafId = null;
@@ -660,7 +660,7 @@ export function stopKaraokeRecording() {
   }
 }
 
-export function restartKaraokeRecording() {
+function restartKaraokeRecording() {
   const track = $("karaokeTrack") || $("karaokeAudio") || $("trackPlayer");
 
   if (track) {
