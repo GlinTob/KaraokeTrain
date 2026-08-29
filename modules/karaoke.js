@@ -217,11 +217,17 @@ function drawRegion(pTop, pBottom, pVal, pHist, filtro, etiqueta, paleta, curren
   ctx.stroke();
 }
 
+const avatarCache = {};
+
 function getAvatarForUser(user) {
   try {
+    if (avatarCache[user]) return avatarCache[user];
     if (typeof window.getAvatarForUser === "function") {
       const info = window.getAvatarForUser(user);
-      if (info && info.avatar) return info;
+      if (info && info.avatar) {
+        avatarCache[user] = info;
+        return info;
+      }
     }
   } catch (e) {}
   return null;
@@ -985,6 +991,8 @@ function limpiarVariablesMonitor() {
 window.syncKaraokeMonitor = syncKaraokeMonitor;
 
 window.addEventListener("avatarChanged", () => {
+  avatarCache.P1 = null;
+  avatarCache.P2 = null;
   const track = $("karaokeTrack") || $("karaokeAudio") || $("audioKaraoke") || $("trackPlayer");
   const currentTime = track ? track.currentTime : 0;
   drawKaraokeMonitor(currentTime, karaokePitchP1, karaokePitchP2);
