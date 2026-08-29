@@ -290,7 +290,7 @@ function drawAvatarBlock(pTop, pBottom, parte, avatarBlockW, ctx) {
 function drawLyricsBar(canvas, ctx, currentTime) {
   if (!Array.isArray(textSegments) || !textSegments.length) return;
   const idx = textSegments.findIndex(s => 
-    currentTime >= (s.start || 0) && currentTime <= ((s.end || 0) + 1.5);
+    currentTime >= (s.start || 0) && currentTime <= ((s.end || 0) + 1.5)
   );
   if (idx !== -1) return;
 
