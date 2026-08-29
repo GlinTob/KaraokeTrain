@@ -112,13 +112,17 @@ function drawRegion(pTop, pBottom, pVal, pHist, filtro, etiqueta, paleta, curren
   const dynLineX = 130 + avatarBlockW;
   const pentagramStartX = 35 + avatarBlockW;
   const noteLabelsX = 28 + avatarBlockW;
-  const midiToY = (midi) => pTop + ((84 - (midi > 0 ? midi : 60)) / (84 - 36) * pHeight);
+  // Escala musical del canvas: de C6 (84) a A3 (57). Notas fuera de este rango
+  // se pinzan a los extremos para que no se dibujen fuera del monitor.
+  const midiToY = (midi) => pTop + ((84 - Math.min(84, Math.max(57, midi > 0 ? midi : 57))) / (84 - 57) * pHeight);
 
   if (etiqueta) drawAvatarBlock(pTop, pBottom, etiqueta, avatarBlockW, ctx);
 
   ctx.strokeStyle = paleta.lineas;
   ctx.lineWidth = 1;
-  const numLines = 10;
+  // Pentagrama con 9 intervalos (10 líneas) para que cada línea coincida con una nota
+  // de la escala (cada 3 semitonos: C6, A5, F#5, ..., A3).
+  const numLines = 9;
   for (let i = 0; i <= numLines; i++) {
     const y = pTop + (pHeight / numLines) * i;
     ctx.beginPath();
@@ -131,10 +135,15 @@ function drawRegion(pTop, pBottom, pVal, pHist, filtro, etiqueta, paleta, curren
   ctx.font = "bold 20px Arial";
   ctx.textAlign = "right";
   ctx.textBaseline = "alphabetic";
-  const noteLabels = ["C6", "A5", "F5", "D5", "B4", "G4", "E4", "C4", "A3", "F3", "D3", "C3"];
-  noteLabels.forEach((label, i) => {
-    const y = pTop + (pHeight / numLines) * i + 7;
-    ctx.fillText(label, noteLabelsX, y);
+  // Escala visible: de A3 (abajo) a C6 (arriba), cada 3 semitonos.
+  const noteLabels = [
+    { n: "C6", m: 84 }, { n: "A5", m: 81 }, { n: "F#5", m: 78 }, { n: "D#5", m: 75 },
+    { n: "C5", m: 72 }, { n: "A4", m: 69 }, { n: "F#4", m: 66 }, { n: "D#4", m: 63 },
+    { n: "C4", m: 60 }, { n: "A3", m: 57 }
+  ];
+  noteLabels.forEach((lb) => {
+    const y = midiToY(lb.m) + 7;
+    ctx.fillText(lb.n, noteLabelsX, y);
   });
 
   if (Array.isArray(textSegments)) {
