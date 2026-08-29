@@ -50,6 +50,8 @@ export function toggleKaraokeDuoSplitMode() {
   karaokePitchP1 = -1;
   karaokePitchP2 = -1;
 
+  drawKaraokeMonitor(0, -1, -1);
+
   console.log("🎤 Modo Dúo Split:", karaokeDuoSplitMode ? "ON" : "OFF");
 }
 
@@ -214,11 +216,24 @@ function drawRegion(pTop, pBottom, pVal, pHist, filtro, etiqueta, paleta, curren
   ctx.stroke();
 }
 
+function getSavedAvatar() {
+  try {
+    const saved = localStorage.getItem("vocalApp_selectedAvatar");
+    if (!saved) return null;
+    const parsed = JSON.parse(saved);
+    if (parsed && parsed.emoji && parsed.name) {
+      return parsed;
+    }
+  } catch (e) {}
+  return null;
+}
+
 function drawAvatarBlock(pTop, pBottom, parte, avatarBlockW, ctx) {
   if (!parte || parte === "DUO") return;
   const isP1 = parte === "P1";
-  const nombre = isP1 ? "Wen-dolyne" : "To-bonito";
-  const avatarEmoji = isP1 ? "👩" : "🧔🏾";
+  const saved = getSavedAvatar();
+  const nombre = saved ? saved.name : (isP1 ? "Wen-dolyne" : "To-bonito");
+  const avatarEmoji = saved ? saved.emoji : (isP1 ? "👩" : "🧔🏾");
 
   const cx = 5 + avatarBlockW / 2;
   const blockTop = pTop + 10;
@@ -658,6 +673,8 @@ export function setKaraokeData(lyrics, name, fileUrl) {
 
   cargarLetrasEnMonitor();
 
+  drawKaraokeMonitor(0, -1, -1);
+
   console.log(`🎤 [Karaoke] "${karaokeSelectedTrackName}" sincronizado y listo para grabar.`);
 }
 
@@ -772,6 +789,10 @@ export async function loadKaraokeSong(id) {
       track.dataset.karaokeLoaded = "1";
       track.volume = 0.5;
       track.load();
+
+      track.onloadedmetadata = () => {
+        drawKaraokeMonitor(track.currentTime || 0, -1, -1);
+      };
     }
 
     if (Array.isArray(item.lyrics) && item.lyrics.length) {
@@ -786,6 +807,8 @@ export async function loadKaraokeSong(id) {
     }
 
     cargarLetrasEnMonitor();
+
+    drawKaraokeMonitor(0, -1, -1);
 
     const status = $("karaokeStatus");
     if (status) {
