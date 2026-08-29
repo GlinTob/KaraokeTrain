@@ -71,7 +71,7 @@ function obtenerPaleta(hue = 0) {
   const paleta = obtenerPaleta((currentTime * 50) % 360);
 }
 
-function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2) {
+export function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2) {
   const canvas = $("karaokeCanvas");
   if (!canvas) return;
   const ctx = canvas.getContext("2d");
@@ -98,7 +98,7 @@ function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2) {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 }
 
-function drawAvatarBlock(pTop, pBottom, parte) {
+export function drawAvatarBlock(pTop, pBottom, parte) {
   if (!parte || parte === "DUO") return;
   const isP1 = (parte === "P1");
   const nombre = isP1 ? "Wen-dolyne" : "To-bonito";
@@ -159,7 +159,7 @@ function drawAvatarBlock(pTop, pBottom, parte) {
   ctx.textBaseline = "alphabetic";
 }
 
-function drawRegion(pTop, pBottom, pVal, pHist, filtro, etiqueta, paleta, currentTime) {
+export function drawRegion(pTop, pBottom, pVal, pHist, filtro, etiqueta, paleta, currentTime) {
   const canvas = $("karaokeCanvas");
   const ctx = canvas.getContext("2d");
   const pHeight = pBottom - pTop;
@@ -195,22 +195,24 @@ function drawRegion(pTop, pBottom, pVal, pHist, filtro, etiqueta, paleta, curren
 
   if (Array.isArray(textSegments)) {
     textSegments.forEach(seg => {
+      const parteSeg = seg.parte || "P1";
       if (filtro && seg.parte !== filtro && seg.parte !== "DUO") return;
-      (seg.words || []).forEach(w => {
-        if (w.end < currentTime - 1 || w.start > currentTime + 8) return;
-        const x = dynLineX + (w.start - currentTime) * pixelsPerSecond;
-        const y = midiToY(w.midi || seg.midi || 60);
-      
-        let color = paleta.barraFutura;
+
+      const words = Array.isArray(seg.words) ? seg.words : [];
+      words.forEach(w => {
         if (currentTime >= w.start && currentTime <= w.end && pVal > 0) {
-          const userMidi = Math.round(12 * Math.log2(pVal / 440) + 69);
-          if (Math.abs(userMidi - (w.midi || 60)) <= 2) color = "#22c55e"; 
-        }
-        if (currentTime > w.end) color = "#4b5563";
-
-        const isActive = currentTime >= start && currentTime <= end;
-        const isPast = currentTime > end;
-
+          const start = w.start || w.startTime || seg.start || 0;
+          const end = w.end || (start + (w.duration || 0.5));
+          if (w.end < currentTime - 1 || w.start > currentTime + 8) return;
+          if (Math.abs(userMidi - (w.midi || 60)) <= 2) color = "#22c55e";
+          const x = dynLineX + (w.start - currentTime) * pixelsPerSecond;
+          const y = midiToY(w.midi || seg.midi || 60);
+          if (currentTime > w.end) color = "#4b5563";
+          
+          const isActive = currentTime >= start && currentTime <= end;
+          const isPast = currentTime > end;
+          let color = paleta.barraFutura;
+      
         if (parteSeg === "DUO") {
             barColor = "#7c3aed";
             strokeColor = "#a855f7";
@@ -219,6 +221,7 @@ function drawRegion(pTop, pBottom, pVal, pHist, filtro, etiqueta, paleta, curren
             strokeColor = "#f97316";
           }
           if (isPast) barColor = "#4b5563";
+          
           if (isActive) {
             const userMidi = Math.round(12 * Math.log2(pitchVal / 440) + 69);
             const isCorrect = pitchVal > 0 && Math.abs(userMidi - midi) <= 2;
@@ -305,7 +308,6 @@ function drawRegion(pTop, pBottom, pVal, pHist, filtro, etiqueta, paleta, curren
       if (idx !== -1) {
         ctx.fillStyle = "rgba(0, 0, 0, 0.8)";
         ctx.fillRect(0, canvas.height - 100, canvas.width, 100);
-  
         ctx.textAlign = "center";
         ctx.fillStyle = "white";
         ctx.font = "bold 30px Arial";
@@ -314,7 +316,6 @@ function drawRegion(pTop, pBottom, pVal, pHist, filtro, etiqueta, paleta, curren
         const parteActual = datos[idx].parte || "P1";
         const prefijo = karaokeDuoSplitMode ? (parteActual === "DUO" ? "🟪 DÚO · " : (parteActual === "P2" ? "🟧 P2 · " : "🟦 P1 · ")) : "";
         ctx.fillText(prefijo + (datos[idx].text || ""), canvas.width / 2, canvas.height - 65);
-        
         if (datos[idx + 1]) {
           ctx.fillStyle = "#94a3b8";
           ctx.font = "italic 22px Arial";
