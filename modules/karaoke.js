@@ -904,7 +904,7 @@ async function confirmUltrastarImport() {
  * Sincroniza los datos del monitor desde la Biblioteca 
  * evitando recargas innecesarias y habilitando la grabación.
  */
-export function setKaraokeData(lyrics, name, fileUrl) {
+function setKaraokeData(lyrics, name, fileUrl) {
   // 1. Normalizar y asignar segmentos para el renderizado del Canvas
   textSegments = normalizeKaraokeSegments(lyrics);
   baseTextSegments = [...textSegments];
@@ -1093,7 +1093,7 @@ function dataUrlToBlob(dataUrl) {
   return new Blob([arr], { type: mime });
 }
 
-async function mixKaraoke() {
+export async function mixKaraoke() {
   if (!karaokeSelectedTrackBlob || !karaokeRecordedBlob) {
     alert("⚠️ Primero presiona 'Cantar' en un karaoke y luego graba tu voz.");
     return;
