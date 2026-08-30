@@ -150,6 +150,8 @@ export async function loadSelectedPitchKaraoke() {
 
     const item = await getLibraryItemsByIdFromSupabase(id);
     const audioUrlCloud = item ? (item.file_url || item.audioUrl || item.audioBlob) : null;
+    console.log("[CambiarTono] item:", item ? item.id : null, item ? item.name : null);
+    console.log("[CambiarTono] audioUrlCloud:", audioUrlCloud);
 
     if (!item || !audioUrlCloud) {
       if (status) status.textContent = "Estado: el archivo no tiene un enlace de audio válido.";
@@ -163,15 +165,30 @@ export async function loadSelectedPitchKaraoke() {
       pitchAudioContext = new (window.AudioContext || window.webkitAudioContext)();
     }
 
-    const response = await fetch(audioUrlCloud);
-    if (!response.ok) {
-      throw new Error(`No se pudo descargar el audio (${response.status})`);
+    try {
+      const response = await fetch(audioUrlCloud);
+      console.log("[CambiarTono] fetch status:", response.status, "type:", response.type, "url:", response.url);
+      if (!response.ok) {
+        throw new Error(`No se pudo descargar el audio (${response.status})`);
+      }
+
+      const cloudBlob = await response.blob();
+      console.log("[CambiarTono] blob size:", cloudBlob.size, "tipo:", cloudBlob.type);
+      const arrayBuffer = await cloudBlob.arrayBuffer();
+
+      try {
+        pitchAudioBuffer = await pitchAudioContext.decodeAudioData(arrayBuffer.slice(0));
+      } catch (decodeErr) {
+        console.error("[CambiarTono] decodeAudioData falló:", decodeErr);
+        throw new Error("El formato de audio no se pudo decodificar: " + decodeErr.message);
+      }
+    } catch (fetchErr) {
+      console.error("[CambiarTono] error descargando/decodificando:", fetchErr);
+      if (status) status.textContent = "Estado: ❌ no se pudo decodificar el audio (" + fetchErr.message + ").";
+      alert("❌ No se pudo descargar/decodificar el audio: " + fetchErr.message);
+      return;
     }
-
-    const cloudBlob = await response.blob();
-    const arrayBuffer = await cloudBlob.arrayBuffer();
-
-    pitchAudioBuffer = await pitchAudioContext.decodeAudioData(arrayBuffer.slice(0));
+    console.log("[CambiarTono] audio decodificado OK, duración:", pitchAudioBuffer.duration, "canales:", pitchAudioBuffer.numberOfChannels);
     pitchSelectedItem = item;
 
     pitchLastSavedId = null;
@@ -211,10 +228,6 @@ export async function playPitchShifted() {
     pitchAudioContext = new (window.AudioContext || window.webkitAudioContext)();
   }
 
-  if (pitchAudioContext.state === "suspended") {
-    await pitchAudioContext.resume();
-  }
-
   stopPitchShifted();
 
   try {
@@ -246,6 +259,12 @@ export async function playPitchShifted() {
     pitchSourceNode.onended = () => {
       if (pitchIsPlaying) stopPitchShifted();
     };
+
+    // Reanudar el contexto DESPUÉS de stopPitchShifted() (que lo suspende)
+    // y de armar el grafo, justo antes de reproducir, para que sí suene.
+    if (pitchAudioContext.state === "suspended") {
+      await pitchAudioContext.resume();
+    }
 
     pitchSourceNode.start();
     pitchIsPlaying = true;
