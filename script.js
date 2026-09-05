@@ -1,5 +1,5 @@
 import { $ } from "./modules/utils.js";
-/*
+
 export function safeAdd(id, event, handler) {
   const el = $(id);
   if (el) {
@@ -8,7 +8,7 @@ export function safeAdd(id, event, handler) {
     console.warn(`⚠️ No se encontró el elemento con ID: ${id} para registrar el evento [${event}]`);
   }
 }
-*/
+
 export const state = {
   instrumentalUrl: null,
   letraLrc: "",
