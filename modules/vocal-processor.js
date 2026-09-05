@@ -1,4 +1,4 @@
-export class VocalProcessor extends AudioWorkletProcessor {
+class VocalProcessor extends AudioWorkletProcessor {
   static get parameterDescriptors() {
     return [
       { name: "highpass", defaultValue: 120, minValue: 20, maxValue: 300, automationRate: "k-rate" },
@@ -19,6 +19,7 @@ export class VocalProcessor extends AudioWorkletProcessor {
     this.highState = [];
     this.gateEnv = [];
     this.compEnv = [];
+    this.messageCounter = 0; // Control de frecuencia de mensajes
   }
 
   process(inputs, outputs, parameters) {
@@ -95,7 +96,9 @@ export class VocalProcessor extends AudioWorkletProcessor {
       this.gateEnv[ch] = gateEnv; this.compEnv[ch] = compEnv;
     }
 
-    // --- CÁLCULO DE VOLUMEN PARA LA BARRA ---
+    // --- CÁLCULO DE VOLUMEN PARA LA BARRA (ENVÍO LIMITADO A ~30 Hz) ---
+    this.messageCounter++;
+    if (this.messageCounter >= 12) {
     let maxVolume = 0;
     if (input[0]) {
       for (let i = 0; i < input[0].length; i++) {
@@ -104,9 +107,12 @@ export class VocalProcessor extends AudioWorkletProcessor {
       }
     }
     this.port.postMessage({ volume: maxVolume });
+      this.messageCounter = 0;
+  }
     // ----------------------------------------
 
     return true;
-  }
+}
 }
 registerProcessor("vocal-processor", VocalProcessor);
+
