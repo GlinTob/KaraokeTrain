@@ -7,7 +7,9 @@ export class AudioProcessorController {
     this.requestId = 0;
     this.isTerminated = false;
 
-    this.worker = new Worker(workerPath, { type: "module" });
+    // Cambio crítico: Worker clásico (sin { type: "module" }) para compatibilidad total
+    // (Firefox, Safari, WebViews, Electron antiguos, etc.)
+    this.worker = new Worker(workerPath);
 
     this.worker.onmessage = (event) => {
       const data = event.data;
@@ -52,7 +54,13 @@ export class AudioProcessorController {
     this.pendingRequests.clear();
   }
 
-  async execute(command, data = {}) {
+  /**
+   * Ejecuta un comando en el worker con soporte para Transferable Objects (Zero-Copy).
+   * @param {string} command
+   * @param {object} data - Payload que puede contener Float32Array.
+   * @param {ArrayBuffer[]} [transferables] - Lista de ArrayBuffers a transferir (zero-copy).
+   */
+  async execute(command, data = {}, transferables = []) {
     if (this.isTerminated) {
       throw new Error("El audio controller fue terminado y no puede procesar más comandos.");
     }
@@ -61,8 +69,12 @@ export class AudioProcessorController {
       const id = this.requestId++;
       this.pendingRequests.set(id, { resolve, reject });
 
+      // FIX #16: si el worker se destruye mientras la promesa está pendiente,
+      // onmessage ya habrá llamado reject con "Audio worker terminado".
+      // Pero si postMessage falla síncronamente (p.ej. worker.terminate()
+      // justo antes), capturamos ese caso.
       try {
-        this.worker.postMessage({ command, data, id });
+        this.worker.postMessage({ command, data, id }, transferables);
       } catch (error) {
         this.pendingRequests.delete(id);
         reject(error);
@@ -83,10 +95,13 @@ export class AudioProcessorController {
       }
     });
 
+    // Preparar transferibles: los buffers subyacentes (ArrayBuffer) de cada Float32Array
+    const transferables = normalizedBuffers.map(b => b.buffer);
+
     const result = await this.execute("mix", {
       buffers: normalizedBuffers,
       gains
-    });
+    }, transferables);
 
     return new Float32Array(result);
   }
@@ -95,19 +110,30 @@ export class AudioProcessorController {
     if (!buffer) throw new Error("detectPitch requiere un buffer válido.");
     if (!sampleRate) throw new Error("detectPitch requiere sampleRate.");
 
-    const floatBuffer = buffer instanceof Float32Array ? buffer : new Float32Array(buffer);
+    // FIX #16: si el controller fue terminado por otro módulo (p.ej. karaoke
+    // al detener grabación), el singleton se recrea automáticamente vía
+    // getAudioController(). Aquí solo verificamos que esta instancia siga
+    // viva antes de enviar el mensaje.
+    if (this.isTerminated) {
+      throw new Error("Audio controller terminado. Solicita uno nuevo con getAudioController().");
+    }
 
-    return await this.execute("detectPitch", {
+    const floatBuffer = buffer instanceof Float32Array ? buffer : new Float32Array(buffer);
+    
+    // Transferir el buffer de entrada (zero-copy)
+    const result = await this.execute("detectPitch", {
       buffer: floatBuffer,
       sampleRate
-    });
+    }, [floatBuffer.buffer]);
+
+    return result;
   }
 
   async applyGain(buffer, gain) {
     if (!buffer) throw new Error("applyGain requiere un buffer válido.");
 
     const floatBuffer = buffer instanceof Float32Array ? buffer : new Float32Array(buffer);
-    const result = await this.execute("applyGain", { buffer: floatBuffer, gain });
+    const result = await this.execute("applyGain", { buffer: floatBuffer, gain }, [floatBuffer.buffer]);
 
     return new Float32Array(result);
   }
@@ -123,7 +149,7 @@ export class AudioProcessorController {
       buffer: floatBuffer,
       cutoffFrequency,
       sampleRate
-    });
+    }, [floatBuffer.buffer]);
 
     return new Float32Array(result);
   }
@@ -136,7 +162,7 @@ export class AudioProcessorController {
     return await this.execute("detectSilence", {
       buffer: floatBuffer,
       threshold
-    });
+    }, [floatBuffer.buffer]);
   }
 
   async normalizeAudio(buffer, targetLevel = 0.9) {
@@ -146,7 +172,7 @@ export class AudioProcessorController {
     const result = await this.execute("normalize", {
       buffer: floatBuffer,
       targetLevel
-    });
+    }, [floatBuffer.buffer]);
 
     return new Float32Array(result);
   }
@@ -158,7 +184,7 @@ export class AudioProcessorController {
     const chunks = await this.execute("processChunks", {
       buffer: floatBuffer,
       chunkSize
-    });
+    }, [floatBuffer.buffer]);
 
     if (!Array.isArray(chunks)) {
       throw new Error("Respuesta inválida del worker en processInChunks.");
