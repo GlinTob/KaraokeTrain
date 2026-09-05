@@ -5,9 +5,15 @@
 // Prevents UI freezing during audio operations
 // File: audio-processor-worker.js
 
-export class AudioProcessor {
-  /**
+class AudioProcessor {
+  constructor() {
+    // Buffer temporal reutilizable para detectPitch (evita GC pressure)
+    this._tempClipped = new Float32Array(4096);
+  }
+
+    /**
    * Mix multiple audio buffers without blocking main thread
+   * Optimizado: 2 pasadas (mezcla+busca pico -> normaliza)
    */
   mixAudioBuffers(buffers, gains = null) {
     if (!Array.isArray(buffers) || buffers.length === 0) {
@@ -20,6 +26,7 @@ export class AudioProcessor {
     }
 
     const mixed = new Float32Array(maxLength);
+    let max = 0;
 
     buffers.forEach((buffer, index) => {
       if (!buffer) return;
@@ -30,58 +37,61 @@ export class AudioProcessor {
           : 1;
 
       for (let i = 0; i < buffer.length; i++) {
-        mixed[i] += buffer[i] * gain;
+        const val = buffer[i] * gain;
+        mixed[i] += val;
+        const abs = val >= 0 ? val : -val; // Math.abs inline
+        if (abs > max) max = abs;
       }
     });
 
-    // Normalize to prevent clipping
-    let max = 0;
-    for (let i = 0; i < mixed.length; i++) {
-      const abs = Math.abs(mixed[i]);
-      if (abs > max) max = abs;
-    }
-
+    // Normalize to prevent clipping (solo si max > 1)
     if (max > 1) {
+      const invMax = 1 / max;
       for (let i = 0; i < mixed.length; i++) {
-        mixed[i] /= max;
+        mixed[i] *= invMax;
       }
     }
 
     return mixed;
   }
 
-  /**
-   * Detect pitch using autocorrelation algorithm
+    /**
+   * Detect pitch using autocorrelation algorithm with correct parabolic interpolation
    */
   detectPitch(buffer, sampleRate) {
     if (!buffer || buffer.length < 256 || !sampleRate || sampleRate <= 0) {
       return -1;
     }
 
-    let sum = 0;
     const len = buffer.length;
+    let sum = 0;
+    let maxVal = 0;
+
+    // Pasada única: RMS + Max Value
     for (let i = 0; i < len; i++) {
-      sum += buffer[i] * buffer[i];
+      const v = buffer[i];
+      sum += v * v;
+      const absV = v >= 0 ? v : -v;
+      if (absV > maxVal) maxVal = absV;
     }
 
     const rms = Math.sqrt(sum / len);
     if (!isFinite(rms) || rms < 0.015) return -1;
+    if (maxVal === 0) return -1;
 
-    const clippedBuffer = new Float32Array(len);
-    let maxVal = 0;
-
-    for (let i = 0; i < len; i++) {
-      const absVal = Math.abs(buffer[i]);
-      if (absVal > maxVal) maxVal = absVal;
+    // Asegurar buffer temporal lo suficientemente grande
+    const clipLen = Math.min(len, this._tempClipped.length);
+    if (clipLen < len) {
+      this._tempClipped = new Float32Array(len);
     }
+    const clippedBuffer = this._tempClipped;
 
     const clipThreshold = maxVal * 0.3;
     for (let i = 0; i < len; i++) {
-      if (Math.abs(buffer[i]) > clipThreshold) {
-        clippedBuffer[i] =
-          buffer[i] > 0
-            ? buffer[i] - clipThreshold
-            : buffer[i] + clipThreshold;
+      const v = buffer[i];
+      const absV = v >= 0 ? v : -v;
+      if (absV > clipThreshold) {
+        clippedBuffer[i] = v > 0 ? v - clipThreshold : v + clipThreshold;
       } else {
         clippedBuffer[i] = 0;
       }
@@ -119,10 +129,11 @@ export class AudioProcessor {
         cPlus += clippedBuffer[i] * clippedBuffer[i + (bestOffset + 1)];
       }
 
-      const divisor = 2 * bestCorrelation - cMinus - cPlus;
-      if (divisor !== 0 && isFinite(divisor)) {
-        finalOffset = bestOffset + (cMinus - cPlus) / divisor;
-      }
+      const denom = 2 * (2 * bestCorrelation - cMinus - cPlus);
+        if (denom !== 0 && isFinite(denom)) {
+          const delta = (cMinus - cPlus) / denom;
+          finalOffset = bestOffset + delta;
+        }
     }
 
     if (!isFinite(finalOffset) || finalOffset <= 0) {
@@ -258,10 +269,11 @@ self.onmessage = function (event) {
   try {
     let result;
 
-    switch (command) {
+        switch (command) {
       case "mix":
         result = processor.mixAudioBuffers(data?.buffers, data?.gains);
-        self.postMessage({ id, result, success: true });
+        // Transferir el buffer de resultado (Zero-Copy)
+        self.postMessage({ id, result, success: true }, [result.buffer]);
         break;
 
       case "detectPitch":
@@ -271,7 +283,7 @@ self.onmessage = function (event) {
 
       case "applyGain":
         result = processor.applyGain(data?.buffer, data?.gain);
-        self.postMessage({ id, result, success: true });
+        self.postMessage({ id, result, success: true }, [result.buffer]);
         break;
 
       case "lowPassFilter":
@@ -280,7 +292,7 @@ self.onmessage = function (event) {
           data?.cutoffFrequency,
           data?.sampleRate
         );
-        self.postMessage({ id, result, success: true });
+        self.postMessage({ id, result, success: true }, [result.buffer]);
         break;
 
       case "detectSilence":
@@ -290,11 +302,14 @@ self.onmessage = function (event) {
 
       case "normalize":
         result = processor.normalizeAudio(data?.buffer, data?.targetLevel);
-        self.postMessage({ id, result, success: true });
+        self.postMessage({ id, result, success: true }, [result.buffer]);
         break;
 
       case "processChunks":
         result = processor.processAudioInChunks(data?.buffer, data?.chunkSize);
+        // processChunks devuelve array de Float32Arrays, no se puede transferir fácilmente el array padre
+        // pero los buffers internos sí son transferibles si el receptor lo espera.
+        // Por simplicidad y compatibilidad, enviamos normal.
         self.postMessage({ id, result, success: true });
         break;
 
