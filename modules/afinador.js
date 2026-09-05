@@ -1,10 +1,9 @@
 import { getAudioController } from './audio-controller.js';
+import { $ } from './utils.js';
 
 /**
  * AFINADOR VOCAL — eje vertical fijo, punto neón, chispas, explosión y ondas
  */
-
-const $ = (id) => document.getElementById(id);
 
 const state = {
   isRecording: false
@@ -12,11 +11,14 @@ const state = {
 
 let afinadorVisual = null;
 let pitchLoopTimeout = null;
-const pitchBuffer = new Float32Array(2048);
 let audioContext = null;
 let analyser = null;
 let stream = null;
 let recordingSession = 0;
+// FIX #12: pitchBuffer ahora se crea dentro de startAfinador() para que cada
+// sesión tenga su propio buffer y no haya riesgo de race conditions si se
+// invocara el afinador dos veces (defensivo). El módulo solo mantiene la
+// referencia de cleanup.
 
 // ==========================================================
 // UTILIDADES MUSICALES
@@ -73,6 +75,11 @@ export class AfinadorVisual {
 
     this.markerOffset = 0;
     this.targetMarkerOffset = 0;
+
+    // Nuevas propiedades para congelamiento sostenido
+    this.lastStableCents = 0;
+    this.stableCounter = 0;
+    this.stableThreshold = 10; // ciclos consecutivos (~160ms) para considerar "sostenida"
 
     this.running = false;
     this.rafId = null;
@@ -138,6 +145,12 @@ export class AfinadorVisual {
       experto: 5
     };
     this.maxCents = tolerances[level] || 30;
+    // FIX #14: resetear el marcador y el contador de estabilidad al cambiar
+    // de dificultad, para que el siguiente setPitch() calcule el offset con
+    // el nuevo maxCents sin arrastrar valores de la escala anterior.
+    this.targetMarkerOffset = 0;
+    this.markerOffset = 0;
+    this.stableCounter = 0;
   }
 
   setPitch(freq) {
@@ -148,36 +161,46 @@ export class AfinadorVisual {
       this.cents = 0;
       this.targetMarkerOffset = 0;
       this.wasTuned = false;
+      this.stableCounter = 0;
       return;
     }
 
     this.currentNote = frequencyToNoteName(freq);
     this.cents = frequencyToCentsOff(freq, this.targetFreq);
 
-    const normalized = Math.max(-1, Math.min(1, this.cents / this.maxCents));
-    const maxTravel = this.height * 0.22;
+    // --- LÓGICA DE CONGELAMIENTO (FREEZE) ---
+    const isTuned = Math.abs(this.cents) <= Math.max(6, this.maxCents * 0.35);
 
-    // Grave: abajo / Agudo: arriba
-    this.targetMarkerOffset = -normalized * maxTravel;
-
-    const tuned = Math.abs(this.cents) <= Math.max(6, this.maxCents * 0.35);
-
-    if (tuned && !this.wasTuned && this.rippleCooldown <= 0) {
-      this.triggerTunedExplosion();
-      this.triggerRipple();
-      this.rippleCooldown = 0.8;
+    if (isTuned) {
+      // Acumular ciclos consecutivos afinados
+      this.stableCounter++;
+      if (this.stableCounter >= this.stableThreshold) {
+        // Congelar la posición: no mover más el marcador
+        this.targetMarkerOffset = this.markerOffset; // mantener la posición actual
+      } else {
+        // Mover suavemente hacia la posición objetivo
+        const normalized = Math.max(-1, Math.min(1, this.cents / this.maxCents));
+        const maxTravel = this.height * 0.22;
+        this.targetMarkerOffset = -normalized * maxTravel;
+      }
+    } else {
+      // Nota afuera de tono: reiniciar contador y mover hacia posición actual
+      this.stableCounter = 0;
+      const normalized = Math.max(-1, Math.min(1, this.cents / this.maxCents));
+      const maxTravel = this.height * 0.22;
+      this.targetMarkerOffset = -normalized * maxTravel;
     }
 
-    this.wasTuned = tuned;
+    // --- FIN LÓGICA DE CONGELAMIENTO ---
   }
 
   triggerTunedExplosion() {
     const cx = this.width / 2;
     const cy = this.height * 0.55;
 
-    for (let i = 0; i < 36; i++) {
-      const angle = (Math.PI * 2 * i) / 36 + Math.random() * 0.12;
-      const speed = 60 + Math.random() * 180;
+    for (let i = 0; i < 60; i++) {
+      const angle = (Math.PI * 2 * i) / 60 + Math.random() * 0.12;
+      const speed = 100 + Math.random() * 300;
       const color = Math.random() > 0.35 ? this.colors.marker : this.colors.axis;
 
       this.burstParticles.push({
@@ -185,9 +208,9 @@ export class AfinadorVisual {
         y: cy,
         vx: Math.cos(angle) * speed,
         vy: Math.sin(angle) * speed,
-        life: 0.5 + Math.random() * 0.5,
-        maxLife: 1,
-        size: 2 + Math.random() * 5,
+        life: 0.8 + Math.random() * 0.5,
+        maxLife: 1.5,
+        size: 3 + Math.random() * 4,
         alpha: 1,
         color
       });
@@ -206,12 +229,12 @@ export class AfinadorVisual {
       this.ripples.push({
         x: cx,
         y: cy,
-        radius: i * 10,
+        radius: i * 8,
         alpha: 0.85 - i * 0.08,
         baseAlpha: 0.85 - i * 0.08,
         lineWidth: 4 - i * 0.5,
-        maxRadius,
-        speed: 22 + Math.random() * 10
+        maxRadius: maxRadius * 1.3,
+        speed: 35 + Math.random() * 25
       });
     }
   }
@@ -274,7 +297,7 @@ export class AfinadorVisual {
 
     if (this.currentFreq > 0) {
       // Más chispas: tasa base más alta
-      const sparkRate = 22 + closeness * 48;
+      const sparkRate = 40 + closeness * 80;
       this.particleAccum += dt * sparkRate;
 
       while (this.particleAccum >= 1 && this.axisSparks.length < this.maxAxisSparks) {
@@ -512,6 +535,14 @@ export class AfinadorVisual {
   destroy() {
     this.stop();
     window.removeEventListener('resize', this.resize);
+    // FIX #15: limpiar los handlers onchange que el constructor asignó a
+    // los selectores de target note / difficulty, para que el siguiente
+    // AfinadorVisual no termine con handlers apilados apuntando a
+    // instancias ya destruidas.
+    const targetNoteEl = document.getElementById('targetNote');
+    if (targetNoteEl) targetNoteEl.onchange = null;
+    const difficultyEl = document.getElementById('afinadorDifficulty');
+    if (difficultyEl) difficultyEl.onchange = null;
     this.ctx.clearRect(0, 0, this.width, this.height);
   }
 }
@@ -533,19 +564,19 @@ export async function toggleRecording() {
       btn.classList.add('recording');
       btn.setAttribute('aria-pressed', 'true');
 
-await startAfinador();
-  } catch (error) {
-    console.error('No se pudo iniciar el afinador:', error);
+      await startAfinador();
+    } catch (error) {
+      console.error('No se pudo iniciar el afinador:', error);
 
-    state.isRecording = false;
-    if (btnText) btnText.textContent = 'Iniciar';
-    btn.classList.remove('recording');
-    btn.setAttribute('aria-pressed', 'false');
+      state.isRecording = false;
+      if (btnText) btnText.textContent = 'Iniciar';
+      btn.classList.remove('recording');
+      btn.setAttribute('aria-pressed', 'false');
 
-    alert('❌ No se pudo iniciar el micrófono del afinador: ' + error.message);
-    stopAfinador();
-  }
-} else {
+      alert('❌ No se pudo iniciar el micrófono del afinador: ' + error.message);
+      stopAfinador();
+    }
+  } else {
     state.isRecording = false;
     recordingSession++;
     if (btnText) btnText.textContent = 'Iniciar';
@@ -580,6 +611,11 @@ function resetAfinadorUI() {
 
 async function startAfinador() {
   const session = recordingSession;
+
+  // FIX #12: buffer local por sesión (8KB en Float32Array, 2048 muestras).
+  // Antes era un módulo-global, lo que en teoría permitiría colisiones si
+  // dos afinadores coexistían (no es el caso, pero defensivo).
+  const pitchBuffer = new Float32Array(2048);
 
   if (afinadorVisual) {
     afinadorVisual.destroy();
@@ -648,7 +684,7 @@ async function startAfinador() {
   mic.connect(analyser);
 
   setTimeout(() => {
-    if (state.isRecording && session === recordingSession) runPitchDetectionLoop();
+    if (state.isRecording && session === recordingSession) runPitchDetectionLoop(pitchBuffer);
   }, 200);
 }
 
@@ -680,14 +716,30 @@ function stopAfinador() {
 // LOOP DE DETECCIÓN
 // ==========================================================
 
-async function runPitchDetectionLoop() {
-  if (!state.isRecording || !analyser || !audioContext) return;
+async function runPitchDetectionLoop(pitchBuffer) {
+  if (!state.isRecording || !analyser || !audioContext || !pitchBuffer) return;
 
-  analyser.getFloatTimeDomainData(pitchBuffer);
+  // FIX #10: copiamos el buffer ANTES de transferirlo al worker. Sin esta
+  // copia, el siguiente frame (16ms después) sobrescribe el ArrayBuffer
+  // mientras el worker todavía lo está procesando (transferir la propiedad
+  // no espera a que el worker termine). El worker leería datos corruptos /
+  // ya modificados y el pitch oscilaría aleatoriamente.
+  //
+  // Coste: 2048 floats × 4 bytes = 8KB por frame @ 30 Hz = 240 KB/s.
+  // Aceptable para el afinador. Si el rendimiento se vuelve crítico, se
+  // puede sustituir por un pool de buffers con round-robin.
+  const frameBuffer = new Float32Array(pitchBuffer);
 
   try {
     const audioController = getAudioController();
-    const result = await audioController.detectPitch(pitchBuffer, audioContext.sampleRate);
+    const result = await audioController.detectPitch(frameBuffer, audioContext.sampleRate);
+
+    // FIX #11: si otro módulo (p.ej. karaoke) destruyó el singleton mientras
+    // esperábamos la respuesta del worker, `getAudioController()` arriba
+    // habrá creado uno NUEVO. Pero el audioContext/analyser de ESTE afinador
+    // siguen apuntando al estado viejo. Salir sin tocar el DOM para evitar
+    // mostrar datos del afinador viejo en un contexto ya cancelado.
+    if (!state.isRecording || !analyser || !audioContext) return;
 
     const noteDisplay = $('currentNoteDisplay');
     const centsDisplay = $('centsDisplay');
@@ -754,9 +806,21 @@ async function runPitchDetectionLoop() {
     }
   } catch (error) {
     console.error('Fallo en bucle de detección:', error);
+    // FIX #13: en errores transitorios seguimos, pero si el audioContext o
+    // analyser se destruyeron durante el await, salimos para no girar en
+    // vacío consumiendo CPU y generando logs duplicados.
+    if (!state.isRecording || !analyser || !audioContext) return;
+    // FIX #16: si el error es porque el worker fue terminado por otro
+    // módulo (karaoke.stopKaraokeRecording, etc.), el singleton se habrá
+    // recreado automáticamente. Reintentamos con un backoff corto.
+    if (error && error.message && error.message.includes("terminado")) {
+      pitchLoopTimeout = setTimeout(() => runPitchDetectionLoop(pitchBuffer), 100);
+      return;
+    }
   }
 
   if (state.isRecording) {
-    pitchLoopTimeout = setTimeout(runPitchDetectionLoop, 16);
+    pitchLoopTimeout = setTimeout(() => runPitchDetectionLoop(pitchBuffer), 16);
   }
 }
+
