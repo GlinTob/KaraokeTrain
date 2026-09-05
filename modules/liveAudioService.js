@@ -68,7 +68,7 @@ export async function startLiveAudio(options = {}) {
       audioConstraints.deviceId = { exact: deviceId };
     }
 
-    stream = await navigator.mediaDevices.getUserMedia({
+        stream = await navigator.mediaDevices.getUserMedia({
       audio: audioConstraints
     });
 
@@ -83,12 +83,15 @@ export async function startLiveAudio(options = {}) {
     usingFallback = false;
 
     try {
-      await audioCtx.audioWorklet.addModule(
-        new URL("./vocal-processor.js", import.meta.url)
-      );
-      await audioCtx.audioWorklet.addModule(
-        new URL("./pitch-shifter-processor.js", import.meta.url)
-      );
+      // FIX #4: carga centralizada via worklets.js (idempotente + concurrent-safe)
+      // Antes: cada modulo construia su propia URL con `import.meta.url`, lo que
+      // generaba registros duplicados del processor y errores intermitentes en
+      // Safari/Firefox al navegar entre pestañas que usen audio en vivo.
+      const { loadVocalProcessor, loadPitchShifterProcessor } = await import("./worklets.js");
+      await Promise.all([
+        loadVocalProcessor(audioCtx),
+        loadPitchShifterProcessor(audioCtx)
+      ]);
 
       vocalNode = new AudioWorkletNode(audioCtx, "vocal-processor");
       shifterNode = new AudioWorkletNode(audioCtx, "pitch-shifter-processor");
@@ -100,7 +103,6 @@ export async function startLiveAudio(options = {}) {
       shifterNode.connect(analyserNode);
       analyserNode.connect(monitorGainNode);
       monitorGainNode.connect(audioCtx.destination);
-
     } catch (error) {
       usingFallback = true;
       console.warn(
