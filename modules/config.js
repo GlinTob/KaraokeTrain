@@ -1,4 +1,4 @@
-import { $ } from "../script.js";
+import { $ } from "./utils.js";
 import { getAudioController } from "./audio-controller.js";
 
 
@@ -35,59 +35,63 @@ const EMOJI_OPTIONS = [
 
 const AVATAR_CATEGORIES = {
   videojuegos: {
-    name: "🎮 Videojuegos (90s)",
+    name: "🎮 Videojuegos",
     icon: "🎮",
-    characters: [
-      { id: "mario", name: "Mario", emoji: "🍄", img: "https://via.placeholder.com/80x80/FF0000/FFFFFF?text=MARIO", category: "videojuegos" },
-      { id: "sonic", name: "Sonic", emoji: "🦔", img: "https://via.placeholder.com/80x80/00AA00/FFFFFF?text=SONIC", category: "videojuegos" },
-      { id: "link", name: "Link", emoji: "⚔️", img: "https://via.placeholder.com/80x80/00FFFF/FFFFFF?text=LINK", category: "videojuegos" },
-      { id: "samus", name: "Samus", emoji: "👽", img: "https://via.placeholder.com/80x80/FFA500/FFFFFF?text=SAMUS", category: "videojuegos" },
-      { id: "kirby", name: "Kirby", emoji: "🎈", img: "https://via.placeholder.com/80x80/FF69B4/FFFFFF?text=KIRBY", category: "videojuegos" },
-      { id: "megaman", name: "Mega Man", emoji: "🤖", img: "https://via.placeholder.com/80x80/00BFFF/FFFFFF?text=MEGAMAN", category: "videojuegos" },
-      { id: "pikachu", name: "Pikachu", emoji: "⚡", img: "https://via.placeholder.com/80x80/FFFF00/000000?text=PIKA", category: "videojuegos" },
-      { id: "donkeykong", name: "Donkey Kong", emoji: "🦍", img: "https://via.placeholder.com/80x80/8B4513/FFFFFF?text=DK", category: "videojuegos" }
+    color: "#FF6B6B",
+        characters: [
+      { id: "mario", name: "Mario", img: "https://via.placeholder.com/80x80/FF0000/FFFFFF?text=MARIO", emoji: "🍄", category: "videojuegos" },
+      { id: "sonic", name: "Sonic", img: "https://via.placeholder.com/80x80/00AA00/FFFFFF?text=SONIC", emoji: "🦔", category: "videojuegos" },
+      { id: "link", name: "Link", img: "https://via.placeholder.com/80x80/00FFFF/FFFFFF?text=LINK", emoji: "⚔️", category: "videojuegos" },
+      { id: "samus", name: "Samus", img: "https://via.placeholder.com/80x80/FFA500/FFFFFF?text=SAMUS", emoji: "🛡️", category: "videojuegos" },
+      { id: "kirby", name: "Kirby", img: "https://via.placeholder.com/80x80/FF69B4/FFFFFF?text=KIRBY", emoji: "🎈", category: "videojuegos" },
+      { id: "megaman", name: "Mega Man", img: "https://via.placeholder.com/80x80/00BFFF/FFFFFF?text=MEGAMAN", emoji: "🤖", category: "videojuegos" },
+      { id: "pikachu", name: "Pikachu", img: "https://via.placeholder.com/80x80/FFFF00/000000?text=PIKA", emoji: "⚡", category: "videojuegos" },
+      { id: "donkeykong", name: "Donkey Kong", img: "https://via.placeholder.com/80x80/8B4513/FFFFFF?text=DK", emoji: "🦍", category: "videojuegos" }
     ]
   },
   animales: {
-    name: "🐾 Animales (Estilo Pop)",
+    name: "🐾 Animales",
     icon: "🐾",
+    color: "#4ECDC4",
     characters: [
-      { id: "cat", name: "Gato Pop", emoji: "😺", img: "https://via.placeholder.com/80x80/FF69B4/FFFFFF?text=CAT", category: "animales" },
-      { id: "dog", name: "Perro Pop", emoji: "🐶", img: "https://via.placeholder.com/80x80/87CEEB/FFFFFF?text=DOG", category: "animales" },
-      { id: "fox", name: "Zorro Pop", emoji: "🦊", img: "https://via.placeholder.com/80x80/FFA500/FFFFFF?text=FOX", category: "animales" },
-      { id: "bear", name: "Oso Pop", emoji: "🐻", img: "https://via.placeholder.com/80x80/8B4513/FFFFFF?text=BEAR", category: "animales" },
-      { id: "panda", name: "Panda Pop", emoji: "🐼", img: "https://via.placeholder.com/80x80/FFFFFF/000000?text=PANDA", category: "animales" },
-      { id: "bunny", name: "Conejo Pop", emoji: "🐰", img: "https://via.placeholder.com/80x80/FFB6C1/000000?text=BUNNY", category: "animales" },
-      { id: "wolf", name: "Lobo Pop", emoji: "🐺", img: "https://via.placeholder.com/80x80/808080/FFFFFF?text=WOLF", category: "animales" },
-      { id: "cat2", name: "Gato Pop 2", emoji: "😸", img: "https://via.placeholder.com/80x80/FF69B4/FFFFFF?text=CAT2", category: "animales" }
+      { id: "cat", name: "Gato", img: "https://via.placeholder.com/80x80/FF69B4/FFFFFF?text=CAT", emoji: "🐱", category: "animales" },
+      { id: "dog", name: "Perro", img: "https://via.placeholder.com/80x80/87CEEB/FFFFFF?text=DOG", emoji: "🐶", category: "animales" },
+      { id: "fox", name: "Zorro", img: "https://via.placeholder.com/80x80/FFA500/FFFFFF?text=FOX", emoji: "🦊", category: "animales" },
+      { id: "bear", name: "Oso", img: "https://via.placeholder.com/80x80/8B4513/FFFFFF?text=BEAR", emoji: "🐻", category: "animales" },
+      { id: "panda", name: "Panda", img: "https://via.placeholder.com/80x80/FFFFFF/000000?text=PANDA", emoji: "🐼", category: "animales" },
+      { id: "bunny", name: "Conejo", img: "https://via.placeholder.com/80x80/FFB6C1/000000?text=BUNNY", emoji: "🐰", category: "animales" },
+      { id: "wolf", name: "Lobo", img: "https://via.placeholder.com/80x80/808080/FFFFFF?text=WOLF", emoji: "🐺", category: "animales" },
+      { id: "cat2", name: "Gato 2", img: "https://via.placeholder.com/80x80/FF69B4/FFFFFF?text=CAT2", emoji: "😺", category: "animales" }
     ]
   },
   superheroes: {
     name: "🦸 Superhéroes",
     icon: "🦸",
+    color: "#FF8C42",
     characters: [
-      { id: "spiderman", name: "Spider-Man", emoji: "🕷️", img: "https://via.placeholder.com/80x80/FF0000/FFFFFF?text=SPIDEY", category: "superheroes" },
-      { id: "batman", name: "Batman", emoji: "🦇", img: "https://via.placeholder.com/80x80/000000/FFFF00?text=BAT", category: "superheroes" },
-      { id: "superman", name: "Superman", emoji: "🦸", img: "https://via.placeholder.com/80x80/0000FF/FFD700?text=SUPER", category: "superheroes" },
-      { id: "wonderwoman", name: "Mujer Maravilla", emoji: "👸", img: "https://via.placeholder.com/80x80/FFD700/FF0000?text=WW", category: "superheroes" },
-      { id: "ironman", name: "Iron Man", emoji: "🤖", img: "https://via.placeholder.com/80x80/FF0000/FFD700?text=IRON", category: "superheroes" },
-      { id: "hulk", name: "Hulk", emoji: "💚", img: "https://via.placeholder.com/80x80/00FF00/FFFFFF?text=HULK", category: "superheroes" },
-      { id: "thor", name: "Thor", emoji: "⚡", img: "https://via.placeholder.com/80x80/FFD700/000000?text=THOR", category: "superheroes" },
-      { id: "captain", name: "Capitán América", emoji: "🛡️", img: "https://via.placeholder.com/80x80/0000FF/FFFFFF?text=CAP", category: "superheroes" }
+      { id: "spiderman", name: "Spider-Man", img: "https://via.placeholder.com/80x80/FF0000/FFFFFF?text=SPIDEY", emoji: "🕷️", category: "superheroes" },
+      { id: "batman", name: "Batman", img: "https://via.placeholder.com/80x80/000000/FFFF00?text=BAT", emoji: "🦇", category: "superheroes" },
+      { id: "superman", name: "Superman", img: "https://via.placeholder.com/80x80/0000FF/FFD700?text=SUPER", emoji: "🦸", category: "superheroes" },
+      { id: "wonderwoman", name: "Mujer Maravilla", img: "https://via.placeholder.com/80x80/FFD700/FF0000?text=WW", emoji: "👸", category: "superheroes" },
+      { id: "ironman", name: "Iron Man", img: "https://via.placeholder.com/80x80/FF0000/FFD700?text=IRON", emoji: "🤖", category: "superheroes" },
+      { id: "hulk", name: "Hulk", img: "https://via.placeholder.com/80x80/00FF00/FFFFFF?text=HULK", emoji: "💚", category: "superheroes" },
+      { id: "thor", name: "Thor", img: "https://via.placeholder.com/80x80/FFD700/000000?text=THOR", emoji: "⚡", category: "superheroes" },
+      { id: "captain", name: "Capitán América", img: "https://via.placeholder.com/80x80/0000FF/FFFFFF?text=CAP", emoji: "🛡️", category: "superheroes" }
     ]
   },
   historicos: {
     name: "🏛️ Personajes Históricos",
     icon: "🏛️",
+    color: "#AB8CFF",
     characters: [
-      { id: "cleopatra", name: "Cleopatra", emoji: "👑", img: "https://via.placeholder.com/80x80/FFD700/000000?text=CLEO", category: "historicos" },
-      { id: "einstein", name: "Einstein", emoji: "🧠", img: "https://via.placeholder.com/80x80/FFFFFF/000000?text=EIN", category: "historicos" },
-      { id: "napoleon", name: "Napoleón", emoji: "🎩", img: "https://via.placeholder.com/80x80/000080/FFFFFF?text=NAP", category: "historicos" },
-      { id: "mozart", name: "Mozart", emoji: "🎼", img: "https://via.placeholder.com/80x80/8B0000/FFFFFF?text=MOZ", category: "historicos" },
-      { id: "daVinci", name: "Da Vinci", emoji: "🎨", img: "https://via.placeholder.com/80x80/8B4513/FFFFFF?text=LEO", category: "historicos" },
-      { id: "shakespeare", name: "Shakespeare", emoji: "📜", img: "https://via.placeholder.com/80x80/800000/FFFFFF?text=SHAKE", category: "historicos" },
-      { id: "curie", name: "Marie Curie", emoji: "⚛️", img: "https://via.placeholder.com/80x80/FFFFFF/800080?text=CURIE", category: "historicos" },
-      { id: "galileo", name: "Galileo", emoji: "🔭", img: "https://via.placeholder.com/80x80/000080/FFD700?text=GAL", category: "historicos" }
+      { id: "cleopatra", name: "Cleopatra", img: "https://via.placeholder.com/80x80/FFD700/000000?text=CLEO", emoji: "👑", category: "historicos" },
+      { id: "einstein", name: "Einstein", img: "https://via.placeholder.com/80x80/FFFFFF/000000?text=EIN", emoji: "🧠", category: "historicos" },
+      { id: "napoleon", name: "Napoleón", img: "https://via.placeholder.com/80x80/000080/FFFFFF?text=NAP", emoji: "🎩", category: "historicos" },
+      { id: "mozart", name: "Mozart", img: "https://via.placeholder.com/80x80/8B0000/FFFFFF?text=MOZ", emoji: "🎼", category: "historicos" },
+      { id: "daVinci", name: "Da Vinci", img: "https://via.placeholder.com/80x80/8B4513/FFFFFF?text=LEO", emoji: "🎨", category: "historicos" },
+      { id: "shakespeare", name: "Shakespeare", img: "https://via.placeholder.com/80x80/800000/FFFFFF?text=SHAKE", emoji: "📜", category: "historicos" },
+      { id: "curie", name: "Marie Curie", img: "https://via.placeholder.com/80x80/FFFFFF/800080?text=CURIE", emoji: "⚛️", category: "historicos" },
+      { id: "galileo", name: "Galileo", img: "https://via.placeholder.com/80x80/000080/FFD700?text=GAL", emoji: "🔭", category: "historicos" }
     ]
   }
 };
@@ -151,7 +155,7 @@ export function renderAppThemeGrid() {
   const grid = $("themeGrid");
   if (!grid) return;
 
-  const current = localStorage.getItem("karaokeTrain_theme") || "oscuro";
+  const current = localStorage.getItem("vocalApp_theme") || "oscuro";
 
   grid.innerHTML = "";
   APP_THEMES.forEach((theme) => {
@@ -176,7 +180,7 @@ export function renderAppThemeGrid() {
       <span class="theme-card-check">${current === theme.id ? "✓ Activo" : ""}</span>
     `;
     card.addEventListener("click", () => {
-      localStorage.setItem("karaokeTrain_theme", theme.id);
+      localStorage.setItem("vocalApp_theme", theme.id);
       applyAppTheme(theme.id);
       showSaveNotification();
     });
@@ -188,7 +192,7 @@ export function renderKaraokeThemeGrid() {
   const grid = $("karaokeThemeGrid");
   if (!grid) return;
 
-  const current = localStorage.getItem("karaokeTrain_stage") || "theme-clasico";
+  const current = localStorage.getItem("vocalApp_stage") || "theme-clasico";
 
   grid.innerHTML = "";
   KARAOKE_STAGES.forEach((stage) => {
@@ -209,7 +213,7 @@ export function renderKaraokeThemeGrid() {
 }
 
 function selectKaraokeStage(stageId) {
-  localStorage.setItem("karaokeTrain_stage", stageId);
+  localStorage.setItem("vocalApp_stage", stageId);
 
   document.querySelectorAll("#karaokeThemeGrid .theme-card").forEach((card) => {
     card.classList.toggle("active", card.dataset.themeId === stageId);
@@ -236,7 +240,7 @@ export function inicializarEscenarioDesdeMemoria() {
     document.getElementById("karaokeLyrics") ||
     document.querySelector(".karaoke-lyrics");
 
-  let temaGuardado = localStorage.getItem("karaokeTrain_stage") || "theme-clasico";
+  let temaGuardado = localStorage.getItem("vocalApp_stage") || "theme-clasico";
   if (temaGuardado === "undefined" || !temaGuardado) temaGuardado = "theme-clasico";
 
   renderKaraokeThemeGrid();
@@ -257,16 +261,16 @@ export function initSettings() {
 
   const sensInput = $("micSensitivity");
   if (sensInput) {
-    sensInput.value = localStorage.getItem("karaokeTrain_sensitivity") || "0.015";
+    sensInput.value = localStorage.getItem("vocalApp_sensitivity") || "0.015";
     sensInput.addEventListener("input", (e) => {
-      localStorage.setItem("karaokeTrain_sensitivity", e.target.value);
+      localStorage.setItem("vocalApp_sensitivity", e.target.value);
     });
   }
 
   const settings = {
-    micCount: "karaokeTrain_micCount",
-    difficultyLevel: "karaokeTrain_difficulty",
-    karaokeDifficultyLevel: "karaokeTrain_karaoke_difficulty"
+    micCount: "vocalApp_micCount",
+    difficultyLevel: "vocalApp_difficulty",
+    karaokeDifficultyLevel: "vocalApp_karaoke_difficulty"
   };
 
   Object.entries(settings).forEach(([id, storageKey]) => {
@@ -297,7 +301,7 @@ export function initSettings() {
   }
 
   renderAppThemeGrid();
-  applyAppTheme(localStorage.getItem("karaokeTrain_theme") || "oscuro");
+  applyAppTheme(localStorage.getItem("vocalApp_theme") || "oscuro");
   loadSavedAvatar();
   inicializarEscenarioDesdeMemoria();
   initializeAvatarSelector();
@@ -309,7 +313,7 @@ export function initSettings() {
 // ====================================================================
 
 function storageKeysForUser(user) {
-  const prefix = user === "P2" ? "karaokeTrain_p2" : "karaokeTrain_p1";
+  const prefix = user === "P2" ? "vocalApp_p2" : "vocalApp_p1";
   return {
     avatar: prefix + "_avatar",
     emoji1: prefix + "_emoji1",
@@ -399,16 +403,46 @@ export function renderAvatarGrid(user, categoryKey) {
 
   const saved = loadAvatarFromStorage(user);
 
+  // Mostrar categorías centrando el grid
+  const categoryContainer = document.createElement("div");
+  categoryContainer.className = "avatar-category-wrapper";
+  categoryContainer.style.textAlign = "center";
+  categoryContainer.style.margin = "10px 0";
+
+  // Botón para cada categoría
+  const categoryBtn = document.createElement("button");
+  categoryBtn.type = "button";
+  categoryBtn.className = "avatar-category-tab" + (categoryKey === "videojuegos" ? " active" : "");
+  categoryBtn.dataset.category = categoryKey;
+  categoryBtn.innerHTML = `${category.icon} ${category.name}`;
+  categoryBtn.style.width = "100%";
+  categoryBtn.style.padding = "8px";
+  categoryBtn.style.margin = "4px 0";
+  categoryBtn.style.fontSize = "0.85em";
+  categoryBtn.style.background = "var(--bg-secondary)";
+  categoryBtn.style.border = "1px solid var(--border-color)";
+  categoryBtn.style.borderRadius = "6px";
+  categoryBtn.style.cursor = "pointer";
+  categoryContainer.appendChild(categoryBtn);
+
+  gridContainer.appendChild(categoryContainer);
+
+  // Grid de avatares - tamaño mayor (100x100) y sin categoría escrita
   category.characters.forEach((character) => {
     const card = document.createElement("div");
     const isSelected = saved && saved.id === character.id;
     card.className = "avatar-card" + (isSelected ? " selected" : "");
     card.dataset.avatarId = character.id;
     card.onclick = () => selectAvatar(user, character);
+    
+    // Usar imagen si está disponible, sino emoji
+    const avatarImg = character.img ? `<img src="${character.img}" alt="${character.name}" style="width:80px; height:80px; border-radius:8px; object-fit:contain; background:var(--bg-main);" />` : `<div style="width:80px; height:80px; background:var(--bg-main); border-radius:8px; display:flex; align-items:center; justify-content:center; color:var(--text-color); font-size:2em;">${character.emoji}</div>`;
+    
     card.innerHTML = `
-      <div class="avatar-card-emoji">${character.emoji}</div>
-      <div class="avatar-card-name">${character.name}</div>
-      <div class="avatar-card-category">${category.icon} ${category.name}</div>
+      <div style="text-align:center; margin:4px 0;">
+        ${avatarImg}
+        <div style="font-size:0.75em; margin-top:4px; color:var(--text-color-soft);">${character.name}</div>
+      </div>
     `;
     gridContainer.appendChild(card);
   });
@@ -440,10 +474,9 @@ function renderAvatarSelectedInfo(user) {
     return;
   }
 
-  const avatarCategory = AVATAR_CATEGORIES[saved.category];
   infoEl.innerHTML = `
     <div class="avatar-selected-title">${saved.emoji} ${saved.name}</div>
-    <div class="avatar-selected-sub">${label} · ${avatarCategory ? avatarCategory.icon + " " + avatarCategory.name : ""}</div>
+    <div class="avatar-selected-sub">${label}</div>
   `;
   infoEl.classList.add("has-selection");
 }
@@ -518,7 +551,7 @@ export async function loadAvailableMics() {
   let tempStream = null;
 
   try {
-    const tempStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    tempStream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
     const devices = await navigator.mediaDevices.enumerateDevices();
     const mics = devices.filter((d) => d.kind === "audioinput");
@@ -549,8 +582,8 @@ export async function loadAvailableMics() {
       }
     };
 
-    populateMicSelect(mic1Select, "karaokeTrain_mic1");
-    populateMicSelect(mic2Select, "karaokeTrain_mic2");
+    populateMicSelect(mic1Select, "vocalApp_mic1");
+    populateMicSelect(mic2Select, "vocalApp_mic2");
 
     console.log("🎙️ Micrófonos detectados y sincronizados:", mics.length);
   } catch (error) {
@@ -582,7 +615,7 @@ export function getSelectedMicId(micNumber) {
 
 export function saveMicSelection(micNumber) {
   const selectId = micNumber === 1 ? "mic1Select" : "mic2Select";
-  const storageKey = micNumber === 1 ? "karaokeTrain_mic1" : "karaokeTrain_mic2";
+  const storageKey = micNumber === 1 ? "vocalApp_mic1" : "vocalApp_mic2";
   const select = $(selectId);
 
   if (!select) return;
@@ -657,3 +690,4 @@ export function stopMicTest() {
   document.querySelectorAll(".mic-level-fill").forEach(f => f.style.width = "0%");
   document.querySelectorAll(".mic-status").forEach(s => s.innerText = "Haz clic para probar");
 }
+
