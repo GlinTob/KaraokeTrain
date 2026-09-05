@@ -10,7 +10,33 @@ function getCloudflareConfig() {
     return null;
   }
 
-  return { baseUrl: baseUrl.replace(/\/$/, '') };
+  const normalized = baseUrl.replace(/\/$/, '');
+
+  // 🛡️ VALIDACIÓN: rechaza URLs obviously-wrong (typos de subdominio, http://, etc.)
+  // para detectar mismatches entre index.html y wrangler.toml antes de fallar en runtime.
+  try {
+    const parsed = new URL(normalized);
+    const isWorkersDev = /\.workers\.dev$/.test(parsed.hostname);
+    const isLocalhost = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(normalized);
+
+    if (!isWorkersDev && !isLocalhost) {
+      console.error(
+        `❌ Cloudflare R2 URL inválida o sospechosa: "${normalized}". ` +
+        `Debe apuntar a un subdominio *.workers.dev o localhost. ` +
+        `Verifica que VITE_CLOUDFLARE_R2_BASE_URL en index.html coincida con R2_PUBLIC_URL en wrangler.toml.`
+      );
+      return null;
+    }
+
+    if (parsed.protocol !== 'https:' && !isLocalhost) {
+      console.warn(`⚠️ Cloudflare R2 debería usar HTTPS, no ${parsed.protocol}`);
+    }
+  } catch (e) {
+    console.error('❌ Cloudflare R2 URL malformada:', normalized, e);
+    return null;
+  }
+
+  return { baseUrl: normalized };
 }
 
 
