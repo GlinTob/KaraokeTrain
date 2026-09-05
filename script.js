@@ -111,7 +111,7 @@ export async function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2 
 }
 
 function iniciarAplicacion() {
-  console.log("🏁 [vocalApp] El núcleo del sistema ha arrancado exitosamente.");
+  console.log("🏁 [karaokeTrain] El núcleo del sistema ha arrancado exitosamente.");
   showTab("afinador");
 }
 
@@ -144,12 +144,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   await initSupabaseWithRetry();
 
 
-  const temaGuardado = localStorage.getItem("vocalApp_theme") || "oscuro";
+  const temaGuardado = localStorage.getItem("karaokeTrain_theme") || "oscuro";
   document.documentElement.setAttribute("data-theme", temaGuardado);
   document.body.setAttribute("data-theme", temaGuardado);
 
   function applyKaraokeTheme() {
-    const theme = localStorage.getItem("vocalApp_stage") || "theme-clasico";
+    const theme = localStorage.getItem("karaokeTrain_stage") || "theme-clasico";
     const monitor = $("karaokeLiveLyrics");
     if (monitor) {
       monitor.classList.remove(...allKaraokeThemes);
