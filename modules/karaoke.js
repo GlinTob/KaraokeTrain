@@ -61,7 +61,7 @@ export function toggleKaraokeDuoSplitMode() {
 }
 
 function obtenerPaleta(hue = 0) {
-  const temaActual = localStorage.getItem("vocalApp_stage") || "theme-clasico";
+  const temaActual = localStorage.getItem("karaokeTrain_stage") || "theme-clasico";
   let config = { fondo: "#111827", lineas: "#333333", etiquetas: "#666666", barraFutura: "#1e40af", bordeFuturo: "#3b82f6", tamanoTexto: "15px" };
 
   switch (temaActual) {
