@@ -1,4 +1,4 @@
-import { $, safeAdd } from "../script.js";
+import { $, safeAdd } from "./utils.js";
 import {
   getLibraryItemsByTypeFromSupabase,
   getLibraryItemsByIdFromSupabase,
@@ -7,7 +7,12 @@ import {
   renderLibrary
 } from './biblioteca.js';
 import { noteToFrequency, frequencyToMidi, midiToNoteName, frequencyToNoteName } from "./afinador.js";
-import { getAudioController, destroyAudioController, exportStereoWav, interleave } from "./audio-controller.js";
+// FIX #17: removido `destroyAudioController` del import. Se mantiene el
+// singleton vivo durante toda la sesión del navegador (no se destruye en
+// flujos normales de karaoke/estudio) para evitar romper las promesas en
+// vuelo del afinador y otros consumidores. Si en el futuro algún módulo
+// necesita workers dedicados, refactorizar a un pool.
+import { getAudioController, exportStereoWav, interleave } from "./audio-controller.js";
 
 /** 
  * MÓDULO ESTUDIO — Sincronizador de Letras (Tap-Sync), Segmentación de Renglones e Inyección a Supabase
@@ -375,8 +380,11 @@ export async function loadSelectedTextFromLibrary() {
     selectedTextId = item.id;
     selectedVoiceId = item.id;
 
-    if (Array.isArray(item.lyrics) && item.lyrics.length > 0) {
+        if (Array.isArray(item.lyrics) && item.lyrics.length > 0) {
       textSegments = item.lyrics;
+      // FIX #9: sincronizar baseTextSegments con textSegments para que el
+      // estado quede consistente antes de cualquier corrección posterior.
+      baseTextSegments = item.lyrics;
       if (typeof window.renderKaraokeLyrics === "function") window.renderKaraokeLyrics(textSegments);
 
       let textoFormateadoParaPantalla = "";
@@ -392,9 +400,19 @@ export async function loadSelectedTextFromLibrary() {
       status.innerHTML = `📄 <strong>Estado:</strong> Letra cargada respetando tus líneas de estrofa original ⚡`;
     } else if (item.textoPlano || item.metadata?.textoPlano) {
       textInput.value = item.textoPlano || item.metadata?.textoPlano || "";
+      // FIX #9: también actualizar textSegments/baseTextSegments para que el
+      // monitor de karaoke refleje el texto plano y futuros taps/tap-sync
+      // tengan una base sobre la que trabajar.
+      const flatSegments = segmentarTextoPlano(textInput.value);
+      textSegments = flatSegments;
+      baseTextSegments = flatSegments;
+      if (flatSegments.length > 0 && typeof window.renderKaraokeLyrics === "function") {
+        window.renderKaraokeLyrics(flatSegments);
+      }
       status.innerHTML = `📄 <strong>Estado:</strong> Letra plana cargada en el monitor ⚡`;
     } else {
       textSegments = [];
+      baseTextSegments = [];
       textInput.value = "";
       status.textContent = "Estado: El archivo de texto no contiene palabras válidas.";
     }
@@ -543,14 +561,17 @@ async function decodeAudioBlobToMono(audioSource) {
   if (typeof audioSource === "string") {
     const response = await fetch(audioSource);
     if (!response.ok) {
-      throw new Error(`No se pudo descargar el audio para análisis (${response.status}).`);
+      throw new Error(`No se pudo descargar el audio para analizar (${response.status}).`);
     }
     blob = await response.blob();
   }
 
   const arrayBuffer = await blob.arrayBuffer();
   const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer.slice(0));
+  const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+
+  if (!audioBuffer) throw new Error("Error al decodificar el audio.");
+
   const sampleRate = audioBuffer.sampleRate;
 
   let monoData;
@@ -724,6 +745,15 @@ function groupWordsToKaraokeSegments(words) {
 // ==========================================
 
 export async function startTapSync() {
+  // FIX #8: resetear el estado de tap-sync al inicio de cada sesión para
+  // evitar que datos residuales de la sesión anterior (tapSyncLines,
+  // tapSyncTimestamps, tapSyncCurrentIndex) contaminen la nueva.
+  // Sin este reset, si el usuario hace "Volver a intentar" después de
+  // un cancel o finish, podría ver progreso fantasma o saltos en el índice.
+  tapSyncLines = [];
+  tapSyncTimestamps = [];
+  tapSyncCurrentIndex = 0;
+
   const lyricsText = $("lyricsText");
   const text = $("text");
   const voicePlayer = $("selectedVoicePlayer");
@@ -1177,3 +1207,4 @@ function hasOptionValue(select, id) {
   }
   return false;
 }
+
