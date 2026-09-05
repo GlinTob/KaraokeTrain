@@ -4,7 +4,7 @@
   <link rel="icon" href="data:,">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title> KareokeTrain</title>
+  <title>🎵 VocalApp</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Orbitron:wght@400;500;600;700;800;900&family=Rajdhani:wght@400;500;600;700&family=Exo+2:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -13,7 +13,7 @@
     (function() {
       window.VITE_SUPABASE_URL = "https://qfvhwbmgeunvgjwmlxjd.supabase.co";
       window.VITE_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmdmh3Ym1nZXVudmdqd21seGpkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY2MzI5NTksImV4cCI6MjEwMjIwODk1OX0.VHm0pxBrhSg3q5E1KfU8EhBmNKdwBFiRTEmoO4Om3Os";
-      window.VITE_CLOUDFLARE_R2_BASE_URL = "https://vocal-app-storage-worker.jodatomx.workers.dev";
+      window.VITE_CLOUDFLARE_R2_BASE_URL = "https://vocal-app-storage.jodatomx.workers.dev";
       window.CLOUDFLARE_R2_CONFIG = {
         uploadUrl: window.VITE_CLOUDFLARE_R2_BASE_URL
       };
@@ -25,12 +25,11 @@
       
       <!-- SIDEBAR -->
       <nav class="sidebar">
-        <h2>KaraokeTrain</h2>
+        <h2>🎤 VocalApp</h2>
         
         <button id="btnConfig" type="button">Config</button>
         <button id="btnBiblioteca" type="button">Biblioteca</button>
         <button id="btnEstudio" type="button">Estudio</button>
-        <button id="btnCambiarTono" type="button">Cambiar tono</button>
         <button id="btnAfinador" type="button">Afinador</button>
         <button id="btnKaraoke" type="button">Karaoke</button>
       </nav>
@@ -380,91 +379,6 @@
           </div>
         </section>
 
-        <!-- CAMBIAR TONO -->
-        <section id="cambiarTono" class="tab">
-          <h1>🎚️ Cambiar tono</h1>
-          
-          <div class="card">
-            <h3>1. Seleccionar archivo Karaoke desde Biblioteca</h3>
-            <div class="studio-controls">
-              <button id="refreshPitchKaraokeListBtn" type="button">🔄 Actualizar lista</button>
-            </div>
-            <select id="pitchKaraokeSelect" style="width:100%; margin:10px 0;">
-              <option value="">Selecciona un archivo karaoke</option>
-            </select>
-            <div class="studio-controls" style="margin-bottom: 15px;">
-              <button id="loadPitchKaraokeBtn" type="button" style="background:#3b82f6; color:white;">📥 Cargar archivo karaoke</button>
-            </div>
-            <p id="pitchLoadStatus" style="color: var(--text-muted);">Estado: ningún archivo cargado</p>
-          </div>
-          
-          <div class="card">
-            <h3>2. Cambio de tono (medios tonos)</h3>
-            <div style="display: flex; gap: 20px; flex-wrap: wrap;">
-              <div class="settings-group" style="flex:1; min-width:200px;">
-                <label for="pitchUpSelect">⬆️ Subir tono</label>
-                <select id="pitchUpSelect">
-                  <option value="0">— Sin subir —</option>
-                  <option value="1">+1 semitono</option>
-                  <option value="2">+2 semitonos</option>
-                  <option value="3">+3 semitonos</option>
-                  <option value="4">+4 semitonos</option>
-                  <option value="5">+5 semitonos</option>
-                  <option value="6">+6 semitonos</option>
-                  <option value="7">+7 semitonos</option>
-                  <option value="8">+8 semitonos</option>
-                  <option value="9">+9 semitonos</option>
-                  <option value="10">+10 semitonos</option>
-                  <option value="11">+11 semitonos</option>
-                  <option value="12">+12 semitonos (1 octava)</option>
-                </select>
-              </div>
-              <div class="settings-group" style="flex:1; min-width:200px;">
-                <label for="pitchDownSelect">⬇️ Bajar tono</label>
-                <select id="pitchDownSelect">
-                  <option value="0">— Sin bajar —</option>
-                  <option value="1">-1 semitono</option>
-                  <option value="2">-2 semitonos</option>
-                  <option value="3">-3 semitonos</option>
-                  <option value="4">-4 semitonos</option>
-                  <option value="5">-5 semitonos</option>
-                  <option value="6">-6 semitonos</option>
-                  <option value="7">-7 semitonos</option>
-                  <option value="8">-8 semitonos</option>
-                  <option value="9">-9 semitonos</option>
-                  <option value="10">-10 semitonos</option>
-                  <option value="11">-11 semitonos</option>
-                  <option value="12">-12 semitonos (1 octava)</option>
-                </select>
-              </div>
-            </div>
-            <p id="pitchCurrentDisplay" style="color: var(--accent); font-weight: bold; margin-top: 10px;">Cambio actual: 0 semitonos</p>
-          </div>
-          
-          <div class="card">
-            <h3>3. Reproducción de prueba (con tono cambiado en vivo)</h3>
-            <div class="studio-controls">
-              <button id="pitchPlayBtn" type="button" style="background:#22c55e; color:white;">▶️ Reproducir</button>
-              <button id="pitchPauseBtn" type="button">⏸️ Pausar</button>
-              <button id="pitchStopBtn" type="button">⏹️ Detener</button>
-            </div>
-            <p id="pitchPlayStatus" style="color: var(--text-muted); margin-top: 10px;">Estado: detenido</p>
-          </div>
-          
-          <div class="card">
-            <h3>4. Guardar en Biblioteca</h3>
-            <div class="settings-group">
-              <label for="pitchSaveName">Nombre (opcional)</label>
-              <input type="text" id="pitchSaveName" placeholder="Ej. Mi cancion (+2 semitonos)" style="width:100%;">
-            </div>
-            <div class="studio-controls" style="flex-wrap: wrap;">
-              <button id="pitchSaveBtn" type="button" style="background:#a855f7; color:white;">💾 Guardar archivo con tono cambiado</button>
-              <button id="pitchSendToKaraokeBtn" type="button" style="background:#3b82f6; color:white;" disabled>📤 Enviar al monitor karaoke</button>
-            </div>
-            <p id="pitchSaveStatus" style="color: var(--text-muted); margin-top: 10px;">Estado: listo para guardar</p>
-          </div>
-        </section>
-        
         <!-- CONFIGURACIÓN -->
         <section id="config" class="tab">
           <div class="config-header">
@@ -495,6 +409,10 @@
                 </div>
               </div>
               <p class="avatar-selected-info" id="avatarSelectedInfoP1">Ningún avatar seleccionado (se usará avatar por defecto)</p>
+              <div style="margin-top:8px;">
+                <label style="font-size:0.8em; color:var(--text-color);">Nombre:</label>
+                <input type="text" id="avatarNameP1" class="config-input" placeholder="Nombre del usuario" style="width:100%; padding:4px; border-radius:4px; border:1px solid var(--border-color); background:var(--bg-secondary); color:var(--text-color); margin-top:4px;">
+              </div>
             </div>
 
             <div id="avatarUserPanelP2" class="avatar-user-panel" style="display:none;">
@@ -510,6 +428,10 @@
                 </div>
               </div>
               <p class="avatar-selected-info" id="avatarSelectedInfoP2">Ningún avatar seleccionado (se usará avatar por defecto)</p>
+              <div style="margin-top:8px;">
+                <label style="font-size:0.8em; color:var(--text-color);">Nombre:</label>
+                <input type="text" id="avatarNameP2" class="config-input" placeholder="Nombre del usuario" style="width:100%; padding:4px; border-radius:4px; border:1px solid var(--border-color); background:var(--bg-secondary); color:var(--text-color); margin-top:4px;">
+              </div>
             </div>
           </div>
 
@@ -561,7 +483,7 @@
               <!-- SELECTOR DE MODO -->
               <div class="settings-group">
                 <label>Modo dúo:</label>
-                <select id="micCount" onchange="document.getElementById('mic2Group').style.display = this.value === '2' ? 'block' : 'none'">
+                <select id="micCount">
                   <option value="1">1 Cantante</option>
                   <option value="2">2 Cantantes (Dúo)</option>
                 </select>
@@ -702,9 +624,10 @@
       window.__PITCH_WORKLET_URL__ = "/modules/pitch-shifter-processor.js";
       window.__VOCAL_PROCESSOR_URL__ = "/modules/vocal-processor.js";
     </script>
-    <script src="cloudflare-storage.js" type="module"></script>
+        <script src="cloudflare-storage.js" type="module"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
     <script type="module" src="supabase-config.js"></script>
+    <script type="module" src="modules/worklets.js"></script>
     <script src="script.js" type="module"></script>
   </body>
 </html>
