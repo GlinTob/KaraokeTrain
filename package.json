@@ -1,6 +1,6 @@
 {
   "type": "module",
-  "name": "vocalApp",
+  "name": "karaokeTrain",
   "lockfileVersion": 3,
   "requires": true,
   "packages": {}
