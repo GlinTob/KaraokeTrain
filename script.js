@@ -197,7 +197,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   safeAdd("btnEstudio", "click", () => showTab("estudio"));
   safeAdd("btnBiblioteca", "click", () => showTab("biblioteca"));
   safeAdd("btnKaraoke", "click", () => showTab("karaoke"));
-  safeAdd("btnConfig", "click", () => showTab("btnConfig"));
+  safeAdd("btnConfig", "click", () => showTab("Config"));
 
   // --- EVENTOS AFINADOR ---
   safeAdd("recordBtn", "click", async () => {
