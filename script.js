@@ -1,7 +1,4 @@
-export function $(id) {
-  return document.getElementById(id);
-}
-
+import { $ } from "./modules/utils.js";
 export function safeAdd(id, event, handler) {
   const el = $(id);
   if (el) {
@@ -17,7 +14,10 @@ export const state = {
   isRecording: false
 };
 
-let autoScrollEnabled = true;
+// FIX #6: eliminada la variable local `autoScrollEnabled` que duplicaba la de
+// `estudio.js`. Ahora el botón consulta el estado real via `toggleAutoScrollEstudio()`
+// (que retorna el valor actualizado) para evitar desincronización en hot-reload
+// o reimportaciones del módulo.
 const allKaraokeThemes = ["theme-clasico", "theme-moderno", "theme-disco", "theme-acustico", "theme-fiesta", "theme-retrowave"];
 
 // ============================================
@@ -25,9 +25,7 @@ const allKaraokeThemes = ["theme-clasico", "theme-moderno", "theme-disco", "them
 // ============================================
 export async function showTab(tabId) {
   const originalTabId = String(tabId);
-  const normalizedTabId = originalTabId === "cambiarTono"
-    ? "cambiarTono"
-    : originalTabId.toLowerCase();
+  const normalizedTabId = originalTabId.toLowerCase();
 
   console.log(`\n📌 [Navegación] Solicitando cambio a la pestaña: [${normalizedTabId.toUpperCase()}]`);
 
@@ -48,8 +46,7 @@ export async function showTab(tabId) {
     biblioteca: "btnBiblioteca",
     estudio: "btnEstudio",
     afinador: "btnAfinador",
-    karaoke: "btnKaraoke",
-    cambiarTono: "btnCambiarTono"
+    karaoke: "btnKaraoke"
   };
 
   const activeBtn = document.getElementById(btnMap[normalizedTabId]);
@@ -67,10 +64,7 @@ export async function showTab(tabId) {
       if (typeof initBiblioteca === "function") {
         initBiblioteca();
       }
-      if (typeof renderLibrary === "function") {
-        await renderLibrary("todos");
-      }
-    } else if (normalizedTabId === "estudio") {
+      } else if (normalizedTabId === "estudio") {
       console.log("🎧 [Lazy Load] Cargando entorno de sincronización y listados...");
       const { initEstudio } = await import("./modules/estudio.js");
       if (typeof initEstudio === "function") {
@@ -78,11 +72,6 @@ export async function showTab(tabId) {
       }
     } else if (normalizedTabId === "afinador") {
       console.log("🎵 [Lazy Load] Módulo Afinador Vocal listo.");
-    } else if (normalizedTabId === "cambiarTono") {
-      console.log("🧭 [Lazy Load] Cargando herramientas de cambio de tono...");
-      const { initCambiarTono, loadPitchKaraokeOptions } = await import("./modules/cambiar-tono.js");
-      if (typeof initCambiarTono === "function") initCambiarTono();
-      if (typeof loadPitchKaraokeOptions === "function") await loadPitchKaraokeOptions();
     } else if (normalizedTabId === "karaoke") {
       console.log("🎤 [Lazy Load] Inicializando Canvas e Históricos de Canto...");
       const { loadTrackOptionsInKaraoke, loadKaraokeSong } = await import("./modules/karaoke.js");
@@ -122,7 +111,7 @@ export async function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2 
 }
 
 function iniciarAplicacion() {
-  console.log("🏁 [karaokeTrain] El núcleo del sistema ha arrancado exitosamente.");
+  console.log("🏁 [vocalApp] El núcleo del sistema ha arrancado exitosamente.");
   showTab("afinador");
 }
 
@@ -130,21 +119,37 @@ function iniciarAplicacion() {
 // DomContentLoaded — CAPA GENERAL DE INYECCIÓN DE EVENTOS
 // ============================================
 document.addEventListener("DOMContentLoaded", async () => {
-  try {
-    const { initSupabase } = await import("./modules/biblioteca.js");
-    if (typeof initSupabase === "function") {
-      await initSupabase();
+  // --- INICIALIZACIÓN DE SUPABASE CON RETRY ---
+  const initSupabaseWithRetry = async (retries = 5, delay = 500) => {
+    for (let i = 0; i < retries; i++) {
+      if (window.supabase) {
+        try {
+          const { initSupabase } = await import("./modules/biblioteca.js");
+          if (typeof initSupabase === "function") {
+            await initSupabase();
+            console.log("✅ Supabase inicializado correctamente.");
+            return true;
+          }
+        } catch (err) {
+          console.warn(`⚠️ Intento ${i + 1} de inicializar Supabase falló:`, err);
+        }
+      }
+      console.log(`⏳ Esperando a Supabase... (intento ${i + 1})`);
+      await new Promise(resolve => setTimeout(resolve, delay));
     }
-  } catch (err) {
-    console.warn("⚠️ Advertencia inicializando Supabase:", err);
-  }
+    console.error("❌ No se pudo inicializar Supabase tras varios intentos.");
+    return false;
+  };
 
-  const temaGuardado = localStorage.getItem("karaokeTrain_theme") || "oscuro";
+  await initSupabaseWithRetry();
+
+
+  const temaGuardado = localStorage.getItem("vocalApp_theme") || "oscuro";
   document.documentElement.setAttribute("data-theme", temaGuardado);
   document.body.setAttribute("data-theme", temaGuardado);
 
   function applyKaraokeTheme() {
-    const theme = localStorage.getItem("karaokeTrain_stage") || "theme-clasico";
+    const theme = localStorage.getItem("vocalApp_stage") || "theme-clasico";
     const monitor = $("karaokeLiveLyrics");
     if (monitor) {
       monitor.classList.remove(...allKaraokeThemes);
@@ -191,8 +196,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   safeAdd("btnEstudio", "click", () => showTab("estudio"));
   safeAdd("btnBiblioteca", "click", () => showTab("biblioteca"));
   safeAdd("btnKaraoke", "click", () => showTab("karaoke"));
-  safeAdd("btnConfig", "click", () => showTab("config"));
-  safeAdd("btnCambiarTono", "click", () => showTab("cambiarTono"));
+  safeAdd("btnConfig", "click", () => showTab("btnConfig"));
 
   // --- EVENTOS AFINADOR ---
   safeAdd("recordBtn", "click", async () => {
@@ -201,12 +205,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 
   // --- EVENTOS ESTUDIO ---
-/*
-  safeAdd("audioFile", "change", async (e) => {
-    const { cargarAudioEstudio } = await import("./modules/estudio.js");
-    if (typeof cargarAudioEstudio === "function") cargarAudioEstudio(e);
-  });
-  */
   safeAdd("loadStudioTrackBtn", "click", async () => {
     const { loadSelectedTrackFromLibraryStudio } = await import("./modules/estudio.js");
     if (typeof loadSelectedTrackFromLibraryStudio === "function") loadSelectedTrackFromLibraryStudio();
@@ -224,12 +222,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (typeof applyCorrectedLyrics === "function") applyCorrectedLyrics();
   });
 
-  safeAdd("toggleAutoScrollBtn", "click", async () => {
-    const { toggleAutoScrollEstudio } = await import("./modules/estudio.js");
-    const enabled = typeof toggleAutoScrollEstudio === "function"
-      ? toggleAutoScrollEstudio()
-      : !autoScrollEnabled;
-    autoScrollEnabled = enabled;
+    safeAdd("toggleAutoScrollBtn", "click", async () => {
+    // FIX #6: ahora pedimos a estudio.js que togglee Y nos devuelva el estado
+    // actualizado. No guardamos una copia local para evitar desincronización.
+    const estudioModule = await import("./modules/estudio.js");
+    const enabled = typeof estudioModule.toggleAutoScrollEstudio === "function"
+      ? estudioModule.toggleAutoScrollEstudio()
+      : !document.getElementById("toggleAutoScrollBtn")?.textContent.includes("ON");
     const btn = $("toggleAutoScrollBtn");
     if (btn) {
       btn.textContent = enabled ? "🔒 Auto-scroll: ON" : "🔓 Auto-scroll: OFF";
@@ -317,32 +316,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (typeof mixKaraoke === "function") mixKaraoke();
   });
 
-  // --- EVENTOS CAMBIAR TONO ---
-  safeAdd("refreshPitchKaraokeListBtn", "click", async () => {
-    const { loadPitchKaraokeOptions } = await import("./modules/cambiar-tono.js");
-    if (typeof loadPitchKaraokeOptions === "function") loadPitchKaraokeOptions();
-  });
-  safeAdd("loadPitchKaraokeBtn", "click", async () => {
-    const { loadSelectedPitchKaraoke } = await import("./modules/cambiar-tono.js");
-    if (typeof loadSelectedPitchKaraoke === "function") loadSelectedPitchKaraoke();
-  });
-  safeAdd("pitchPlayBtn", "click", async () => {
-    const { playPitchShifted } = await import("./modules/cambiar-tono.js");
-    if (typeof playPitchShifted === "function") playPitchShifted();
-  });
-  safeAdd("pitchStopBtn", "click", async () => {
-    const { stopPitchShifted } = await import("./modules/cambiar-tono.js");
-    if (typeof stopPitchShifted === "function") stopPitchShifted();
-  });
-  safeAdd("pitchSaveBtn", "click", async () => {
-    const { savePitchShiftedToLibrary } = await import("./modules/cambiar-tono.js");
-    if (typeof savePitchShiftedToLibrary === "function") savePitchShiftedToLibrary();
-  });
-  safeAdd("pitchSendToKaraokeBtn", "click", async () => {
-    const { sendPitchShiftedToKaraokeMonitor } = await import("./modules/cambiar-tono.js");
-    if (typeof sendPitchShiftedToKaraokeMonitor === "function") sendPitchShiftedToKaraokeMonitor();
-  });
-
   // --- EVENTOS CONFIGURACIÓN HARDWARE MICS ---
   safeAdd("refreshMicsBtn", "click", async () => {
     const { loadAvailableMics } = await import("./modules/config.js");
@@ -377,3 +350,4 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   iniciarAplicacion();
 });
+
