@@ -155,7 +155,7 @@ export function renderAppThemeGrid() {
   const grid = $("themeGrid");
   if (!grid) return;
 
-  const current = localStorage.getItem("vocalApp_theme") || "oscuro";
+  const current = localStorage.getItem("karaokeTrain_theme") || "oscuro";
 
   grid.innerHTML = "";
   APP_THEMES.forEach((theme) => {
@@ -180,7 +180,7 @@ export function renderAppThemeGrid() {
       <span class="theme-card-check">${current === theme.id ? "✓ Activo" : ""}</span>
     `;
     card.addEventListener("click", () => {
-      localStorage.setItem("vocalApp_theme", theme.id);
+      localStorage.setItem("karaokeTrain_theme", theme.id);
       applyAppTheme(theme.id);
       showSaveNotification();
     });
@@ -192,7 +192,7 @@ export function renderKaraokeThemeGrid() {
   const grid = $("karaokeThemeGrid");
   if (!grid) return;
 
-  const current = localStorage.getItem("vocalApp_stage") || "theme-clasico";
+  const current = localStorage.getItem("karaokeTrain_stage") || "theme-clasico";
 
   grid.innerHTML = "";
   KARAOKE_STAGES.forEach((stage) => {
@@ -213,7 +213,7 @@ export function renderKaraokeThemeGrid() {
 }
 
 function selectKaraokeStage(stageId) {
-  localStorage.setItem("vocalApp_stage", stageId);
+  localStorage.setItem("karaokeTrain_stage", stageId);
 
   document.querySelectorAll("#karaokeThemeGrid .theme-card").forEach((card) => {
     card.classList.toggle("active", card.dataset.themeId === stageId);
@@ -240,7 +240,7 @@ export function inicializarEscenarioDesdeMemoria() {
     document.getElementById("karaokeLyrics") ||
     document.querySelector(".karaoke-lyrics");
 
-  let temaGuardado = localStorage.getItem("vocalApp_stage") || "theme-clasico";
+  let temaGuardado = localStorage.getItem("karaokeTrain_stage") || "theme-clasico";
   if (temaGuardado === "undefined" || !temaGuardado) temaGuardado = "theme-clasico";
 
   renderKaraokeThemeGrid();
@@ -261,16 +261,16 @@ export function initSettings() {
 
   const sensInput = $("micSensitivity");
   if (sensInput) {
-    sensInput.value = localStorage.getItem("vocalApp_sensitivity") || "0.015";
+    sensInput.value = localStorage.getItem("karaokeTrain_sensitivity") || "0.015";
     sensInput.addEventListener("input", (e) => {
-      localStorage.setItem("vocalApp_sensitivity", e.target.value);
+      localStorage.setItem("karaokeTrain_sensitivity", e.target.value);
     });
   }
 
   const settings = {
-    micCount: "vocalApp_micCount",
-    difficultyLevel: "vocalApp_difficulty",
-    karaokeDifficultyLevel: "vocalApp_karaoke_difficulty"
+    micCount: "karaokeTrain_micCount",
+    difficultyLevel: "karaokeTrain_difficulty",
+    karaokeDifficultyLevel: "karaokeTrain_karaoke_difficulty"
   };
 
   Object.entries(settings).forEach(([id, storageKey]) => {
@@ -301,7 +301,7 @@ export function initSettings() {
   }
 
   renderAppThemeGrid();
-  applyAppTheme(localStorage.getItem("vocalApp_theme") || "oscuro");
+  applyAppTheme(localStorage.getItem("karaokeTrain_theme") || "oscuro");
   loadSavedAvatar();
   inicializarEscenarioDesdeMemoria();
   initializeAvatarSelector();
@@ -313,7 +313,7 @@ export function initSettings() {
 // ====================================================================
 
 function storageKeysForUser(user) {
-  const prefix = user === "P2" ? "vocalApp_p2" : "vocalApp_p1";
+  const prefix = user === "P2" ? "karaokeTrain_p2" : "karaokeTrain_p1";
   return {
     avatar: prefix + "_avatar",
     emoji1: prefix + "_emoji1",
@@ -582,8 +582,8 @@ export async function loadAvailableMics() {
       }
     };
 
-    populateMicSelect(mic1Select, "vocalApp_mic1");
-    populateMicSelect(mic2Select, "vocalApp_mic2");
+    populateMicSelect(mic1Select, "karaokeTrain_mic1");
+    populateMicSelect(mic2Select, "karaokeTrain_mic2");
 
     console.log("🎙️ Micrófonos detectados y sincronizados:", mics.length);
   } catch (error) {
@@ -615,7 +615,7 @@ export function getSelectedMicId(micNumber) {
 
 export function saveMicSelection(micNumber) {
   const selectId = micNumber === 1 ? "mic1Select" : "mic2Select";
-  const storageKey = micNumber === 1 ? "vocalApp_mic1" : "vocalApp_mic2";
+  const storageKey = micNumber === 1 ? "karaokeTrain_mic1" : "karaokeTrain_mic2";
   const select = $(selectId);
 
   if (!select) return;
