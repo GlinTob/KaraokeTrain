@@ -1,4 +1,4 @@
-import { $ } from "../script.js"; 
+import { $ } from "./utils.js"; 
 
 /** 
  * MÓDULO BIBLIOTECA — Gestor de Almacenamiento Remoto, Sincronización Supabase y Cargas R2
@@ -9,6 +9,10 @@ let db = null;
 export function initBiblioteca() {
   console.log("📚 [biblioteca.js] Inicializado con éxito"); 
 
+  // No se carga la biblioteca automáticamente al iniciar.
+  // Los datos se solicitan solo cuando el usuario hace clic en una carpeta.
+  // Esto evita la lentitud en el primer ingreso.
+  
   // Escuchar el cambio cuando el usuario hace clic y elige archivos mediante el explorador
   const fileInput = $("libraryFileInput");
   if (fileInput) {
@@ -284,7 +288,7 @@ export async function renderLibrary(filter = "todos") {
           <span class="item-name">${item.name}</span>
         </div>
         <div class="item-actions">
-          ${botonCantarHTML} <!-- El botón rosa aparecerá solo en los archivos listos -->
+          ${botonCantarHTML}
           <button class="delete-library-btn" data-id="${item.id}">🗑️</button>
         </div>
       `;
@@ -321,12 +325,14 @@ export async function renderLibrary(filter = "todos") {
 
 export function asignarEventosBiblioteca(filter) {
   document.querySelectorAll(".delete-library-btn").forEach((btn) => {
-    btn.onclick = async () => {
+    btn.removeEventListener("click", btn._handler);
+    btn._handler = async () => {
       if (confirm("¿Estás seguro de eliminar este archivo?")) {
         const id = btn.dataset.id;
         await deleteLibraryItem(id, filter);
       }
     };
+    btn.addEventListener("click", btn._handler);
   });
 }
 
@@ -626,22 +632,19 @@ export async function enviarAlMonitorKaraoke(karaokeItem) {
   if (!karaokeItem) return;
 
   try {
-    // Dentro de enviarAlMonitorKaraoke(karaokeItem) en biblioteca.js
     const track = document.getElementById("karaokeTrack");
     if (track && karaokeItem.file_url) {
         track.src = karaokeItem.file_url;
         track.dataset.karaokeId = String(karaokeItem.id);
         track.load();
     
-        // Sincronizamos el módulo Karaoke
         const { setKaraokeData } = await import("./karaoke.js");
         setKaraokeData(
-            karaokeItem.lyrics || karaokeItem.transcription || [],
+            karaokeItem.transcription || [],
             karaokeItem.name,
             karaokeItem.file_url
         );
         
-        // Navegamos
         const { showTab } = await import("../script.js");
         showTab("karaoke");
     }
@@ -649,28 +652,7 @@ export async function enviarAlMonitorKaraoke(karaokeItem) {
   } catch (error) {
     console.error("Error al transferir datos al monitor:", error);
   }
-} // <--- AQUÍ se cierra la función
-/*
-} else {
-      const navBtn =
-        document.querySelector("[data-tab='karaoke']") ||
-        document.getElementById("btn-nav-karaoke");
-      if (navBtn) navBtn.click();
-    }
-
-    // Una vez abierta la pestaña, forzar carga completa del karaoke
-    const karaokeModule = await import("./karaoke.js");
-    if (typeof karaokeModule.loadKaraokeSong === "function") {
-      await karaokeModule.loadKaraokeSong(karaokeItem.id);
-    }
-
-    console.log("✅ Datos transferidos al Monitor de Canto. Pestaña cambiada a [KARAOKE].");
-  } catch (err) {
-    console.error("❌ Error en la pasarela de exportación al monitor:", err);
-    alert("No se pudo transferir el karaoke al monitor de canto.");
-  }
 }
-*/
 export function clearUploadSelection() {
   const fileInput = document.getElementById("libraryFileInput");
   const nameInput = document.getElementById("libraryFileName");
@@ -703,3 +685,4 @@ export function clearUploadSelection() {
 
   console.log("🧼 Interfaz de carga reiniciada de forma segura.");
 }
+
