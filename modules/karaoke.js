@@ -1,6 +1,9 @@
-import { $, safeAdd } from "../script.js";
+import { $, safeAdd } from "./utils.js";
 import { getLibraryItemsByIdFromSupabase, getLibraryItemsByTypeFromSupabase, saveToLibrary } from "./biblioteca.js";
-import { getAudioController, destroyAudioController, exportStereoWav } from "./audio-controller.js";
+// FIX #17: removido `destroyAudioController` del import. Se mantiene el
+// singleton vivo durante toda la sesión (no se destruye en flujos normales)
+// para evitar romper las promesas en vuelo de otros consumidores (afina-dor).
+import { getAudioController, exportStereoWav } from "./audio-controller.js";
 import { getSelectedMicId } from "./config.js";
 
 let textSegments = [];
@@ -30,6 +33,7 @@ let karaokeRecordingActive = false;
 let karaokeSelectedTrackBlob = null;
 let karaokeSelectedTrackName = "";
 let karaokeLoadedItem = null;
+let avatarCache = { P1: null, P2: null }; 
 
 window.karaokeMediaRecorder = null;
 
@@ -57,7 +61,7 @@ export function toggleKaraokeDuoSplitMode() {
 }
 
 function obtenerPaleta(hue = 0) {
-  const temaActual = localStorage.getItem("karaokeTrain_stage") || "theme-clasico";
+  const temaActual = localStorage.getItem("vocalApp_stage") || "theme-clasico";
   let config = { fondo: "#111827", lineas: "#333333", etiquetas: "#666666", barraFutura: "#1e40af", bordeFuturo: "#3b82f6", tamanoTexto: "15px" };
 
   switch (temaActual) {
@@ -149,6 +153,7 @@ function drawRegion(pTop, pBottom, pVal, pHist, filtro, etiqueta, paleta, curren
   if (Array.isArray(textSegments)) {
     textSegments.forEach(seg => {
       if (filtro && seg.parte !== filtro && seg.parte !== "DUO") return;
+      if (seg.start > currentTime + 8 || seg.end < currentTime - 1) return;
       (seg.words || []).forEach(w => {
         if (w.end < currentTime - 1 || w.start > currentTime + 8) return;
         const x = dynLineX + (w.start - currentTime) * pixelsPerSecond;
@@ -226,7 +231,6 @@ function drawRegion(pTop, pBottom, pVal, pHist, filtro, etiqueta, paleta, curren
   ctx.stroke();
 }
 
-const avatarCache = {};
 
 function getAvatarForUser(user) {
   try {
@@ -397,8 +401,14 @@ export async function startKaraokeRecording() {
     }
 
     try {
-      const workletUrl = new URL("./vocal-processor.js", import.meta.url).href;
-      await karaokePitchDetectionAudioCtx.audioWorklet.addModule(workletUrl);
+      // FIX #4: carga centralizada via worklets.js (idempotente + concurrent-safe).
+      // Antes, este modulo solo cargaba `vocal-processor.js` con su propia URL
+      // relativa, lo que provocaba registros duplicados cuando el usuario ya
+      // habia usado `liveAudioService.js` (que cargaba el mismo archivo con
+      // su propio `import.meta.url`). En Safari/Firefox eso lanzaba
+      // "This name has already been used" y el analyser quedaba mudo.
+      const { loadVocalProcessor } = await import("./worklets.js");
+      await loadVocalProcessor(karaokePitchDetectionAudioCtx);
     } catch (e) {
       console.warn("Worklet vocal no disponible:", e);
     }
@@ -413,10 +423,15 @@ export async function startKaraokeRecording() {
       try {
         karaokePitchWorkletNode = new AudioWorkletNode(karaokePitchDetectionAudioCtx, "vocal-processor");
         source1.connect(karaokePitchWorkletNode);
-        chainNode = source1;
+        // FIX #1: chainNode debe ser el worklet (la salida procesada) para que el
+        // analyser reciba la voz con HP/EQ/Gate/Compresor ya aplicados. Antes
+        // apuntaba a source1, así que el pitch se detectaba sobre la señal cruda
+        // y el vocal-processor trabajaba en vano.
+        chainNode = karaokePitchWorkletNode;
       } catch (e) {
         console.warn("Vocal processor no aplicado en karaoke:", e);
         karaokePitchWorkletNode = null;
+        // Mantener chainNode = source1 como fallback (señal cruda)
       }
     }
 
@@ -592,10 +607,15 @@ export function stopKaraokeRecording() {
     karaokeStream2 = null;
   }
 
-  if (karaokeAudioController) {
-    destroyAudioController();
-    karaokeAudioController = null;
-  }
+  // FIX #17: NO destruimos el singleton de audio controller aquí. El worker
+  // se comparte con el afinador y otros módulos. Destruirlo rompería sus
+  // promesas en vuelo y la próxima iteración de su bucle de detección.
+  // El siguiente `getAudioController()` devolverá la misma instancia sana
+  // (chequea `isTerminated` y solo recrea si es necesario).
+  // Si en el futuro algún módulo realmente necesita un worker dedicado,
+  // se debe refactorizar `audio-controller.js` a un pool, no a un singleton
+  // global compartido.
+  karaokeAudioController = null; // solo soltamos la referencia local
 
   karaokeLoopBusy = false;
   karaokeRecordingActive = false;
@@ -887,6 +907,19 @@ export async function mixKaraoke() {
     return;
   }
 
+  // FIX #7: validar que los Blobs no estén vacíos antes de intentar decodificar.
+  // Sin esta guarda, un Blob de 0 bytes produce un EncodingError genérico
+  // dentro de decodeAudioData(), que el catch de abajo muestra como
+  // "Hubo un error al mezclar" sin contexto útil para el usuario.
+  const isBlob = (v) => v instanceof Blob;
+  if (
+    (isBlob(karaokeSelectedTrackBlob) && karaokeSelectedTrackBlob.size === 0) ||
+    (isBlob(karaokeRecordedBlob) && karaokeRecordedBlob.size === 0)
+  ) {
+    alert("⚠️ La pista o la grabación están vacías. Vuelve a grabar tu voz y/o selecciona otra pista.");
+    return;
+  }
+
   const trackFile = karaokeSelectedTrackBlob;
   const btn = $("karaokeMixBtn");
   const resultDiv = $("karaokeMixResult");
@@ -903,15 +936,25 @@ export async function mixKaraoke() {
   try {
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
-    const fetchOptions = trackFile.startsWith("http") ? { mode: "cors" } : {};
-    const response = await fetch(trackFile, fetchOptions);
-
-    if (!response.ok) {
-      throw new Error(`No se pudo descargar el archivo de audio base (Código: ${response.status})`);
+    // FIX #5: distinguir entre URL remota y Blob/objeto local para evitar
+    // TypeError "Failed to fetch" cuando trackFile es un Blob (no string).
+    // Antes, trackFile.startsWith("http") crasheaba si trackFile era un Blob
+    // local (p.ej. tras usar setKaraokeData con un File del PC).
+    let trackArrayBuffer;
+    if (trackFile instanceof Blob) {
+      trackArrayBuffer = await trackFile.arrayBuffer();
+    } else if (typeof trackFile === "string") {
+      const fetchOptions = /^https?:\/\//i.test(trackFile) ? { mode: "cors" } : {};
+      const response = await fetch(trackFile, fetchOptions);
+      if (!response.ok) {
+        throw new Error(`No se pudo descargar el archivo de audio base (Código: ${response.status})`);
+      }
+      const audioBlobFromCloud = await response.blob();
+      trackArrayBuffer = await audioBlobFromCloud.arrayBuffer();
+    } else {
+      throw new Error("Tipo de track no soportado: se esperaba URL (string) o Blob.");
     }
 
-    const audioBlobFromCloud = await response.blob();
-    const trackArrayBuffer = await audioBlobFromCloud.arrayBuffer();
     const voiceArrayBuffer = await karaokeRecordedBlob.arrayBuffer();
 
     const trackBuffer = await audioCtx.decodeAudioData(trackArrayBuffer.slice(0));
@@ -1019,6 +1062,58 @@ function limpiarVariablesMonitor() {
 }
 
 window.syncKaraokeMonitor = syncKaraokeMonitor;
+
+/**
+ * Renderiza los segmentos de letras en el monitor del karaoke.
+ *
+ * Se expone como window.renderKaraokeLyrics porque estudio.js, al ser un módulo
+ * dinámico cargado con import(), no puede re-importar este archivo sin crear
+ * un ciclo de imports (script.js → showTab → import estudio.js → renderKaraokeLyrics
+ * necesita el monitor ya inicializado).
+ *
+ * Acepta tanto el formato normalizado de karaoke (con .words[]) como el formato
+ * plano de segmento de letras (cada item con .text/.start/.end).
+ *
+ * @param {Array} segments
+ */
+export function renderKaraokeLyrics(segments) {
+  if (!Array.isArray(segments)) {
+    console.warn("renderKaraokeLyrics: se esperaba un array de segmentos.");
+    return;
+  }
+
+  // Reutilizar el normalizador central para aceptar ambos formatos.
+  textSegments = normalizeKaraokeSegments(segments);
+  baseTextSegments = [...textSegments];
+
+  cargarLetrasEnMonitor();
+
+  // Repintar el canvas en t=0 con pitch neutro. Si el karaoke ya está abierto,
+  // usamos el currentTime del reproductor para que el monitor se sincronice
+  // visualmente con la posición actual.
+  const track = $("karaokeTrack") || $("karaokeAudio") || $("audioKaraoke") || $("trackPlayer");
+  const t = track ? (track.currentTime || 0) : 0;
+  drawKaraokeMonitor(t, -1, -1);
+
+  console.log(`📝 [Karaoke] ${textSegments.length} segmentos renderizados en el monitor.`);
+}
+window.renderKaraokeLyrics = renderKaraokeLyrics;
+
+/**
+ * Alias compatible con el flujo de Estudio: mientras la canción suena en el
+ * reproductor `studioPlayer`, se llama repetidamente desde script.js para
+ * iluminar la línea/palabra activa en el monitor de letras del karaoke.
+ *
+ * @param {number} currentTime - tiempo de reproducción en segundos
+ */
+export function updateKaraokeHighlight(currentTime) {
+  // `syncKaraokeMonitor` ya hace el trabajo de marcar la línea y palabras
+  // activas; simplemente lo delegamos. Mantenemos la firma para que el
+  // event-listener de `studioPlayer` en script.js funcione sin cambios.
+  if (typeof currentTime !== "number" || !isFinite(currentTime)) return;
+  syncKaraokeMonitor(currentTime);
+}
+window.updateKaraokeHighlight = updateKaraokeHighlight;
 
 window.addEventListener("avatarChanged", () => {
   avatarCache.P1 = null;
