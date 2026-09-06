@@ -30,7 +30,6 @@ function frequencyToCentsOff(freq, targetFreq) { return 1200 * Math.log2(freq / 
  * @returns {number} - Frequency of the note in Hz
  * @throws {Error} - If the note name is invalid or null
  */
- */
   if (typeof noteName !== 'string' || noteName === null || noteName === undefined) {
     throw new Error('noteToFrequency expects a non-null string argument');
   }
