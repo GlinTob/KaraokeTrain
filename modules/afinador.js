@@ -1,609 +1,129 @@
 import { getAudioController } from './audio-controller.js';
 import { $ } from './utils.js';
 
-/**
- * AFINADOR VOCAL — eje vertical fijo, punto neón, chispas, explosión y ondas
- */
-
-const state = {
-  isRecording: false
-};
+const state = { isRecording: false };
 
 let afinadorVisual = null;
-let pitchLoopTimeout = null;
+let pitchDetectionInterval = null;
+let renderRafId = null;
 let audioContext = null;
-let analyser = null;
+// Verifica si todas las funcioneses del módulo están definidas
+
 let stream = null;
-let recordingSession = 0;
-// FIX #12: pitchBuffer ahora se crea dentro de startAfinador() para que cada
-// sesión tenga su propio buffer y no haya riesgo de race conditions si se
-// invocara el afinador dos veces (defensivo). El módulo solo mantiene la
-// referencia de cleanup.
+let recordingSession = Date.now();
 
-// ==========================================================
-// UTILIDADES MUSICALES
-// ==========================================================
+const PITCH_BUFFER_POOL = [];
+const POOL_SIZE = 4;
+const BUFFER_LENGTH = 2048;
+function getPitchBuffer() { if (PITCH_BUFFER_POOL.length > 0) return PITCH_BUFFER_POOL.pop(); return new Float32Array(BUFFER_LENGTH); }
+function releasePitchBuffer(buf) { if (PITCH_BUFFER_POOL.length < POOL_SIZE) PITCH_BUFFER_POOL.push(buf); }
 
-function frequencyToCentsOff(freq, targetFreq) {
-  return 1200 * Math.log2(freq / targetFreq);
-}
-
-export function noteToFrequency(noteName) {
-  const notes = { C: 0, 'C#': 1, D: 2, 'D#': 3, E: 4, F: 5, 'F#': 6, G: 7, 'G#': 8, A: 9, 'A#': 10, B: 11 };
-  const match = noteName.match(/^([A-G]#?)(\d)$/);
-  if (!match) return 82.41;
-  const key = match[1];
-  const octave = parseInt(match[2], 10);
-  const semitonesFromA4 = (notes[key] - 9) + (octave - 4) * 12;
-  return 440 * Math.pow(2, semitonesFromA4 / 12);
-}
-
-export function frequencyToMidi(freq) {
-  return Math.round(69 + 12 * Math.log2(freq / 440));
-}
-
-export function midiToNoteName(midi) {
-  const names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-  const name = names[midi % 12];
-  const octave = Math.floor(midi / 12) - 1;
-  return `${name}${octave}`;
-}
-
-export function frequencyToNoteName(freq) {
-  if (!freq || freq <= 0) return '--';
-  return midiToNoteName(frequencyToMidi(freq));
-}
-
-// ==========================================================
-// VISUAL PRINCIPAL
-// ==========================================================
-
-export class AfinadorVisual {
-  constructor(canvas) {
-    this.canvas = canvas;
-    this.ctx = canvas.getContext('2d', { alpha: true, desynchronized: true });
-
-    this.width = 0;
-    this.height = 0;
-    this.dpr = window.devicePixelRatio || 1;
-
-    this.currentFreq = -1;
-    this.currentNote = '--';
-    this.targetFreq = 82.41;
-    this.cents = 0;
-    this.maxCents = 30;
-
-    this.markerOffset = 0;
-    this.targetMarkerOffset = 0;
-
-    // Nuevas propiedades para congelamiento sostenido
-    this.lastStableCents = 0;
-    this.stableCounter = 0;
-    this.stableThreshold = 10; // ciclos consecutivos (~160ms) para considerar "sostenida"
-
-    this.running = false;
-    this.rafId = null;
-    this.lastTime = 0;
-
-    this.axisSparks = [];
-    this.maxAxisSparks = 450;
-
-    this.burstParticles = [];
-    this.ripples = [];
-
-    this.particleAccum = 0;
-    this.rippleAccum = 0;
-    this.glowPulse = 0;
-    this.wasTuned = false;
-    this.rippleCooldown = 0;
-
-    this.colors = {
-      bg: '#081226',
-      axis: '#facc15',
-      axisGlow: 'rgba(250, 204, 21, 0.28)',
-      marker: '#22c55e',
-      markerGlow: 'rgba(34, 197, 94, 0.95)',
-      flat: '#3b82f6',
-      sharp: '#f97316',
-      text: '#f8fafc',
-      textMuted: '#94a3b8',
-      decoBlue: 'rgba(59, 130, 246, 0.18)',
-      decoOrange: 'rgba(249, 115, 22, 0.18)',
-      ripple: '#22c55e',
-      grid: 'rgba(148, 163, 184, 0.07)'
-    };
-
-    this.resize = this.resize.bind(this);
-    window.addEventListener('resize', this.resize);
-    this.resize();
+function frequencyToCentsOff(freq, targetFreq) { return 1200 * Math.log2(freq / targetFreq); }
+/**
+ * @param {string|null|undefined} noteName - Note name in the format 'A#4'
+ * @returns {number} - Frequency of the note in Hz
+ * @throws {Error} - If the note name is invalid or null
+ */
+/**
+ * Converts a note name to its corresponding frequency in Hz.
+ * @param {string} noteName - Note name in the format 'A#4'
+ * @returns {number} - Frequency of the note in Hz
+ * @throws {Error} - If the note name is invalid or null
+ */
+ */
+  if (typeof noteName !== 'string' || noteName === null || noteName === undefined) {
+    throw new Error('noteToFrequency expects a non-null string argument');
   }
 
-  resize() {
-    const rect = this.canvas.getBoundingClientRect();
-    this.width = rect.width;
-    this.height = rect.height;
-    this.dpr = window.devicePixelRatio || 1;
+  const notes: { [key: string]: number } = {
+    C: 0,
+    'C#': 1,
+    D: 2,
+    'D#': 3,
+    E: 4,
+    F: 5,
+    'F#': 6,
+    G: 7,
+    'G#': 8,
+    A: 9,
+    'A#': 10,
+    B: 11,
+  };
 
-    this.canvas.width = this.width * this.dpr;
-    this.canvas.height = this.height * this.dpr;
-    this.canvas.style.width = `${this.width}px`;
-    this.canvas.style.height = `${this.height}px`;
-
-    this.ctx.setTransform(1, 0, 0, 1, 0, 0);
-    this.ctx.scale(this.dpr, this.dpr);
+  const matchResult = noteName.match(/^([A-G]#?)(\d+)$/);
+  if (!matchResult) {
+    throw new Error(`noteToFrequency: invalid note name '${noteName}'`);
   }
 
-  setTargetNote(noteName) {
-    this.targetFreq = noteToFrequency(noteName);
+  const [_, note, octave] = matchResult;
+  const semitonesFromA4 = (notes[note] - 9) + (parseInt(octave, 10) - 4) * 12;
+  try {
+    return 440 * Math.pow(2, semitonesFromA4 / 12);
+  } catch (e) {
+    console.error('noteToFrequency failed:', e);
+    throw e;
+  }
+  if (!match) {
+    throw new Error(`noteToFrequency: invalid note name '${noteName}'`);
   }
 
-  setDifficulty(level) {
-    const tolerances = {
-      facil: 50,
-      medio: 30,
-      dificil: 15,
-      experto: 5
-    };
-    this.maxCents = tolerances[level] || 30;
-    // FIX #14: resetear el marcador y el contador de estabilidad al cambiar
-    // de dificultad, para que el siguiente setPitch() calcule el offset con
-    // el nuevo maxCents sin arrastrar valores de la escala anterior.
-    this.targetMarkerOffset = 0;
-    this.markerOffset = 0;
-    this.stableCounter = 0;
+  const semitonesFromA4 = (notes[match[1]] - 9) + (parseInt(match[2], 10) - 4) * 12;
+  try {
+    return 440 * Math.pow(2, semitonesFromA4 / 12);
+  } catch (e) {
+    console.error('noteToFrequency failed:', e);
+    throw e;
   }
 
-  setPitch(freq) {
-    this.currentFreq = freq;
-
-    if (!freq || freq <= 0 || !this.targetFreq) {
-      this.currentNote = '--';
-      this.cents = 0;
-      this.targetMarkerOffset = 0;
-      this.wasTuned = false;
-      this.stableCounter = 0;
-      return;
-    }
-
-    this.currentNote = frequencyToNoteName(freq);
-    this.cents = frequencyToCentsOff(freq, this.targetFreq);
-
-    // --- LÓGICA DE CONGELAMIENTO (FREEZE) Y EFECTOS ---
-    const isTuned = Math.abs(this.cents) <= Math.max(6, this.maxCents * 0.35);
-
-    if (isTuned) {
-      if (!this.wasTuned && this.rippleCooldown <= 0) {
-        this.triggerTunedExplosion();
-        this.triggerRipple();
-        this.rippleCooldown = 0.8;
-      }
-      this.wasTuned = true;
-
-      // Acumular ciclos consecutivos afinados
-      this.stableCounter++;
-      if (this.stableCounter >= this.stableThreshold) {
-        // Congelar la posición: no mover más el marcador
-        this.targetMarkerOffset = this.markerOffset; // mantener la posición actual
-      } else {
-        // Mover suavemente hacia la posición objetivo
-        const normalized = Math.max(-1, Math.min(1, this.cents / this.maxCents));
-        const maxTravel = this.height * 0.22;
-        this.targetMarkerOffset = -normalized * maxTravel;
-      }
-    } else {
-      // Nota afuera de tono: reiniciar contador y mover hacia posición actual
-      this.wasTuned = false;
-      this.stableCounter = 0;
-      const normalized = Math.max(-1, Math.min(1, this.cents / this.maxCents));
-      const maxTravel = this.height * 0.22;
-      this.targetMarkerOffset = -normalized * maxTravel;
-    }
-
-    // --- FIN LÓGICA DE CONGELAMIENTO ---
-  }
-
-  triggerTunedExplosion() {
-    const cx = this.width / 2;
-    const cy = this.height * 0.55;
-
-    for (let i = 0; i < 60; i++) {
-      const angle = (Math.PI * 2 * i) / 60 + Math.random() * 0.12;
-      const speed = 100 + Math.random() * 300;
-      const color = Math.random() > 0.35 ? this.colors.marker : this.colors.axis;
-
-      this.burstParticles.push({
-        x: cx,
-        y: cy,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed,
-        life: 0.8 + Math.random() * 0.5,
-        maxLife: 1.5,
-        size: 3 + Math.random() * 4,
-        alpha: 1,
-        color
-      });
-    }
-  }
-
-  triggerRipple() {
-    const cx = this.width / 2;
-    const cy = this.height * 0.55;
-
-    // 3-4 ondas que abarcan 2/3 de la pantalla
-    const rippleCount = 3 + Math.floor(Math.random() * 2);
-    const maxRadius = Math.min(this.width, this.height) * (2 / 3);
-
-    for (let i = 0; i < rippleCount; i++) {
-      this.ripples.push({
-        x: cx,
-        y: cy,
-        radius: i * 8,
-        alpha: 0.85 - i * 0.08,
-        baseAlpha: 0.85 - i * 0.08,
-        lineWidth: 4 - i * 0.5,
-        maxRadius: maxRadius * 1.3,
-        speed: 35 + Math.random() * 25
-      });
-    }
-  }
-
-  spawnAxisSpark() {
-    const cx = this.width / 2;
-    const centerY = this.height * 0.55;
-
-    const spreadY = this.height * 0.27;
-    const y = centerY + (Math.random() - 0.5) * spreadY * 2;
-
-    // Más alcance: chispas que recorren hacia 2/3 de la pantalla (dentro del canvas)
-    const targetDir = Math.random() > 0.5 ? 1 : -1;
-    const targetDist = this.width * (0.28 + Math.random() * 0.18);
-    const angle = (targetDir === 1 ? 0 : Math.PI) + (Math.random() - 0.5) * 0.9;
-
-    const closeness = this.currentFreq > 0
-      ? 1 - Math.min(1, Math.abs(this.cents) / Math.max(this.maxCents, 1))
-      : 0;
-
-    const speed = 25 + Math.random() * (60 + closeness * 80);
-
-    let color = this.colors.axis;
-    if (this.currentFreq > 0) {
-      if (this.cents < -this.maxCents * 0.25) color = this.colors.flat;
-      else if (this.cents > this.maxCents * 0.25) color = this.colors.sharp;
-      else color = this.colors.marker;
-    }
-
-    // Vida proporcional a la distancia objetivo para mantener la velocidad actual (px/s)
-    const horizontalFactor = Math.max(0.25, Math.abs(Math.cos(angle)));
-    const life = (targetDist / (speed * horizontalFactor)) * (0.85 + Math.random() * 0.3);
-
-    this.axisSparks.push({
-      x: cx + (Math.random() - 0.5) * 3,
-      y,
-      vx: Math.cos(angle) * speed,
-      vy: Math.sin(angle) * speed * 0.35,
-      life,
-      maxLife: life,
-      alpha: 1,
-      size: 1.5 + Math.random() * 3.5,
-      color
-    });
-  }
-
-  update(dt) {
-    const diff = this.targetMarkerOffset - this.markerOffset;
-    this.markerOffset += diff * Math.min(1, dt * 9);
-
-    this.glowPulse += dt * 5;
-
-    if (this.rippleCooldown > 0) {
-      this.rippleCooldown -= dt;
-    }
-
-    const closeness = this.currentFreq > 0
-      ? 1 - Math.min(1, Math.abs(this.cents) / Math.max(this.maxCents, 1))
-      : 0;
-
-    if (this.currentFreq > 0) {
-      // Más chispas: tasa base más alta
-      const sparkRate = 40 + closeness * 80;
-      this.particleAccum += dt * sparkRate;
-
-      while (this.particleAccum >= 1 && this.axisSparks.length < this.maxAxisSparks) {
-        this.spawnAxisSpark();
-        this.particleAccum -= 1;
-      }
-    } else {
-      this.particleAccum = 0;
-    }
-
-    this.axisSparks = this.axisSparks.filter(p => {
-      p.life -= dt;
-      p.x += p.vx * dt;
-      p.y += p.vy * dt;
-      p.alpha = Math.max(0, p.life / p.maxLife);
-      return p.life > 0;
-    });
-
-    this.burstParticles = this.burstParticles.filter(p => {
-      p.life -= dt;
-      p.x += p.vx * dt;
-      p.y += p.vy * dt;
-      p.alpha = Math.max(0, p.life / p.maxLife);
-      return p.life > 0;
-    });
-
-    // Ondas tipo agua: mucho más lentas y desvaneciéndose con la distancia
-    this.ripples = this.ripples.filter(r => {
-      r.radius += dt * (r.speed || 26);
-      r.alpha = Math.max(0, (r.baseAlpha != null ? r.baseAlpha : 0.85) * (1 - r.radius / r.maxRadius));
-      return r.alpha > 0.02 && r.radius < r.maxRadius;
-    });
-
-    this.updateThemeColors();
-  }
-
-  updateThemeColors() {
-    const cs = getComputedStyle(document.documentElement);
-    this.colors.bg = cs.getPropertyValue('--bg-main').trim() || '#081226';
-  }
-
-  render() {
-    const ctx = this.ctx;
-    const w = this.width;
-    const h = this.height;
-    const cx = w / 2;
-    const cy = h * 0.55;
-
-    ctx.clearRect(0, 0, w, h);
-
-    // Fondo
-    ctx.fillStyle = this.colors.bg;
-    ctx.fillRect(0, 0, w, h);
-
-    // Rejilla decorativa
-    for (let i = 1; i < 10; i++) {
-      const x = (w / 10) * i;
-      ctx.strokeStyle = this.colors.grid;
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(x, h * 0.28);
-      ctx.lineTo(x, h * 0.82);
-      ctx.stroke();
-    }
-
-    // Líneas decorativas laterales
-    ctx.strokeStyle = this.colors.decoBlue;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(cx - w * 0.22, h * 0.28);
-    ctx.lineTo(cx - w * 0.22, h * 0.82);
-    ctx.stroke();
-
-    ctx.strokeStyle = this.colors.decoOrange;
-    ctx.beginPath();
-    ctx.moveTo(cx + w * 0.22, h * 0.28);
-    ctx.lineTo(cx + w * 0.22, h * 0.82);
-    ctx.stroke();
-
-    // Eje/aguja fija
-    ctx.save();
-    ctx.shadowColor = this.colors.axisGlow;
-    ctx.shadowBlur = 16;
-    ctx.strokeStyle = this.colors.axis;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(cx, h * 0.18);
-    ctx.lineTo(cx, h * 0.82);
-    ctx.stroke();
-    ctx.restore();
-
-    // Marca objetivo
-    ctx.fillStyle = 'rgba(148, 163, 184, 0.45)';
-    ctx.fillRect(cx - 38, cy - 10, 76, 20);
-
-    // Ondas tipo agua
-    this.ripples.forEach(r => {
-      ctx.save();
-      ctx.strokeStyle = `rgba(34, 197, 94, ${r.alpha})`;
-      ctx.lineWidth = r.lineWidth;
-      ctx.shadowColor = 'rgba(34, 197, 94, 0.55)';
-      ctx.shadowBlur = 14;
-      ctx.beginPath();
-      ctx.arc(r.x, r.y, r.radius, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.restore();
-    });
-
-    // Chispas del eje
-    this.axisSparks.forEach(p => {
-      ctx.save();
-      ctx.globalAlpha = p.alpha;
-      const rgb = this.hexToRgb(p.color);
-      const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size * 4);
-      g.addColorStop(0, `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, 0.95)`);
-      g.addColorStop(1, `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, 0)`);
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    });
-
-    // Explosión al afinar
-    this.burstParticles.forEach(p => {
-      ctx.save();
-      ctx.globalAlpha = p.alpha;
-      const rgb = this.hexToRgb(p.color);
-      const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size * 5);
-      g.addColorStop(0, `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, 1)`);
-      g.addColorStop(1, `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, 0)`);
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    });
-
-    // Punto móvil
-    const markerY = cy + this.markerOffset;
-    const tuned = this.currentFreq > 0 && Math.abs(this.cents) <= Math.max(6, this.maxCents * 0.35);
-
-    const markerColor = tuned
-      ? this.colors.marker
-      : (this.cents < 0 ? this.colors.flat : this.cents > 0 ? this.colors.sharp : this.colors.marker);
-
-    const pulse = 1 + Math.sin(this.glowPulse * 3.5) * 0.08;
-
-    ctx.save();
-    ctx.shadowColor = tuned ? this.colors.markerGlow : markerColor;
-    ctx.shadowBlur = tuned ? 32 : 18;
-    ctx.fillStyle = markerColor;
-    ctx.beginPath();
-    ctx.arc(cx, markerY, 7 * pulse, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-
-    // Decoración inferior
-    this.renderDecorativeBar(ctx, w, h);
-
-    // Puntitos tenues en reposo
-    if (this.currentFreq <= 0) {
-      ctx.fillStyle = 'rgba(250, 204, 21, 0.45)';
-      ctx.beginPath();
-      ctx.arc(cx - 16, cy + 72, 2, 0, Math.PI * 2);
-      ctx.arc(cx + 10, cy + 82, 2, 0, Math.PI * 2);
-      ctx.arc(cx + 34, cy + 68, 1.5, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
-
-  renderDecorativeBar(ctx, w, h) {
-    const barY = h * 0.9;
-    const barW = w * 0.6;
-    const barX = (w - barW) / 2;
-    const segments = 21;
-    const segW = barW / segments;
-    const center = Math.floor(segments / 2);
-
-    for (let i = 0; i < segments; i++) {
-      const x = barX + i * segW + 2;
-      const y = barY;
-      const width = segW - 4;
-      const height = 10;
-
-      let color = 'rgba(148,163,184,0.15)';
-      if (i < center) color = this.colors.decoBlue;
-      if (i > center) color = this.colors.decoOrange;
-      if (i === center) color = 'rgba(96, 165, 250, 0.45)';
-
-      ctx.fillStyle = color;
-      ctx.fillRect(x, y, width, height);
-    }
-
-    ctx.fillStyle = this.colors.textMuted;
-    ctx.font = '11px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText('GRAVE', barX - 20, barY + 8);
-    ctx.fillText('AGUDO', barX + barW + 24, barY + 8);
-  }
-
-  hexToRgb(hex) {
-    const h = hex.replace('#', '');
-    const bigint = parseInt(h, 16);
-    return [(bigint >> 16) & 255, (bigint >> 8) & 255, bigint & 255];
-  }
-
-  start() {
-    if (this.running) return;
-    this.running = true;
-    this.lastTime = performance.now();
-    this.tick(this.lastTime);
-  }
-
-  stop() {
-    this.running = false;
-    if (this.rafId) {
-      cancelAnimationFrame(this.rafId);
-      this.rafId = null;
-    }
-  }
-
-  tick(timestamp) {
-    if (!this.running) return;
-
-    const dt = Math.min((timestamp - this.lastTime) / 1000, 0.1);
-    this.lastTime = timestamp;
-
-    this.update(dt);
-    this.render();
-
-    this.rafId = requestAnimationFrame((t) => this.tick(t));
-  }
-
-  destroy() {
-    this.stop();
-    window.removeEventListener('resize', this.resize);
-    // FIX #15: limpiar los handlers onchange que el constructor asignó a
-    // los selectores de target note / difficulty, para que el siguiente
-    // AfinadorVisual no termine con handlers apilados apuntando a
-    // instancias ya destruidas.
-    const targetNoteEl = document.getElementById('targetNote');
-    if (targetNoteEl) targetNoteEl.onchange = null;
-    const difficultyEl = document.getElementById('afinadorDifficulty');
-    if (difficultyEl) difficultyEl.onchange = null;
-    this.ctx.clearRect(0, 0, this.width, this.height);
+  const semitonesFromA4 = (notes[match[1]] - 9) + (parseInt(match[2], 10) - 4) * 12;
+  try {
+    return 440 * Math.pow(2, semitonesFromA4 / 12);
+  } catch (e) {
+    console.error('noteToFrequency failed:', e);
+    throw e;
   }
 }
-
-// ==========================================================
-// CONTROL DE GRABACIÓN
-// ==========================================================
 
 export async function toggleRecording() {
-  const btn = $('recordBtn');
-  if (!btn) return;
+  const recordButton = document.querySelector('#recordBtn');
+  if (!recordButton) return;
 
-  const btnText = btn.querySelector('.btn-text');
+  const buttonTextElement = recordButton.querySelector('.btn-text');
+  if (!buttonTextElement) return;
 
-  if (!state.isRecording) {
-    try {
+  try {
+    if (!state.isRecording) {
       state.isRecording = true;
-      if (btnText) btnText.textContent = 'Detener';
-      btn.classList.add('recording');
-      btn.setAttribute('aria-pressed', 'true');
-
+      buttonTextElement.textContent = 'Detener';
+      recordButton.classList.add('recording');
+      recordButton.setAttribute('aria-pressed', 'true');
       await startAfinador();
-    } catch (error) {
-      console.error('No se pudo iniciar el afinador:', error);
-
+    } else {
       state.isRecording = false;
-      if (btnText) btnText.textContent = 'Iniciar';
-      btn.classList.remove('recording');
-      btn.setAttribute('aria-pressed', 'false');
-
-      alert('❌ No se pudo iniciar el micrófono del afinador: ' + error.message);
-      stopAfinador();
+      buttonTextElement.textContent = 'Iniciar';
+      recordButton.classList.remove('recording');
+      recordButton.setAttribute('aria-pressed', 'false');
+      await stopAfinador();
+      resetAfinadorUI();
     }
-  } else {
+  } catch (error) {
+    console.error('Error toggling recording:', error);
     state.isRecording = false;
-    recordingSession++;
-    if (btnText) btnText.textContent = 'Iniciar';
-    btn.classList.remove('recording');
-    btn.setAttribute('aria-pressed', 'false');
-
-    stopAfinador();
+    buttonTextElement.textContent = 'Iniciar';
+    recordButton.classList.remove('recording');
+    recordButton.setAttribute('aria-pressed', 'false');
+    alert(`Error toggling recording: ${error.message}`);
+    await stopAfinador();
     resetAfinadorUI();
-  }
-}
 
-function resetAfinadorUI() {
-  const noteDisplay = $('currentNoteDisplay');
-  const centsDisplay = $('centsDisplay');
-  const guideText = $('guideText');
+function resetAfinadorUIElements() {
+  const currentNoteDisplay = document.getElementById('currentNoteDisplay');
+  const centsDisplay = document.getElementById('centsDisplay');
+  const guideText = document.getElementById('guideText');
 
-  if (noteDisplay) {
-    noteDisplay.textContent = '--';
-    noteDisplay.className = 'current-note state-idle';
+  if (currentNoteDisplay) {
+    currentNoteDisplay.textContent = '--';
+    currentNoteDisplay.className = 'current-note state-idle';
   }
 
   if (centsDisplay) {
@@ -619,11 +139,7 @@ function resetAfinadorUI() {
 
 async function startAfinador() {
   const session = recordingSession;
-
-  // FIX #12: buffer local por sesión (8KB en Float32Array, 2048 muestras).
-  // Antes era un módulo-global, lo que en teoría permitiría colisiones si
-  // dos afinadores coexistían (no es el caso, pero defensivo).
-  const pitchBuffer = new Float32Array(2048);
+  const pitchBuffer = getPitchBuffer();
 
   if (afinadorVisual) {
     afinadorVisual.destroy();
@@ -633,56 +149,45 @@ async function startAfinador() {
   const canvas = $('agujaCanvas');
   if (canvas) {
     afinadorVisual = new AfinadorVisual(canvas);
-
     const targetNoteEl = $('targetNote');
     const difficultyEl = $('afinadorDifficulty');
-
     if (targetNoteEl) afinadorVisual.setTargetNote(targetNoteEl.value);
     if (difficultyEl) afinadorVisual.setDifficulty(difficultyEl.value);
-
     if (targetNoteEl) {
-      targetNoteEl.onchange = () => afinadorVisual?.setTargetNote(targetNoteEl.value);
+    targetNoteElement.addEventListener('change', () => {
+      if (afinadorVisual) afinadorVisual.setTargetNote(targetNoteElement.value);
+    });
     }
     if (difficultyEl) {
-      difficultyEl.onchange = () => afinadorVisual?.setDifficulty(difficultyEl.value);
+    difficultyElement.addEventListener('change', () => {
+      if (afinadorVisual) afinadorVisual.setDifficulty(difficultyElement.value);
+    });
     }
-
     afinadorVisual.start();
   }
 
   audioContext = new (window.AudioContext || window.webkitAudioContext)();
-
-  if (session !== recordingSession) {
-    audioContext.close().catch(() => {});
-    audioContext = null;
+  try {
+    if (session !== recordingSession) { audioContext.close().catch(() => {}); audioContext = null; return; }
+    if (audioContext.state === 'suspended') await audioContext.resume();
+    if (session !== recordingSession) { audioContext.close().catch(() => {}); audioContext = null; return; }
+  } catch (error) {
+    console.error('Error inicando el AudioContext:', error);
     return;
   }
 
-  if (audioContext.state === 'suspended') {
-    await audioContext.resume();
-  }
-
-  if (session !== recordingSession) {
-    audioContext.close().catch(() => {});
-    audioContext = null;
-    return;
-  }
-
-  stream = await navigator.mediaDevices.getUserMedia({
-    audio: {
-      echoCancellation: false,
-      noiseSuppression: false,
-      autoGainControl: false
+  try {
+    if (session !== recordingSession) {
+      stream.getTracks().forEach(t => t.stop());
+      stream = null;
+      if (audioContext) { audioContext.close().catch(() => {}); audioContext = null; }
+      return;
     }
-  });
-
-  if (session !== recordingSession) {
-    stream.getTracks().forEach(t => t.stop());
-    stream = null;
-    if (audioContext) {
-      audioContext.close().catch(() => {});
-      audioContext = null;
-    }
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+    });
+  } catch (error) {
+    console.error('Error obteniendo el stream:', error);
     return;
   }
 
@@ -691,147 +196,81 @@ async function startAfinador() {
   analyser.fftSize = 2048;
   mic.connect(analyser);
 
-  setTimeout(() => {
-    if (state.isRecording && session === recordingSession) runPitchDetectionLoop(pitchBuffer);
-  }, 200);
-}
-
-function stopAfinador() {
-  if (pitchLoopTimeout) {
-    clearTimeout(pitchLoopTimeout);
-    pitchLoopTimeout = null;
-  }
-
-  if (stream) {
-    stream.getTracks().forEach(t => t.stop());
-    stream = null;
-  }
-
-  if (audioContext) {
-    audioContext.close().catch(() => {});
-    audioContext = null;
-  }
-
-  analyser = null;
-
-  if (afinadorVisual) {
-    afinadorVisual.destroy();
-    afinadorVisual = null;
-  }
-}
-
-// ==========================================================
-// LOOP DE DETECCIÓN
-// ==========================================================
-
-async function runPitchDetectionLoop(pitchBuffer) {
-  if (!state.isRecording || !analyser || !audioContext || !pitchBuffer) return;
-
-  // Extraer las muestras de audio del micrófono en tiempo real
-  analyser.getFloatTimeDomainData(pitchBuffer);
-
-  // FIX #10: copiamos el buffer ANTES de transferirlo al worker. Sin esta
-  // copia, el siguiente frame (16ms después) sobrescribe el ArrayBuffer
-  // mientras el worker todavía lo está procesando (transferir la propiedad
-  // no espera a que el worker termine). El worker leería datos corruptos /
-  // ya modificados y el pitch oscilaría aleatoriamente.
-  //
-  // Coste: 2048 floats × 4 bytes = 8KB por frame @ 30 Hz = 240 KB/s.
-  // Aceptable para el afinador. Si el rendimiento se vuelve crítico, se
-  // puede sustituir por un pool de buffers con round-robin.
-  const frameBuffer = new Float32Array(pitchBuffer);
-
-  try {
-    const audioController = getAudioController();
-    const result = await audioController.detectPitch(frameBuffer, audioContext.sampleRate);
-
-    // FIX #11: si otro módulo (p.ej. karaoke) destruyó el singleton mientras
-    // esperábamos la respuesta del worker, `getAudioController()` arriba
-    // habrá creado uno NUEVO. Pero el audioContext/analyser de ESTE afinador
-    // siguen apuntando al estado viejo. Salir sin tocar el DOM para evitar
-    // mostrar datos del afinador viejo en un contexto ya cancelado.
-    if (!state.isRecording || !analyser || !audioContext) return;
-
-    const noteDisplay = $('currentNoteDisplay');
-    const centsDisplay = $('centsDisplay');
-    const guideText = $('guideText');
-
-    if (typeof result === 'number' && result > 0) {
-      if (afinadorVisual) {
-        afinadorVisual.setPitch(result);
-      }
-
-      const detectedNote = frequencyToNoteName(result);
-      const targetNoteName = $('targetNote')?.value || 'E2';
-      const targetFreq = noteToFrequency(targetNoteName);
-      const cents = frequencyToCentsOff(result, targetFreq);
-
-      if (noteDisplay) {
-        noteDisplay.textContent = detectedNote;
-        noteDisplay.className = 'current-note state-active';
-      }
-
-      if (centsDisplay) {
-        const rounded = Math.round(cents);
-        const sign = rounded > 0 ? '+' : '';
-        centsDisplay.textContent = `${sign}${rounded}¢`;
-        centsDisplay.className = 'cents-display';
-      }
-
-      if (guideText) {
-        const difficultyEl = $('afinadorDifficulty');
-        const level = difficultyEl?.value || 'medio';
-        const tolerances = { facil: 50, medio: 30, dificil: 15, experto: 5 };
-        const tolerance = tolerances[level] || 30;
-
-        if (Math.abs(cents) <= Math.max(6, tolerance * 0.35)) {
-          guideText.textContent = '✅ Afinado';
-          guideText.className = 'guide-text state-good';
-        } else if (cents < 0) {
-          guideText.textContent = '⬆️ Sube la voz';
-          guideText.className = 'guide-text state-low';
-        } else {
-          guideText.textContent = '⬇️ Baja la voz';
-          guideText.className = 'guide-text state-high';
-        }
-      }
-    } else {
-      if (afinadorVisual) {
-        afinadorVisual.setPitch(-1);
-      }
-
-      if (noteDisplay) {
-        noteDisplay.textContent = '--';
-        noteDisplay.className = 'current-note state-idle';
-      }
-
-      if (centsDisplay) {
-        centsDisplay.textContent = '';
-        centsDisplay.className = 'cents-display';
-      }
-
-      if (guideText) {
-        guideText.textContent = 'Esperando voz...';
-        guideText.className = 'guide-text';
-      }
-    }
-  } catch (error) {
-    console.error('Fallo en bucle de detección:', error);
-    // FIX #13: en errores transitorios seguimos, pero si el audioContext o
-    // analyser se destruyeron durante el await, salimos para no girar en
-    // vacío consumiendo CPU y generando logs duplicados.
-    if (!state.isRecording || !analyser || !audioContext) return;
-    // FIX #16: si el error es porque el worker fue terminado por otro
-    // módulo (karaoke.stopKaraokeRecording, etc.), el singleton se habrá
-    // recreado automáticamente. Reintentamos con un backoff corto.
-    if (error && error.message && error.message.includes("terminado")) {
-      pitchLoopTimeout = setTimeout(() => runPitchDetectionLoop(pitchBuffer), 100);
+  let frameCount = 0;
+  const detectPitchFrame = async () => {
+    if (!state.isRecording || session !== recordingSession || !analyser) {
+      releasePitchBuffer(pitchBuffer);
       return;
     }
-  }
 
-  if (state.isRecording) {
-    pitchLoopTimeout = setTimeout(() => runPitchDetectionLoop(pitchBuffer), 16);
-  }
-}
+    try {
+      analyser.getFloatTimeDomainData(pitchBuffer);
+      const frameCopy = new Float32Array(pitchBuffer);
+      const pitchResult = await getAudioController().detectPitch(frameCopy, audioContext.sampleRate);
+      if (!state.isRecording || session !== recordingSession || !analyser) return;
 
+      const noteDisplayElement = $('currentNoteDisplay');
+      const centsDisplayElement = $('centsDisplay');
+      const guideTextElement = $('guideText');
+
+      if (typeof pitchResult === 'number' && pitchResult > 0) {
+        const detectedNoteName = frequencyToNoteName(pitchResult);
+        const targetNoteName = ($('targetNote') || {}).value || 'E2';
+        const targetFrequency = noteToFrequency(targetNoteName);
+        const centsOff = frequencyToCentsOff(pitchResult, targetFrequency);
+
+        if (noteDisplayElement) {
+          noteDisplayElement.textContent = detectedNoteName;
+          noteDisplayElement.className = 'current-note state-active';
+        }
+        if (centsDisplayElement) {
+          const roundedCents = Math.round(centsOff);
+          centsDisplayElement.textContent = (roundedCents > 0 ? '+' : '') + roundedCents + '¢';
+          centsDisplayElement.className = 'cents-display';
+        }
+        if (guideTextElement) {
+          const level = ($('afinadorDifficulty') || {}).value || 'medio';
+          const tolerances = { facil: 50, medio: 30, dificil: 15, experto: 5 };
+          const tolerance = tolerances[level] || 30;
+          if (Math.abs(centsOff) <= Math.max(6, tolerance * 0.35)) {
+            guideTextElement.textContent = 'Afinado';
+            guideTextElement.className = 'guide-text state-good';
+          } else if (centsOff < 0) {
+            guideTextElement.textContent = 'Sube la voz';
+            guideTextElement.className = 'guide-text state-low';
+          } else {
+            guideTextElement.textContent = 'Baja la voz';
+            guideTextElement.className = 'guide-text state-high';
+          }
+        }
+      } else {
+        if (noteDisplayElement) {
+          noteDisplayElement.textContent = '--';
+          noteDisplayElement.className = 'current-note state-idle';
+        }
+        if (centsDisplayElement) {
+          centsDisplayElement.textContent = '';
+          centsDisplayElement.className = 'cents-display';
+        }
+        if (guideTextElement) {
+          guideTextElement.textContent = 'Esperando voz...';
+          guideTextElement.className = 'guide-text';
+        }
+      }
+    } catch (error) {
+      console.error('Error deteccion:', error);
+    }
+
+    frameCount++;
+    if (state.isRecording && session === recordingSession) {
+      pitchDetectionInterval = setTimeout(detectPitchFrame, 33);
+    }
+  }
+  setTimeout(detectFrame, 200);
+
+function stopAfinador() {
+  if (pitchDetectionInterval) { clearTimeout(pitchDetectionInterval); pitchDetectionInterval = null; }
+  if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+  if (audioContext) { audioContext.close().catch(() => {}); audioContext = null; }
+  analyser = null;
+  if (afinadorVisual) { afinadorVisual.destroy(); afinadorVisual = null; }
