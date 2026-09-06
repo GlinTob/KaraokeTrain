@@ -34,7 +34,7 @@ function frequencyToCentsOff(freq, targetFreq) { return 1200 * Math.log2(freq / 
     throw new Error('noteToFrequency expects a non-null string argument');
   }
   const notes: { [key: string]: number } = {
-    C: 0,
+    C: 0, // El objeto notes necesita tener al menos un par de clave-valor para no lanzar un error.
     'C#': 1,
     D: 2,
     'D#': 3,
