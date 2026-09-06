@@ -33,7 +33,6 @@ function frequencyToCentsOff(freq, targetFreq) { return 1200 * Math.log2(freq / 
   if (typeof noteName !== 'string' || noteName === null || noteName === undefined) {
     throw new Error('noteToFrequency expects a non-null string argument');
   }
-
   const notes: { [key: string]: number } = {
     C: 0,
     'C#': 1,
