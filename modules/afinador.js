@@ -30,11 +30,13 @@ function frequencyToCentsOff(freq, targetFreq) { return 1200 * Math.log2(freq / 
  * @returns {number} - Frequency of the note in Hz
  * @throws {Error} - If the note name is invalid or null
  */
-  if (typeof noteName !== 'string' || noteName === null || noteName === undefined) {
+function noteToFrequency(noteName) {
+  if (typeof noteName !== 'string' || noteName === null) {
     throw new Error('noteToFrequency expects a non-null string argument');
   }
-  const notes: { [key: string]: number } = {
-    C: 0, // El objeto notes necesita tener al menos un par de clave-valor para no lanzar un error.
+
+  const notes = {
+    C: 0,
     'C#': 1,
     D: 2,
     'D#': 3,
@@ -47,7 +49,6 @@ function frequencyToCentsOff(freq, targetFreq) { return 1200 * Math.log2(freq / 
     'A#': 10,
     B: 11,
   };
-
   const matchResult = noteName.match(/^([A-G]#?)(\d+)$/);
   if (!matchResult) {
     throw new Error(`noteToFrequency: invalid note name '${noteName}'`);
