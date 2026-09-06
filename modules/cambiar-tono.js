@@ -18,6 +18,31 @@ export function initCambiarTono() {
   onPitchSelectsChange();
 }
 
+export function destroyCambiarTono() {
+  stopPitchShifted();
+
+  if (pitchAudioContext && pitchAudioContext.state !== "closed") {
+    pitchAudioContext.close().catch(() => {});
+  }
+  pitchAudioContext = null;
+  pitchAudioBuffer = null;
+  pitchSelectedItem = null;
+  pitchWorkletNode = null;
+  pitchSourceNode = null;
+  pitchGainNode = null;
+  pitchIsPlaying = false;
+  pitchLastSavedId = null;
+
+  // Limpiar handlers del DOM
+  const upSelect = $("pitchUpSelect");
+  const downSelect = $("pitchDownSelect");
+  if (upSelect) upSelect.onchange = null;
+  if (downSelect) downSelect.onchange = null;
+
+  // Limpiar WeakMap de worklets cargados
+  _pitchWorkletLoaded = new WeakMap();
+}
+
 // Variables de Control de Estado de Audio
 let pitchAudioContext = null;
 let pitchAudioBuffer = null;
@@ -196,9 +221,12 @@ export async function loadSelectedPitchKaraoke() {
     const sendBtn = $("pitchSendToKaraokeBtn");
     if (sendBtn) sendBtn.disabled = true;
 
-    ensurePitchWorklet(pitchAudioContext).catch(err => {
+        // FIX: await para evitar race condition si el usuario da a Play inmediatamente
+    try {
+      await ensurePitchWorklet(pitchAudioContext);
+    } catch (err) {
       console.warn("No se pudo precargar el pitch worklet:", err);
-    });
+    }
 
     if (status) {
       status.textContent = `Estado: "${item.name}" cargado (${pitchAudioBuffer.duration.toFixed(1)} s, ${pitchAudioBuffer.numberOfChannels} canal${pitchAudioBuffer.numberOfChannels === 1 ? "" : "es"}). Listo para reproducir.`;
@@ -450,11 +478,18 @@ export async function sendPitchShiftedToKaraokeMonitor() {
 }
 
 export async function renderPitchShiftOffline(audioBuffer, semitones) {
+  if (!audioBuffer) {
+    throw new Error("renderPitchShiftOffline requiere un audioBuffer válido.");
+  }
+
   const ratio = Math.pow(2, semitones / 12);
+  // FIX: El pitch shifting cambia la duración.
+  // pitch up (ratio > 1) -> audio más corto; pitch down (ratio < 1) -> audio más largo.
+  const outputLength = Math.ceil(audioBuffer.length / ratio);
 
   const offlineCtx = new OfflineAudioContext(
     audioBuffer.numberOfChannels,
-    audioBuffer.length,
+    outputLength,
     audioBuffer.sampleRate
   );
 
