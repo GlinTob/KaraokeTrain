@@ -1,5 +1,4 @@
 import { $ } from "./utils.js";
-import { getAudioController } from "./audio-controller.js";
 
 
 /**
@@ -11,11 +10,11 @@ import { getAudioController } from "./audio-controller.js";
 // ESTADO INTERNO
 // ====================================================================
 
-let micTestAudioContext = null;
-let micTestStream = null;
-let micTestAnalyser = null;
-let micTestAnimationId = null;
-let micTestTimeoutId = null;
+// Estado por micrófono para evitar race conditions
+const micTestState = {
+  1: { audioContext: null, stream: null, analyser: null, animationId: null, timeoutId: null },
+  2: { audioContext: null, stream: null, analyser: null, animationId: null, timeoutId: null }
+};
 
 let selectedAvatar = null;
 let currentAvatarCategory = "videojuegos";
@@ -26,7 +25,7 @@ const EMOJI_OPTIONS = [
   "⚛️", "🐱", "🤔", "😺", "🐶", "🦊", "🐻", "🐼", "🐰",
   "🕷️", "🦇", "🦸", "👸", "🤖", "💚", "🛡️", "⭐", "🔥",
   "💎", "🎵", "🎤", "👑", "🧠", "🎩", "🎼", "🎨", "📜",
-  "🍄", "🦔", "⚔️", "👽", "🎈", "⚡", "🦍", "🌈", "🍀"
+  "🍄", "🦔", "⚔️", "👽", "🎈", "⚡", "🦍", "🌈", "🍀", "🔭"
 ];
 
 // ====================================================================
@@ -115,7 +114,6 @@ export function showSaveNotification() {
 export function applyAppTheme(theme) {
   const safeTheme = theme || "oscuro";
   document.documentElement.setAttribute("data-theme", safeTheme);
-  document.body?.setAttribute("data-theme", safeTheme);
   syncAppThemeCard(safeTheme);
   console.log("🎨 Tema aplicado de forma nativa:", safeTheme);
 }
@@ -148,12 +146,20 @@ const KARAOKE_STAGES = [
 function syncAppThemeCard(theme) {
   document.querySelectorAll("#themeGrid .theme-card").forEach((card) => {
     card.classList.toggle("active", card.dataset.themeId === theme);
+    const check = card.querySelector(".theme-card-check");
+    if (check) check.textContent = card.dataset.themeId === theme ? "✓ Activo" : "";
   });
 }
 
 export function renderAppThemeGrid() {
   const grid = $("themeGrid");
   if (!grid) return;
+
+  // Solo renderizar una vez
+  if (grid.dataset.rendered === "true") {
+    syncAppThemeCard(localStorage.getItem("karaokeTrain_theme") || "oscuro");
+    return;
+  }
 
   const current = localStorage.getItem("karaokeTrain_theme") || "oscuro";
 
@@ -186,11 +192,23 @@ export function renderAppThemeGrid() {
     });
     grid.appendChild(card);
   });
+  grid.dataset.rendered = "true";
 }
 
 export function renderKaraokeThemeGrid() {
   const grid = $("karaokeThemeGrid");
   if (!grid) return;
+
+  // Solo renderizar una vez
+  if (grid.dataset.rendered === "true") {
+    const current = localStorage.getItem("karaokeTrain_stage") || "theme-clasico";
+    document.querySelectorAll("#karaokeThemeGrid .theme-card").forEach((card) => {
+      card.classList.toggle("active", card.dataset.themeId === current);
+      const check = card.querySelector(".theme-card-check");
+      if (check) check.textContent = card.dataset.themeId === current ? "✓ Activo" : "";
+    });
+    return;
+  }
 
   const current = localStorage.getItem("karaokeTrain_stage") || "theme-clasico";
 
@@ -210,6 +228,7 @@ export function renderKaraokeThemeGrid() {
     card.addEventListener("click", () => selectKaraokeStage(stage.id));
     grid.appendChild(card);
   });
+  grid.dataset.rendered = "true";
 }
 
 function selectKaraokeStage(stageId) {
@@ -221,15 +240,8 @@ function selectKaraokeStage(stageId) {
     if (check) check.textContent = card.dataset.themeId === stageId ? "✓ Activo" : "";
   });
 
-  const contenedorKaraoke =
-    document.getElementById("karaokeLiveLyrics") ||
-    document.getElementById("karaokeLyrics") ||
-    document.querySelector(".karaoke-lyrics");
-
-  if (contenedorKaraoke) {
-    KARAOKE_STAGES.forEach((t) => contenedorKaraoke.classList.remove(t.id));
-    contenedorKaraoke.classList.add(stageId);
-  }
+  // Usar evento personalizado en lugar de buscar DOM frágil
+  window.dispatchEvent(new CustomEvent("karaokeThemeChanged", { detail: { stageId } }));
 
   showSaveNotification();
 }
@@ -255,7 +267,7 @@ export function inicializarEscenarioDesdeMemoria() {
 // INIT GENERAL
 // ====================================================================
 
-export function initSettings() {
+export async function initSettings() {
   if (settingsInitialized) return;  
   settingsInitialized = true;
 
@@ -299,6 +311,9 @@ export function initSettings() {
   if (mic2Select) {
     mic2Select.addEventListener("change", () => saveMicSelection(2));
   }
+
+  // FIX: Cargar micrófonos disponibles al inicializar
+  await loadAvailableMics();
 
   renderAppThemeGrid();
   applyAppTheme(localStorage.getItem("karaokeTrain_theme") || "oscuro");
@@ -403,31 +418,8 @@ export function renderAvatarGrid(user, categoryKey) {
 
   const saved = loadAvatarFromStorage(user);
 
-  // Mostrar categorías centrando el grid
-  const categoryContainer = document.createElement("div");
-  categoryContainer.className = "avatar-category-wrapper";
-  categoryContainer.style.textAlign = "center";
-  categoryContainer.style.margin = "10px 0";
-
-  // Botón para cada categoría
-  const categoryBtn = document.createElement("button");
-  categoryBtn.type = "button";
-  categoryBtn.className = "avatar-category-tab" + (categoryKey === "videojuegos" ? " active" : "");
-  categoryBtn.dataset.category = categoryKey;
-  categoryBtn.innerHTML = `${category.icon} ${category.name}`;
-  categoryBtn.style.width = "100%";
-  categoryBtn.style.padding = "8px";
-  categoryBtn.style.margin = "4px 0";
-  categoryBtn.style.fontSize = "0.85em";
-  categoryBtn.style.background = "var(--bg-secondary)";
-  categoryBtn.style.border = "1px solid var(--border-color)";
-  categoryBtn.style.borderRadius = "6px";
-  categoryBtn.style.cursor = "pointer";
-  categoryContainer.appendChild(categoryBtn);
-
-  gridContainer.appendChild(categoryContainer);
-
   // Grid de avatares - tamaño mayor (100x100) y sin categoría escrita
+  // Los tabs de categoría ya están en avatarCategoryTabs{P1/P2} - NO duplicar aquí
   category.characters.forEach((character) => {
     const card = document.createElement("div");
     const isSelected = saved && saved.id === character.id;
@@ -548,13 +540,24 @@ export async function loadAvailableMics() {
     return;
   }
 
-  let tempStream = null;
-
   try {
-    tempStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const mics = devices.filter((d) => d.kind === "audioinput");
+    // PRIMERO: Enumerar SIN pedir permiso (labels pueden estar vacíos sin permiso)
+    let devices = await navigator.mediaDevices.enumerateDevices();
+    let mics = devices.filter((d) => d.kind === "audioinput");
+    
+    // Si no hay labels, pedir permiso una vez y re-enumerar
+    const needsPermission = mics.some(m => !m.label);
+    if (needsPermission) {
+      try {
+        const tempStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        tempStream.getTracks().forEach(t => t.stop());
+        devices = await navigator.mediaDevices.enumerateDevices();
+        mics = devices.filter((d) => d.kind === "audioinput");
+      } catch (permErr) {
+        console.warn("Permiso de micrófono denegado, labels no disponibles:", permErr);
+        // Continuar con deviceIds aunque labels estén vacíos
+      }
+    }
 
     const mic1Select = $("mic1Select");
     const mic2Select = $("mic2Select");
@@ -590,12 +593,8 @@ export async function loadAvailableMics() {
     console.error("Error crítico al enumerar los micrófonos del sistema:", error);
     const mic1Select = $("mic1Select");
     const mic2Select = $("mic2Select");
-    if (mic1Select) mic1Select.innerHTML = `<option value="">⚠️ Permite acceso al micrófono</option>`;
-    if (mic2Select) mic2Select.innerHTML = `<option value="">⚠️ Permite acceso al micrófono</option>`;
-  } finally {
-    if (tempStream) {
-      tempStream.getTracks().forEach((track) => track.stop());
-    }
+    if (mic1Select) mic1Select.innerHTML = `<option value="">⚠️ Error al detectar micrófonos</option>`;
+    if (mic2Select) mic2Select.innerHTML = `<option value="">⚠️ Error al detectar micrófonos</option>`;
   }
 }
 
@@ -625,8 +624,8 @@ export function saveMicSelection(micNumber) {
 }
 
 export async function testMicrophone(micNumber) {
-  // 1. Detener cualquier prueba previa
-  stopMicTest();
+  // 1. Detener prueba previa SOLO de este micrófono
+  stopMicTest(micNumber);
 
   const selectId = micNumber === 1 ? "mic1Select" : "mic2Select";
   const fillId = micNumber === 1 ? "mic1LevelFill" : "mic2LevelFill";
@@ -639,26 +638,28 @@ export async function testMicrophone(micNumber) {
   if (!select?.value) return alert("Selecciona un mic");
 
   try {
-    micTestStream = await navigator.mediaDevices.getUserMedia({
+    const state = micTestState[micNumber];
+    
+    state.stream = await navigator.mediaDevices.getUserMedia({
       audio: { deviceId: { exact: select.value } }
     });
 
-    const audioCtx = new AudioContext();
-    const source = audioCtx.createMediaStreamSource(micTestStream);
-    const analyser = audioCtx.createAnalyser();
-    analyser.fftSize = 256; // Tamaño pequeño = muy rápido
-    source.connect(analyser);
+    state.audioContext = new AudioContext();
+    const source = state.audioContext.createMediaStreamSource(state.stream);
+    state.analyser = state.audioContext.createAnalyser();
+    state.analyser.fftSize = 256; // Tamaño pequeño = muy rápido
+    source.connect(state.analyser);
 
-    const bufferLength = analyser.frequencyBinCount;
+    const bufferLength = state.analyser.frequencyBinCount;
     const dataArray = new Uint8Array(bufferLength);
 
     if (status) status.innerText = "🎤 Probando...";
 
     function draw() {
-      if (!micTestStream) return;
-      micTestAnimationId = requestAnimationFrame(draw);
+      if (!state.stream) return;
+      state.animationId = requestAnimationFrame(draw);
       
-      analyser.getByteFrequencyData(dataArray);
+      state.analyser.getByteFrequencyData(dataArray);
       
       // Calcular volumen promedio
       let sum = 0;
@@ -674,20 +675,51 @@ export async function testMicrophone(micNumber) {
     draw();
 
     // Auto-apagado en 5 segundos para no gastar batería
-    setTimeout(stopMicTest, 5000);
+    state.timeoutId = setTimeout(() => stopMicTest(micNumber), 5000);
 
   } catch (err) {
     if (status) status.innerText = "❌ Error de mic";
+    stopMicTest(micNumber);
   }
 }
 
-export function stopMicTest() {
-  if (micTestAnimationId) cancelAnimationFrame(micTestAnimationId);
-  if (micTestStream) {
-    micTestStream.getTracks().forEach(t => t.stop());
-    micTestStream = null;
+export function stopMicTest(micNumber) {
+  const state = micNumber ? micTestState[micNumber] : null;
+  
+  if (state) {
+    if (state.animationId) cancelAnimationFrame(state.animationId);
+    if (state.timeoutId) clearTimeout(state.timeoutId);
+    if (state.stream) {
+      state.stream.getTracks().forEach(t => t.stop());
+      state.stream = null;
+    }
+    if (state.audioContext && state.audioContext.state !== "closed") {
+      state.audioContext.close().catch(() => {});
+      state.audioContext = null;
+    }
+    state.analyser = null;
+    state.animationId = null;
+    state.timeoutId = null;
+    
+    // Reset UI solo para este micrófono
+    const fill = document.getElementById(micNumber === 1 ? "mic1LevelFill" : "mic2LevelFill");
+    const status = document.getElementById(micNumber === 1 ? "mic1Status" : "mic2Status");
+    if (fill) fill.style.width = "0%";
+    if (status) status.innerText = "Haz clic para probar";
+  } else {
+    // Stop all (cleanup al salir de config)
+    [1, 2].forEach(n => stopMicTest(n));
   }
-  document.querySelectorAll(".mic-level-fill").forEach(f => f.style.width = "0%");
-  document.querySelectorAll(".mic-status").forEach(s => s.innerText = "Haz clic para probar");
+}
+
+// Función de limpieza al salir de la pestaña Configuración
+export function destroyConfig() {
+  stopMicTest(); // Sin argumento = stop all
+  settingsInitialized = false;
+  // Reset flags de renderizado para permitir re-render si se vuelve a entrar
+  const themeGrid = $("themeGrid");
+  const karaokeGrid = $("karaokeThemeGrid");
+  if (themeGrid) themeGrid.dataset.rendered = "false";
+  if (karaokeGrid) karaokeGrid.dataset.rendered = "false";
 }
 
