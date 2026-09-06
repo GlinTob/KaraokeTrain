@@ -168,10 +168,17 @@ export class AfinadorVisual {
     this.currentNote = frequencyToNoteName(freq);
     this.cents = frequencyToCentsOff(freq, this.targetFreq);
 
-    // --- LÓGICA DE CONGELAMIENTO (FREEZE) ---
+    // --- LÓGICA DE CONGELAMIENTO (FREEZE) Y EFECTOS ---
     const isTuned = Math.abs(this.cents) <= Math.max(6, this.maxCents * 0.35);
 
     if (isTuned) {
+      if (!this.wasTuned && this.rippleCooldown <= 0) {
+        this.triggerTunedExplosion();
+        this.triggerRipple();
+        this.rippleCooldown = 0.8;
+      }
+      this.wasTuned = true;
+
       // Acumular ciclos consecutivos afinados
       this.stableCounter++;
       if (this.stableCounter >= this.stableThreshold) {
@@ -185,6 +192,7 @@ export class AfinadorVisual {
       }
     } else {
       // Nota afuera de tono: reiniciar contador y mover hacia posición actual
+      this.wasTuned = false;
       this.stableCounter = 0;
       const normalized = Math.max(-1, Math.min(1, this.cents / this.maxCents));
       const maxTravel = this.height * 0.22;
@@ -718,6 +726,9 @@ function stopAfinador() {
 
 async function runPitchDetectionLoop(pitchBuffer) {
   if (!state.isRecording || !analyser || !audioContext || !pitchBuffer) return;
+
+  // Extraer las muestras de audio del micrófono en tiempo real
+  analyser.getFloatTimeDomainData(pitchBuffer);
 
   // FIX #10: copiamos el buffer ANTES de transferirlo al worker. Sin esta
   // copia, el siguiente frame (16ms después) sobrescribe el ArrayBuffer
