@@ -65,15 +65,7 @@ function noteToFrequency(noteName) {
   if (!match) {
     throw new Error(`noteToFrequency: invalid note name '${noteName}'`);
   }
-
-  const semitonesFromA4 = (notes[match[1]] - 9) + (parseInt(match[2], 10) - 4) * 12;
-  try {
-    return 440 * Math.pow(2, semitonesFromA4 / 12);
-  } catch (e) {
-    console.error('noteToFrequency failed:', e);
-    throw e;
-  }
-
+  
   const semitonesFromA4 = (notes[match[1]] - 9) + (parseInt(match[2], 10) - 4) * 12;
   try {
     return 440 * Math.pow(2, semitonesFromA4 / 12);
