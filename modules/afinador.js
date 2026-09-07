@@ -62,6 +62,7 @@ function noteToFrequency(noteName) {
     console.error('noteToFrequency failed:', e);
     throw e;
   }
+  /*
   if (!match) {
     throw new Error(`noteToFrequency: invalid note name '${noteName}'`);
   }
@@ -73,6 +74,7 @@ function noteToFrequency(noteName) {
     console.error('noteToFrequency failed:', e);
     throw e;
   }
+  */
 }
 
 export async function toggleRecording() {
