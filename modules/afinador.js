@@ -108,6 +108,8 @@ export async function toggleRecording() {
     alert(`Error toggling recording: ${error.message}`);
     await stopAfinador();
     resetAfinadorUI();
+  }
+}
 
 function resetAfinadorUIElements() {
   const currentNoteDisplay = document.getElementById('currentNoteDisplay');
@@ -140,24 +142,30 @@ async function startAfinador() {
   }
 
   const canvas = $('agujaCanvas');
-  if (canvas) {
-    afinadorVisual = new AfinadorVisual(canvas);
-    const targetNoteEl = $('targetNote');
-    const difficultyEl = $('afinadorDifficulty');
-    if (targetNoteEl) afinadorVisual.setTargetNote(targetNoteEl.value);
-    if (difficultyEl) afinadorVisual.setDifficulty(difficultyEl.value);
-    if (targetNoteEl) {
+  if (!canvas) {
+    console.error('No se encontr  el elemento canvas');
+    return;
+  }
+
+  afinadorVisual = new AfinadorVisual(canvas);
+  const targetNoteEl = $('targetNote');
+  const difficultyEl = $('afinadorDifficulty');
+
+  if (targetNoteEl && targetNoteEl.value) {
+    afinadorVisual.setTargetNote(targetNoteEl.value);
     targetNoteElement.addEventListener('change', () => {
       if (afinadorVisual) afinadorVisual.setTargetNote(targetNoteElement.value);
     });
-    }
-    if (difficultyEl) {
+  }
+
+  if (difficultyEl && difficultyEl.value) {
+    afinadorVisual.setDifficulty(difficultyEl.value);
     difficultyElement.addEventListener('change', () => {
       if (afinadorVisual) afinadorVisual.setDifficulty(difficultyElement.value);
     });
-    }
-    afinadorVisual.start();
   }
+
+  afinadorVisual.start();
 
   audioContext = new (window.AudioContext || window.webkitAudioContext)();
   try {
@@ -197,9 +205,13 @@ async function startAfinador() {
     }
 
     try {
+      if (!analyser) throw new Error('Analyser is null');
+      if (!pitchBuffer) throw new Error('Pitch buffer is null');
+
       analyser.getFloatTimeDomainData(pitchBuffer);
       const frameCopy = new Float32Array(pitchBuffer);
       const pitchResult = await getAudioController().detectPitch(frameCopy, audioContext.sampleRate);
+
       if (!state.isRecording || session !== recordingSession || !analyser) return;
 
       const noteDisplayElement = $('currentNoteDisplay');
@@ -208,7 +220,7 @@ async function startAfinador() {
 
       if (typeof pitchResult === 'number' && pitchResult > 0) {
         const detectedNoteName = frequencyToNoteName(pitchResult);
-        const targetNoteName = ($('targetNote') || {}).value || 'E2';
+        const targetNoteName = (targetNoteElement || {}).value || 'E2';
         const targetFrequency = noteToFrequency(targetNoteName);
         const centsOff = frequencyToCentsOff(pitchResult, targetFrequency);
 
@@ -222,7 +234,7 @@ async function startAfinador() {
           centsDisplayElement.className = 'cents-display';
         }
         if (guideTextElement) {
-          const level = ($('afinadorDifficulty') || {}).value || 'medio';
+          const level = (difficultyElement || {}).value || 'medio';
           const tolerances = { facil: 50, medio: 30, dificil: 15, experto: 5 };
           const tolerance = tolerances[level] || 30;
           if (Math.abs(centsOff) <= Math.max(6, tolerance * 0.35)) {
@@ -252,6 +264,11 @@ async function startAfinador() {
       }
     } catch (error) {
       console.error('Error deteccion:', error);
+      if (error instanceof Error && error.name === 'Error') {
+        // Handle the error
+      } else {
+        throw error;
+      }
     }
 
     frameCount++;
@@ -261,7 +278,7 @@ async function startAfinador() {
   }
   setTimeout(detectFrame, 200);
 }
-
+    
 function stopAfinador() {
   try {
     if (pitchDetectionInterval) {
