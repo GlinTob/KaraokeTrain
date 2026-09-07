@@ -260,10 +260,30 @@ async function startAfinador() {
     }
   }
   setTimeout(detectFrame, 200);
+}
 
 function stopAfinador() {
-  if (pitchDetectionInterval) { clearTimeout(pitchDetectionInterval); pitchDetectionInterval = null; }
-  if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
-  if (audioContext) { audioContext.close().catch(() => {}); audioContext = null; }
-  analyser = null;
-  if (afinadorVisual) { afinadorVisual.destroy(); afinadorVisual = null; }
+  try {
+    if (pitchDetectionInterval) {
+      clearTimeout(pitchDetectionInterval);
+      pitchDetectionInterval = null;
+    }
+    if (stream) {
+      stream.getTracks().forEach(t => t.stop());
+      stream = null;
+    }
+    if (audioContext) {
+      audioContext.close().catch(() => {});
+      audioContext = null;
+    }
+    if (analyser) {
+      analyser = null;
+    }
+    if (afinadorVisual) {
+      afinadorVisual.destroy();
+      afinadorVisual = null;
+    }
+  } catch (error) {
+    console.error('Error detecci n al detener el afinador:', error);
+  }
+}
