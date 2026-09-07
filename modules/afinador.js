@@ -9,7 +9,7 @@ let renderRafId = null;
 let audioContext = null;
 // Verifica si todas las funcioneses del módulo están definidas
 //let toggleRecording = null
-
+let analiser = null;
 let stream = null;
 let recordingSession = Date.now();
 
@@ -112,7 +112,7 @@ export async function toggleRecording() {
   }
 }
 
-function resetAfinadorUIElements() {
+function resetAfinadorUI() {
   const currentNoteDisplay = document.getElementById('currentNoteDisplay');
   const centsDisplay = document.getElementById('centsDisplay');
   const guideText = document.getElementById('guideText');
@@ -154,7 +154,7 @@ async function startAfinador() {
 
   if (targetNoteEl && targetNoteEl.value) {
     afinadorVisual.setTargetNote(targetNoteEl.value);
-    targetNoteElement.addEventListener('change', () => {
+    targetNoteEl.addEventListener('change', () => {
       if (afinadorVisual) afinadorVisual.setTargetNote(targetNoteElement.value);
     });
   }
@@ -277,7 +277,7 @@ async function startAfinador() {
       pitchDetectionInterval = setTimeout(detectPitchFrame, 33);
     }
   }
-  setTimeout(detectFrame, 200);
+  setTimeout(detectPitchFrame, 200);
 }
     
 function stopAfinador() {
