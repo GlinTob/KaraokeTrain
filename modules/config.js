@@ -1,6 +1,22 @@
 import { $ } from "./utils.js";
 
+class Persona {
+  constructor(nombre, avatar) {
+    this.nombre = nombre;
+    this.avatar = avatar;
+  }
 
+  getNombre() {
+    if (!this.nombre) {
+      throw new Error("Persona.getNombre(): nombre no puede ser nulo");
+    }
+    return this.nombre;
+  }
+
+  getAvatar() {
+    return this.avatar;
+  }
+}
 /**
  * MÓDULO CONFIGURACIÓN COMPLETO
  * Gestor de Preferencias Locales, Diagnóstico de Micrófonos y Selector de Avatares Pop
@@ -439,7 +455,6 @@ export function renderAvatarGrid(user, categoryKey) {
     gridContainer.appendChild(card);
   });
 }
-
 export function selectAvatar(user, character) {
   if (!character || !character.id || !character.category) return;
 
@@ -723,3 +738,9 @@ export function destroyConfig() {
   if (karaokeGrid) karaokeGrid.dataset.rendered = "false";
 }
 
+export function initConfig() {
+  if (settingsInitialized) return;
+  settingsInitialized = true;
+  renderAppThemeGrid(); // Solo renderizar una vez
+  renderKaraokeThemeGrid(); // Solo renderizar una vez
+}
