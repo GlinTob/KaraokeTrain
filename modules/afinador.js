@@ -8,7 +8,7 @@ let pitchDetectionInterval = null;
 let renderRafId = null;
 let audioContext = null;
 // Verifica si todas las funcioneses del módulo están definidas
-let toggleRecording = null
+//let toggleRecording = null
 
 let stream = null;
 let recordingSession = Date.now();
