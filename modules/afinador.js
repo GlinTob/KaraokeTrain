@@ -9,7 +9,7 @@ let renderRafId = null;
 let audioContext = null;
 // Verifica si todas las funcioneses del módulo están definidas
 //let toggleRecording = null
-let analiser = null;
+let analyser = null;
 let stream = null;
 let recordingSession = Date.now();
 
@@ -155,14 +155,14 @@ async function startAfinador() {
   if (targetNoteEl && targetNoteEl.value) {
     afinadorVisual.setTargetNote(targetNoteEl.value);
     targetNoteEl.addEventListener('change', () => {
-      if (afinadorVisual) afinadorVisual.setTargetNote(targetNoteElement.value);
+      if (afinadorVisual) afinadorVisual.setTargetNote(targetNoteEl.value);
     });
   }
 
   if (difficultyEl && difficultyEl.value) {
     afinadorVisual.setDifficulty(difficultyEl.value);
-    difficultyElement.addEventListener('change', () => {
-      if (afinadorVisual) afinadorVisual.setDifficulty(difficultyElement.value);
+    difficultyEl.addEventListener('change', () => {
+      if (afinadorVisual) afinadorVisual.setDifficulty(difficultyEl.value);
     });
   }
 
