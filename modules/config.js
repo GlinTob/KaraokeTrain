@@ -54,7 +54,7 @@ const AVATAR_CATEGORIES = {
     icon: "🦸",
     color: "#FF6B6B",
         characters: [
-      { id: "icons8-batman-100", name: "Mario", img: "./assets/avatares/icons8-batman-100.png", emoji: "🍄", category: "superheroes" },
+      { id: "batman", name: "Batman", img: "./assets/avatares/batman.png", emoji: "🍄", category: "superheroes" },
       { id: "sonic", name: "Sonic", img: "https://via.placeholder.com/80x80/00AA00/FFFFFF?text=SONIC", emoji: "🦔", category: "videojuegos" },
       { id: "link", name: "Link", img: "https://via.placeholder.com/80x80/00FFFF/FFFFFF?text=LINK", emoji: "⚔️", category: "videojuegos" },
       { id: "samus", name: "Samus", img: "https://via.placeholder.com/80x80/FFA500/FFFFFF?text=SAMUS", emoji: "🛡️", category: "videojuegos" },
@@ -64,38 +64,8 @@ const AVATAR_CATEGORIES = {
       { id: "donkeykong", name: "Donkey Kong", img: "https://via.placeholder.com/80x80/8B4513/FFFFFF?text=DK", emoji: "🦍", category: "videojuegos" }
     ]
   },
-  animales: {
-    name: "🐾 Animales",
-    icon: "🐾",
-    color: "#4ECDC4",
-    characters: [
-      { id: "cat", name: "Gato", img: "https://via.placeholder.com/80x80/FF69B4/FFFFFF?text=CAT", emoji: "🐱", category: "animales" },
-      { id: "dog", name: "Perro", img: "https://via.placeholder.com/80x80/87CEEB/FFFFFF?text=DOG", emoji: "🐶", category: "animales" },
-      { id: "fox", name: "Zorro", img: "https://via.placeholder.com/80x80/FFA500/FFFFFF?text=FOX", emoji: "🦊", category: "animales" },
-      { id: "bear", name: "Oso", img: "https://via.placeholder.com/80x80/8B4513/FFFFFF?text=BEAR", emoji: "🐻", category: "animales" },
-      { id: "panda", name: "Panda", img: "https://via.placeholder.com/80x80/FFFFFF/000000?text=PANDA", emoji: "🐼", category: "animales" },
-      { id: "bunny", name: "Conejo", img: "https://via.placeholder.com/80x80/FFB6C1/000000?text=BUNNY", emoji: "🐰", category: "animales" },
-      { id: "wolf", name: "Lobo", img: "https://via.placeholder.com/80x80/808080/FFFFFF?text=WOLF", emoji: "🐺", category: "animales" },
-      { id: "cat2", name: "Gato 2", img: "https://via.placeholder.com/80x80/FF69B4/FFFFFF?text=CAT2", emoji: "😺", category: "animales" }
-    ]
-  },
-  superheroes: {
-    name: "🦸 Superhéroes",
-    icon: "🦸",
-    color: "#FF8C42",
-    characters: [
-      { id: "spiderman", name: "Spider-Man", img: "https://via.placeholder.com/80x80/FF0000/FFFFFF?text=SPIDEY", emoji: "🕷️", category: "superheroes" },
-      { id: "batman", name: "Batman", img: "https://via.placeholder.com/80x80/000000/FFFF00?text=BAT", emoji: "🦇", category: "superheroes" },
-      { id: "superman", name: "Superman", img: "https://via.placeholder.com/80x80/0000FF/FFD700?text=SUPER", emoji: "🦸", category: "superheroes" },
-      { id: "wonderwoman", name: "Mujer Maravilla", img: "https://via.placeholder.com/80x80/FFD700/FF0000?text=WW", emoji: "👸", category: "superheroes" },
-      { id: "ironman", name: "Iron Man", img: "https://via.placeholder.com/80x80/FF0000/FFD700?text=IRON", emoji: "🤖", category: "superheroes" },
-      { id: "hulk", name: "Hulk", img: "https://via.placeholder.com/80x80/00FF00/FFFFFF?text=HULK", emoji: "💚", category: "superheroes" },
-      { id: "thor", name: "Thor", img: "https://via.placeholder.com/80x80/FFD700/000000?text=THOR", emoji: "⚡", category: "superheroes" },
-      { id: "captain", name: "Capitán América", img: "https://via.placeholder.com/80x80/0000FF/FFFFFF?text=CAP", emoji: "🛡️", category: "superheroes" }
-    ]
-  },
-  historicos: {
-    name: "🏛️ Personajes Históricos",
+  personajes: {
+    name: "Personajes",
     icon: "🏛️",
     color: "#AB8CFF",
     characters: [
