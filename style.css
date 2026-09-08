@@ -3,34 +3,34 @@
 ========================================== */
 
 :root {
-   --bg-main: #0f172a;
-   --bg-sidebar: #1e293b;
-   --bg-card: #1e293b;
+  --bg-main: #0f172a;
+  --bg-sidebar: #1e293b;
+  --bg-card: #1e293b;
 
-   --text-main: #ffffff;
-   --text-muted: #94a3b8;
+  --text-main: #ffffff;
+  --text-muted: #94a3b8;
 
-   --accent: #22c55e;
-   --accent-hover: #0d7835;
+  --accent: #22c55e;
+  --accent-hover: #15803d;
 
-      --danger: #ef4444;
-   --border: #6b7585;
+  --danger: #ef4444;
+  --border: #475569;
 
-   /* Accent Secondary (UI general) */
-   --accent-secondary: #3b82f6;
-   --accent-secondary-hover: #2563eb;
-   --accent-secondary-border: rgba(59, 130, 246, 0.4);
-   --accent-secondary-shadow: rgba(59, 130, 246, 0.35);
+  /* Accent Secondary (UI general moderna) */
+  --accent-secondary: #3b82f6;
+  --accent-secondary-hover: #2563eb;
+  --accent-secondary-border: rgba(59, 130, 246, 0.35);
+  --accent-secondary-shadow: rgba(59, 130, 246, 0.28);
 
-   /* Neon Pink Palette (solo Afinador) */
-   --neon-pink: #ff6ec7;
-   --neon-pink-light: #ff85d1;
-   --neon-pink-medium: #f472b6;
-   --neon-pink-dark: #d946ef;
-   --neon-pink-glow: #c026d3;
-   --neon-pink-text: #ff8fd6;
-   --neon-pink-border: rgba(255, 110, 199, 0.4);
-   --neon-pink-shadow: rgba(255, 110, 199, 0.45);
+  /* Solo Afinador */
+  --neon-pink: #ff6ec7;
+  --neon-pink-light: #ff85d1;
+  --neon-pink-medium: #f472b6;
+  --neon-pink-dark: #d946ef;
+  --neon-pink-glow: #c026d3;
+  --neon-pink-text: #ff8fd6;
+  --neon-pink-border: rgba(255, 110, 199, 0.4);
+  --neon-pink-shadow: rgba(255, 110, 199, 0.45);
 }
 
 /* ==========================================
@@ -71,7 +71,6 @@
   pointer-events: auto;
 }
 
-/* Header: target note + difficulty */
 .afinador-header {
   display: flex;
   justify-content: space-between;
@@ -119,7 +118,6 @@
   box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.2);
 }
 
-/* Center: current note + cents + guide */
 .afinador-center {
   flex: 1;
   display: flex;
@@ -145,11 +143,7 @@
   animation: note-pop 0.3s ease-out;
 }
 
-.current-note.state-flat {
-  color: #f59e0b;
-  text-shadow: 0 0 40px #f59e0b;
-}
-
+.current-note.state-flat,
 .current-note.state-sharp {
   color: #f59e0b;
   text-shadow: 0 0 40px #f59e0b;
@@ -181,7 +175,7 @@
 }
 
 .cents-display.cents-on { color: #22c55e; }
-.cents-display.cents-flat { color: #f59e0b; }
+.cents-display.cents-flat,
 .cents-display.cents-sharp { color: #f59e0b; }
 
 .guide-text {
@@ -200,16 +194,12 @@
   color: #f472b6;
   text-shadow: 0 0 30px rgba(244, 114, 182, 0.6), 0 0 60px rgba(244, 114, 182, 0.3);
 }
-.guide-text.state-flat {
-  color: #f59e0b;
-  text-shadow: 0 0 20px rgba(245, 158, 11, 0.4);
-}
+.guide-text.state-flat,
 .guide-text.state-sharp {
   color: #f59e0b;
   text-shadow: 0 0 20px rgba(245, 158, 11, 0.4);
 }
 
-/* Footer: record button */
 .afinador-footer {
   display: flex;
   justify-content: center;
@@ -281,7 +271,6 @@
   font-size: 1.2em;
 }
 
-/* Screen reader only */
 .sr-only {
   position: absolute;
   width: 1px;
@@ -294,7 +283,6 @@
   border: 0;
 }
 
-/* Mobile adjustments */
 @media (max-width: 768px) {
   .afinador-hero {
     min-height: 100vh;
@@ -326,7 +314,7 @@
 }
 
 /* ==========================================
-   RESET BÃSICO Y UTILIDADES GLOBALES
+   RESET BÁSICO Y UTILIDADES GLOBALES
 ========================================== */
 * {
   box-sizing: border-box;
@@ -339,7 +327,6 @@ body {
   color: var(--text-main);
 }
 
-/* Ocultamiento dinÃ¡mico para lÃ³gica JS (Karaoke/Estudio) */
 .d-none {
   display: none !important;
 }
@@ -366,7 +353,7 @@ body {
 }
 
 /* ==========================================
-   BOTONES SIDEBAR â€” Estilo 3D moderno
+   BOTONES SIDEBAR
 ========================================== */
 .sidebar button {
   background: linear-gradient(180deg, #334155 0%, #1e293b 100%);
@@ -448,6 +435,8 @@ body {
   border-radius: 12px;
   padding: 20px;
   margin-bottom: 20px;
+  border: 1px solid rgba(71, 85, 105, 0.55);
+  box-shadow: 0 10px 30px rgba(2, 6, 23, 0.24);
 }
 
 /* ==========================================
@@ -530,9 +519,8 @@ audio {
   background-color: #ef4444;
 }
 
-
 /* ==========================================
-   BIBLIOTECA - UPLOAD UI & ENHANCEMENTS
+   BIBLIOTECA
 ========================================== */
 
 .biblioteca-header {
@@ -560,94 +548,36 @@ audio {
 }
 
 .upload-card {
-  background: linear-gradient(180deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.98) 100%) !important;
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.96) 0%, rgba(15, 23, 42, 0.99) 100%) !important;
   backdrop-filter: blur(12px) !important;
   border: 1px solid var(--accent-secondary-border) !important;
   border-radius: 16px !important;
   padding: 24px !important;
   margin-bottom: 20px !important;
-    box-shadow:
-    0 0 0 1px rgba(59, 130, 246, 0.1) inset,
+  box-shadow:
+    0 0 0 1px rgba(59, 130, 246, 0.08) inset,
     0 8px 32px rgba(0, 0, 0, 0.4),
     0 0 24px rgba(59, 130, 246, 0.08);
   transition: box-shadow 0.3s ease, border-color 0.3s ease, transform 0.2s ease !important;
 }
 
 .upload-card:hover {
-    box-shadow:
+  box-shadow:
     0 0 0 1px var(--accent-secondary) inset,
     0 12px 40px rgba(0, 0, 0, 0.5),
-    0 0 40px rgba(59, 130, 246, 0.15) !important;
+    0 0 34px rgba(59, 130, 246, 0.12) !important;
   transform: translateY(-2px) !important;
 }
 
 .upload-card h3 {
-  color: var(--accent-secondary-hover) !important;
+  color: #93c5fd !important;
   font-family: 'Space Grotesk', 'Orbitron', 'Rajdhani', 'Exo 2', sans-serif !important;
   font-weight: 700 !important;
   letter-spacing: 0.03em !important;
-  text-shadow: 0 0 16px rgba(59, 130, 246, 0.4) !important;
+  text-shadow: 0 0 12px rgba(59, 130, 246, 0.22) !important;
   margin-bottom: 20px !important;
   padding-bottom: 12px !important;
   border-bottom: 1px solid var(--accent-secondary-border) !important;
-}
-
-.upload-dropzone {
-  position: relative;
-  border: 2px dashed var(--accent-secondary-border);
-  border-radius: 12px;
-  padding: 40px 24px;
-  text-align: center;
-  background: rgba(15, 23, 42, 0.8);
-  backdrop-filter: blur(8px);
-  cursor: pointer;
-  transition: all 0.2s ease;
-  overflow: hidden;
-}
-
-.upload-dropzone:hover,
-.upload-dropzone.drag-active {
-  border-color: var(--accent-secondary) !important;
-  border-style: solid !important;
-  box-shadow:
-    0 0 0 1px var(--neon-pink) inset,
-    0 8px 32px rgba(255, 110, 199, 0.2) !important;
-  background: rgba(30, 41, 59, 0.95) !important;
-}
-
-.upload-dropzone.drag-active {
-  transform: scale(1.01);
-}
-
-.upload-icon {
-  width: 48px;
-  height: 48px;
-  color: var(--neon-pink);
-  margin-bottom: 16px;
-  opacity: 0.8;
-}
-
-.upload-dropzone.drag-active .upload-icon {
-  animation: bounce 0.5s ease infinite;
-}
-
-@keyframes bounce {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-8px); }
-}
-
-.upload-text-main {
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--neon-pink-text);
-  margin: 0 0 8px 0;
-  font-family: 'Space Grotesk', 'Orbitron', 'Rajdhani', 'Exo 2', sans-serif;
-}
-
-.upload-text-hint {
-  font-size: 13px;
-  color: var(--text-muted);
-  margin: 0;
 }
 
 .upload-progress-container {
@@ -655,7 +585,7 @@ audio {
   padding: 16px;
   background: rgba(15, 23, 42, 0.9);
   border-radius: 12px;
-  border: 1px solid var(--neon-pink-border);
+  border: 1px solid rgba(59, 130, 246, 0.24);
 }
 
 .upload-progress-bar-container {
@@ -670,17 +600,17 @@ audio {
 .upload-progress-bar {
   height: 100%;
   width: 0%;
-  background: linear-gradient(90deg, var(--neon-pink), var(--neon-pink-medium), var(--neon-pink-light));
+  background: linear-gradient(90deg, #2563eb, #3b82f6, #06b6d4);
   border-radius: 4px;
   transition: width 0.3s ease;
-  box-shadow: 0 0 12px var(--neon-pink-shadow);
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.3);
 }
 
 .upload-progress-text {
   margin-top: 8px;
   font-family: 'Space Grotesk', 'Rajdhani', 'Exo 2', monospace;
   font-size: 14px;
-  color: var(--neon-pink-text);
+  color: #bfdbfe;
   font-weight: 600;
 }
 
@@ -700,7 +630,7 @@ audio {
   padding: 8px 12px;
   background: rgba(15, 23, 42, 0.8);
   border-radius: 8px;
-  border: 1px solid var(--neon-pink-border);
+  border: 1px solid rgba(59, 130, 246, 0.2);
   animation: slideIn 0.3s ease;
 }
 
@@ -728,8 +658,8 @@ audio {
 }
 
 .file-status.status-pending {
-  color: var(--neon-pink-text);
-  background: rgba(255, 110, 199, 0.15);
+  color: #93c5fd;
+  background: rgba(59, 130, 246, 0.15);
 }
 
 .file-status.status-success {
@@ -747,7 +677,7 @@ audio {
   box-shadow:
     0 4px 0 #334155,
     0 8px 24px rgba(100, 116, 139, 0.4),
-    0 0 0 1px rgba(148, 163, 184, 0.3),
+    0 0 0 1px rgba(148, 163, 184, 0.22),
     inset 0 1px 0 rgba(255,255,255,0.25) !important;
 }
 
@@ -756,7 +686,7 @@ audio {
   box-shadow:
     0 6px 0 #475569,
     0 12px 32px rgba(100, 116, 139, 0.5),
-    0 0 0 2px rgba(148, 163, 184, 0.4) !important;
+    0 0 0 2px rgba(148, 163, 184, 0.28) !important;
 }
 
 .upload-status {
@@ -803,7 +733,7 @@ audio {
   padding: 16px;
   background: rgba(30, 41, 59, 0.8);
   backdrop-filter: blur(8px);
-  border: 1px solid var(--neon-pink-border);
+  border: 1px solid rgba(59, 130, 246, 0.18);
   border-radius: 12px;
 }
 
@@ -820,14 +750,14 @@ audio {
   transform: translateY(-50%);
   width: 20px;
   height: 20px;
-  color: var(--neon-pink);
+  color: var(--accent-secondary);
 }
 
 .biblioteca-search input {
   width: 100%;
   padding: 10px 12px 10px 44px;
   background: rgba(15, 23, 42, 0.9);
-  border: 1px solid var(--neon-pink-border);
+  border: 1px solid rgba(59, 130, 246, 0.2);
   border-radius: 10px;
   color: var(--text-main);
   font-family: 'Space Grotesk', 'Rajdhani', 'Exo 2', monospace;
@@ -837,13 +767,13 @@ audio {
 
 .biblioteca-search input:focus {
   outline: none;
-  border-color: var(--neon-pink);
-  box-shadow: 0 0 0 3px rgba(255, 110, 199, 0.2);
+  border-color: var(--accent-secondary);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.18);
 }
 
 .biblioteca-sort select {
   background: rgba(15, 23, 42, 0.95);
-  border: 1px solid var(--neon-pink-border);
+  border: 1px solid rgba(59, 130, 246, 0.2);
   border-radius: 10px;
   padding: 10px 40px 10px 16px;
   color: var(--text-main);
@@ -852,7 +782,7 @@ audio {
   font-weight: 600;
   cursor: pointer;
   appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23ff6ec7' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%233b82f6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 12px center;
   padding-right: 40px;
@@ -861,19 +791,19 @@ audio {
 
 .biblioteca-sort select:focus {
   outline: none;
-  border-color: var(--neon-pink);
-  box-shadow: 0 0 0 3px rgba(255, 110, 199, 0.3);
+  border-color: var(--accent-secondary);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
 }
 
 #biblioteca #libraryCount {
-  color: var(--neon-pink-text);
+  color: #93c5fd;
   font-family: 'Space Grotesk', 'Orbitron', 'Rajdhani', 'Exo 2', sans-serif;
   font-weight: 700;
-  text-shadow: 0 0 8px var(--neon-pink-shadow);
+  text-shadow: 0 0 8px rgba(59, 130, 246, 0.22);
 }
 
 /* ==========================================
-   BIBLIOTECA â€” TARJETAS DE ARCHIVO
+   BIBLIOTECA — TARJETAS DE ARCHIVO
 ========================================= */
 .library-item {
   display: flex;
@@ -889,8 +819,8 @@ audio {
 }
 
 .library-item:hover {
-  border-color: var(--accent);
-  background: rgba(34, 197, 94, 0.05);
+  border-color: var(--accent-secondary);
+  background: rgba(59, 130, 246, 0.06);
 }
 
 .item-info {
@@ -924,25 +854,25 @@ audio {
 }
 
 .send-to-monitor-btn {
-  background: linear-gradient(135deg, #ec4899, #db2777);
+  background: linear-gradient(135deg, #2563eb, #0ea5e9);
   color: #fff;
   border: none;
   padding: 5px 12px;
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
   font-weight: bold;
   font-size: 12px;
-  box-shadow: 0 0 10px rgba(236, 72, 153, 0.5);
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.28);
   transition: filter 0.2s, box-shadow 0.2s;
 }
 
 .send-to-monitor-btn:hover {
-  filter: brightness(1.1);
-  box-shadow: 0 0 14px rgba(236, 72, 153, 0.7);
+  filter: brightness(1.08);
+  box-shadow: 0 0 14px rgba(59, 130, 246, 0.4);
 }
 
 .delete-library-btn {
-  background: #444;
+  background: #334155;
   color: white;
   border: none;
   padding: 5px 10px;
@@ -956,7 +886,7 @@ audio {
 }
 
 /* ==========================================
-   ESTILO AVATARES EN CONFIGURACIÃ“N (CARD HORIZONTAL)
+   AVATARES EN CONFIGURACIÓN
 ========================================== */
 
 #avatarGrid {
@@ -967,36 +897,34 @@ audio {
   padding: 16px 0;
 }
 
-/* Cada avatar como una tarjeta */
 .avatar-card {
   display: flex;
   align-items: center;
   gap: 12px;
   background: rgba(30, 41, 59, 0.8);
-  border: 1px solid rgba(255, 110, 199, 0.3);
+  border: 1px solid rgba(59, 130, 246, 0.22);
   border-radius: 12px;
   padding: 12px 16px;
   min-width: 280px;
-  cursor: pointer; /* âœ… Esto hace que el cursor cambie a mano */
+  cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: 0 0 6px rgba(255, 110, 199, 0.1);
-  user-select: none; /* âœ… Evita que se seleccione texto al hacer clic */
+  box-shadow: 0 0 6px rgba(59, 130, 246, 0.08);
+  user-select: none;
 }
 
 .avatar-card:hover {
-  background: rgba(255, 110, 199, 0.1);
-  border-color: rgba(255, 110, 199, 0.5);
-  box-shadow: 0 0 12px rgba(255, 110, 199, 0.2);
+  background: rgba(59, 130, 246, 0.08);
+  border-color: rgba(59, 130, 246, 0.45);
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.16);
   transform: translateY(-2px);
 }
 
 .avatar-card.selected {
-  border-color: #ff6ec7;
-  box-shadow: 0 0 16px rgba(255, 110, 199, 0.3);
-  background: rgba(255, 110, 199, 0.1);
+  border-color: #3b82f6;
+  box-shadow: 0 0 16px rgba(59, 130, 246, 0.22);
+  background: rgba(59, 130, 246, 0.1);
 }
 
-/* Icono del avatar (emoji) */
 .avatar-card-emoji {
   font-size: 28px;
   line-height: 1;
@@ -1004,7 +932,6 @@ audio {
   text-align: center;
 }
 
-/* Nombre del personaje */
 .avatar-card-name {
   font-size: 16px;
   font-weight: 600;
@@ -1015,7 +942,6 @@ audio {
   white-space: nowrap;
 }
 
-/* CategorÃ­a del avatar */
 .avatar-card-category {
   font-size: 12px;
   color: #94a3b8;
@@ -1025,7 +951,6 @@ audio {
   background: rgba(148, 163, 184, 0.1);
 }
 
-/* Grid de avatares (ambos usuarios) */
 .avatar-grid {
   display: flex;
   flex-wrap: wrap;
@@ -1034,13 +959,13 @@ audio {
   padding: 16px 0;
 }
 
-/* PestaÃ±as de categorÃ­a */
 .avatar-category-tabs {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 12px;
 }
+
 .avatar-category-tab {
   background: rgba(30, 41, 59, 0.8);
   border: 1px solid #334155;
@@ -1052,21 +977,23 @@ audio {
   cursor: pointer;
   transition: all 0.2s;
 }
+
 .avatar-category-tab:hover {
-  border-color: var(--accent);
-}
-.avatar-category-tab.active {
-  background: rgba(34, 197, 94, 0.15);
-  border-color: var(--accent);
-  color: var(--accent);
+  border-color: var(--accent-secondary);
 }
 
-/* PestaÃ±as de usuario (P1 / P2) */
+.avatar-category-tab.active {
+  background: rgba(59, 130, 246, 0.14);
+  border-color: var(--accent-secondary);
+  color: #93c5fd;
+}
+
 .avatar-user-tabs {
   display: flex;
   gap: 8px;
   margin-bottom: 16px;
 }
+
 .avatar-user-tab {
   background: rgba(30, 41, 59, 0.8);
   border: 1px solid #334155;
@@ -1079,21 +1006,23 @@ audio {
   transition: all 0.2s;
   flex: 1;
 }
+
 .avatar-user-tab:hover {
-  border-color: var(--accent);
-}
-.avatar-user-tab.active {
-  background: rgba(34, 197, 94, 0.15);
-  border-color: var(--accent);
-  color: var(--accent);
-}
-.avatar-user-tab[data-avatar-user="P2"].active {
-  background: rgba(249, 115, 22, 0.15);
-  border-color: #f97316;
-  color: #f97316;
+  border-color: var(--accent-secondary);
 }
 
-/* Panel de usuario */
+.avatar-user-tab.active {
+  background: rgba(59, 130, 246, 0.14);
+  border-color: var(--accent-secondary);
+  color: #93c5fd;
+}
+
+.avatar-user-tab[data-avatar-user="P2"].active {
+  background: rgba(245, 158, 11, 0.14);
+  border-color: #f59e0b;
+  color: #fbbf24;
+}
+
 .avatar-user-panel {
   padding: 16px;
   background: rgba(15, 23, 42, 0.4);
@@ -1102,18 +1031,19 @@ audio {
   margin-bottom: 12px;
 }
 
-/* Selector de emojis */
 .avatar-emoji-picker {
   margin-top: 16px;
   padding-top: 14px;
   border-top: 1px solid var(--border);
 }
+
 .avatar-emoji-picker label {
   font-weight: 600;
   color: var(--text-main);
   display: block;
   margin-bottom: 10px;
 }
+
 .avatar-emoji-row {
   display: flex;
   flex-wrap: wrap;
@@ -1122,6 +1052,7 @@ audio {
   font-weight: 600;
   color: var(--text-main);
 }
+
 .avatar-emoji-row select {
   background: var(--bg-main);
   border: 1px solid #3b82f6;
@@ -1132,20 +1063,22 @@ audio {
   min-width: 64px;
 }
 
-/* Info de selecciÃ³n */
 .avatar-selected-info {
   margin-top: 12px;
   font-size: 13px;
   color: var(--text-muted);
 }
+
 .avatar-selected-info.has-selection {
-  color: var(--accent);
+  color: #93c5fd;
   font-weight: 600;
 }
+
 .avatar-selected-title {
   font-size: 15px;
   font-weight: 700;
 }
+
 .avatar-selected-sub {
   font-size: 12px;
   color: var(--text-muted);
@@ -1178,9 +1111,8 @@ audio {
   color: var(--text-muted);
 }
 
-
 /* ==========================================
-   ESTUDIO â€” Botones de parte (MODO LIGERO)
+   ESTUDIO
 ========================================== */
 
 #lyricsText {
@@ -1188,7 +1120,7 @@ audio {
   background: var(--bg-card);
   border: 1px solid #334155;
   border-radius: 8px;
-  color: #f97316;
+  color: #f59e0b;
   font-size: 16px;
   text-align: left;
   padding: 10px;
@@ -1221,25 +1153,20 @@ audio {
   border-color: rgba(255, 255, 255, 0.5);
 }
 
-/* P1: Azul SÃ³lido */
 #estudio #tapPartP1Btn.active {
   background: #2563eb !important;
   box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3) !important;
 }
 
-/* P2: Naranja SÃ³lido */
 #estudio #tapPartP2Btn.active {
   background: #ea580c !important;
   box-shadow: 0 4px 12px rgba(234, 88, 12, 0.3) !important;
 }
 
-/* DÃšO: Violeta SÃ³lido */
 #estudio #tapPartDuoBtn.active {
   background: #7c3aed !important;
   box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3) !important;
 }
-
-/* Los no activos se ven mÃ¡s apagados */
 
 #estudio #tapPartP1Btn:not(.active),
 #estudio #tapPartP2Btn:not(.active),
@@ -1247,7 +1174,6 @@ audio {
   filter: saturate(0.85);
 }
 
-/* Accesibilidad focus teclado */
 #estudio #tapPartP1Btn:focus-visible,
 #estudio #tapPartP2Btn:focus-visible,
 #estudio #tapPartDuoBtn:focus-visible {
@@ -1255,7 +1181,6 @@ audio {
   outline-offset: 3px;
 }
 
-/* BARRA DE NIVEL (reutilizada en Config y Karaoke) */
 .mic-level-bar {
   height: 12px;
   background-color: #334155;
@@ -1273,11 +1198,9 @@ audio {
 }
 
 /* ==========================================
-   TEMAS DE APP (data-theme)
-   oscuro = base (por defecto), claro, neon
+   TEMAS DE APP
 ========================================== */
 
-/* --- TEMA: CLARO --- */
 [data-theme="claro"] {
   --bg-main: #eef2f7;
   --bg-sidebar: #ffffff;
@@ -1288,65 +1211,81 @@ audio {
   --accent-hover: #1d4ed8;
   --danger: #dc2626;
   --border: #cbd5e1;
+  --accent-secondary: #2563eb;
+  --accent-secondary-hover: #1d4ed8;
+  --accent-secondary-border: rgba(37, 99, 235, 0.22);
+  --accent-secondary-shadow: rgba(37, 99, 235, 0.2);
 }
+
 [data-theme="claro"] body,
 body[data-theme="claro"] {
   background: var(--bg-main);
   color: var(--text-main);
 }
+
 [data-theme="claro"] .sidebar button {
   background: linear-gradient(180deg, #f1f5f9 0%, #e2e8f0 100%);
   border: 1px solid #cbd5e1;
   color: #1e293b;
   box-shadow: 0 4px 0 #94a3b8, 0 6px 12px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.8);
 }
+
 [data-theme="claro"] .sidebar button:hover {
   background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
   color: #ffffff;
 }
+
 [data-theme="claro"] .sidebar button.active {
   background: linear-gradient(180deg, #22c55e 0%, #15803d 100%);
   color: #ffffff;
 }
 
-/* --- TEMA: NEON --- */
 [data-theme="neon"] {
-  --bg-main: #0b0a1a;
-  --bg-sidebar: #171130;
-  --bg-card: #171130;
-  --text-main: #f5f3ff;
-  --text-muted: #a5b4fc;
-  --accent: #ff2d95;
-  --accent-hover: #e11d8a;
+  --bg-main: #0b1220;
+  --bg-sidebar: #111827;
+  --bg-card: #111827;
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+  --accent: #06b6d4;
+  --accent-hover: #0891b2;
   --danger: #ff4d4d;
-  --border: #7c3aed;
+  --border: #334155;
+  --accent-secondary: #38bdf8;
+  --accent-secondary-hover: #0ea5e9;
+  --accent-secondary-border: rgba(56, 189, 248, 0.26);
+  --accent-secondary-shadow: rgba(56, 189, 248, 0.22);
 }
+
 [data-theme="neon"] body,
 body[data-theme="neon"] {
   background: var(--bg-main);
   color: var(--text-main);
 }
+
 [data-theme="neon"] .sidebar button {
-  background: linear-gradient(180deg, #2b1e4e 0%, #1a1240 100%);
-  border: 1px solid #7c3aed;
-  color: #e9d5ff;
-  box-shadow: 0 4px 0 #120b2b, 0 6px 12px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.08);
+  background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+  border: 1px solid #334155;
+  color: #e2e8f0;
+  box-shadow: 0 4px 0 #020617, 0 6px 12px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.08);
 }
+
 [data-theme="neon"] .sidebar button:hover {
-  background: linear-gradient(180deg, #ff2d95 0%, #c026d3 100%);
+  background: linear-gradient(180deg, #06b6d4 0%, #2563eb 100%);
   color: #ffffff;
-  box-shadow: 0 6px 0 #120b2b, 0 10px 18px rgba(255,45,149,0.4), inset 0 1px 0 rgba(255,255,255,0.15);
+  box-shadow: 0 6px 0 #020617, 0 10px 18px rgba(14,165,233,0.35), inset 0 1px 0 rgba(255,255,255,0.15);
 }
+
 [data-theme="neon"] .sidebar button.active {
-  background: linear-gradient(180deg, #ff2d95 0%, #c026d3 100%);
+  background: linear-gradient(180deg, #22c55e 0%, #0891b2 100%);
   color: #ffffff;
 }
+
 [data-theme="neon"] .card {
-  border: 1px solid rgba(124, 58, 237, 0.4);
+  border: 1px solid rgba(56, 189, 248, 0.2);
 }
 
 /* ==========================================
-   SELECTOR DE TEMAS (mini tarjetas de vista previa)
+   SELECTOR DE TEMAS
 ========================================= */
 .theme-grid {
   display: grid;
@@ -1392,7 +1331,6 @@ body[data-theme="neon"] {
   min-height: 16px;
 }
 
-/* Vista previa genérica (tema de app): mini mockup sidebar + contenido */
 .theme-preview {
   height: 90px;
   border-radius: 8px;
@@ -1436,7 +1374,6 @@ body[data-theme="neon"] {
   border-radius: 5px;
 }
 
-/* Paletas de la vista previa por tema de app */
 .theme-preview.oscuro .pv-sidebar,
 .theme-preview.oscuro .pv-content { background: #0f172a; }
 .theme-preview.oscuro .pv-sidebar .pv-bar { background: #1e293b; }
@@ -1450,12 +1387,11 @@ body[data-theme="neon"] {
 .theme-preview.claro .pv-block { background: #2563eb; }
 
 .theme-preview.neon .pv-sidebar,
-.theme-preview.neon .pv-content { background: #171130; }
-.theme-preview.neon .pv-sidebar .pv-bar { background: #2b1e4e; }
-.theme-preview.neon .pv-content .pv-line { background: #7c3aed; }
-.theme-preview.neon .pv-block { background: #ff2d95; }
+.theme-preview.neon .pv-content { background: #111827; }
+.theme-preview.neon .pv-sidebar .pv-bar { background: #1e293b; }
+.theme-preview.neon .pv-content .pv-line { background: #334155; }
+.theme-preview.neon .pv-block { background: #06b6d4; }
 
-/* Vista previa de escenario karaoke: mini monitor con colores del escenario */
 .theme-preview.stage {
   height: 90px;
   display: flex;
@@ -1482,6 +1418,7 @@ body[data-theme="neon"] {
   height: 3px;
   border-radius: 2px;
 }
+
 .file-input-row {
   display: flex;
   align-items: center;
@@ -1490,6 +1427,6 @@ body[data-theme="neon"] {
 }
 
 .file-chosen-text {
-  color: var(--text-color-soft, #94a3b8);
+  color: #94a3b8;
   font-size: 0.95rem;
 }
