@@ -257,49 +257,38 @@
 
           <div class="card upload-card">
             <h3>📤 Subir archivos desde PC</h3>
-
-            <div id="uploadDropZone" class="upload-dropzone" onclick="document.getElementById('libraryFileInput').click()">
+          
+            <div class="settings-group">
+              <label>Seleccionar archivo</label>
+              <div class="file-input-row">
+                <button type="button" id="selectLibraryFileBtn" class="btn-neon">📂 Seleccionar archivo</button>
+                <span id="libraryFileChosenText" class="file-chosen-text">Ningún archivo seleccionado</span>
+              </div>
               <input type="file" id="libraryFileInput" accept=".txt" multiple hidden>
-              <div class="upload-dropzone-content">
-                <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                  <polyline points="17 8 12 3 7 8"></polyline>
-                  <line x1="12" y1="3" x2="12" v2="15"></line>
-                </svg>
-                <p class="upload-text-main">Haz clic para seleccionar un archivo regular</p>
-                <p class="upload-text-hint">Solo archivos de texto</p>
-              </div>
-              <div id="uploadProgressContainer" class="upload-progress-container" style="display: none;">
-                <div class="upload-progress-bar" id="uploadProgressBar"></div>
-                <div class="upload-progress-text" id="uploadProgressText">Preparando subida...</div>
-                <div class="upload-files-list" id="uploadFilesList"></div>
-              </div>
             </div>
-
+          
+            <div id="uploadProgressContainer" class="upload-progress-container" style="display: none;">
+              <div class="upload-progress-bar" id="uploadProgressBar"></div>
+              <div class="upload-progress-text" id="uploadProgressText">Preparando subida...</div>
+              <div class="upload-files-list" id="uploadFilesList"></div>
+            </div>
+          
             <div class="settings-group" id="uploadOptions" style="display: none;">
               <label for="libraryFileType">Tipo de archivo</label>
               <select id="libraryFileType">
                 <option value="pista">🎵 Pista</option>
                 <option value="voz">🎙️ Voz</option>
-               <!-- <option value="karaoke">🎤 Karaoke</option> Los produce la App -->
-               <!-- <option value="grabacion">💾 Grabación / Mezcla</option> La app los carga -->
-               <option value="texto">📝 Letras</option>
+                <option value="texto">📝 Letras</option>
               </select>
             </div>
-            <!--
-            <div class="settings-group">
-              <label for="libraryFileName">Nombre personalizado (opcional)</label>
-              <input type="text" id="libraryFileName" placeholder="Ej. Un vestido y un amor - Pista">
-            </div>
-            -->
+          
             <div class="studio-controls">
               <button id="saveLibraryFileBtn" type="button" class="btn-neon">💾 Guardar en la nube</button>
               <button type="button" id="clearUploadBtn" class="btn-neon btn-secondary" style="display: none;">✖ Limpiar selección</button>
             </div>
-
+          
             <p id="uploadStatus" class="upload-status" style="display: none;"></p>
           </div>
-
           <div class="biblioteca-filters">
             <div class="biblioteca-search">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
