@@ -49,12 +49,12 @@ const EMOJI_OPTIONS = [
 // ====================================================================
 
 const AVATAR_CATEGORIES = {
-  videojuegos: {
-    name: "🎮 Videojuegos",
-    icon: "🎮",
+  superheroes: {
+    name: "Superhéroes",
+    icon: "🦸",
     color: "#FF6B6B",
         characters: [
-      { id: "mario", name: "Mario", img: "https://via.placeholder.com/80x80/FF0000/FFFFFF?text=MARIO", emoji: "🍄", category: "videojuegos" },
+      { id: "icons8-batman-100", name: "Mario", img: "./assets/avatares/icons8-batman-100.png", emoji: "🍄", category: "superheroes" },
       { id: "sonic", name: "Sonic", img: "https://via.placeholder.com/80x80/00AA00/FFFFFF?text=SONIC", emoji: "🦔", category: "videojuegos" },
       { id: "link", name: "Link", img: "https://via.placeholder.com/80x80/00FFFF/FFFFFF?text=LINK", emoji: "⚔️", category: "videojuegos" },
       { id: "samus", name: "Samus", img: "https://via.placeholder.com/80x80/FFA500/FFFFFF?text=SAMUS", emoji: "🛡️", category: "videojuegos" },
