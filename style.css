@@ -1482,4 +1482,14 @@ body[data-theme="neon"] {
   height: 3px;
   border-radius: 2px;
 }
+.file-input-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
 
+.file-chosen-text {
+  color: var(--text-color-soft, #94a3b8);
+  font-size: 0.95rem;
+}
