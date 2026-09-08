@@ -541,6 +541,17 @@ window.getAvatarForUser = function (user) {
   };
 };
 
+export function guardarUsuario() {
+  const nombre = $("nombreUsuario").value;
+  const avatar = selectedAvatar; // Asumiendo que ya se seleccionó uno
+  const usuario = new Persona(nombre, avatar);
+  
+  localStorage.setItem("user_profile", JSON.stringify({
+    nombre: usuario.getNombre(),
+    avatar: usuario.getAvatar()
+  }));
+}
+
 // ====================================================================
 // MICRÓFONOS
 // ====================================================================
