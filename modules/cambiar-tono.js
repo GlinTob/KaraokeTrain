@@ -1,6 +1,7 @@
 import { $ } from "./utils.js";
 import { getLibraryItemsByTypeFromSupabase, getLibraryItemsByIdFromSupabase, renderLibrary } from "./biblioteca.js";
 import { loadKaraokeSong } from "./karaoke.js";
+import { loadPitchShifterProcessor } from "./worklets.js";
 
 /**
  * MÓDULO CAMBIAR TONO — Modulador de frecuencia por semitonos en archivos de audio decodificados
@@ -222,13 +223,13 @@ export async function loadSelectedPitchKaraoke() {
     if (sendBtn) sendBtn.disabled = true;
 
         // FIX: await para evitar race condition si el usuario da a Play inmediatamente
-    try {
-      await ensurePitchWorklet(pitchAudioContext);
-    } catch (err) {
-      console.warn("No se pudo precargar el pitch worklet:", err);
-    }
+                    try {
+                      await loadPitchShifterProcessor(pitchAudioContext);
+                    } catch (err) {
+                      console.warn("No se pudo precargar el pitch worklet:", err);
+                    }
 
-    if (status) {
+            if (status) {
       status.textContent = `Estado: "${item.name}" cargado (${pitchAudioBuffer.duration.toFixed(1)} s, ${pitchAudioBuffer.numberOfChannels} canal${pitchAudioBuffer.numberOfChannels === 1 ? "" : "es"}). Listo para reproducir.`;
     }
 
@@ -258,15 +259,15 @@ export async function playPitchShifted() {
 
   stopPitchShifted();
 
-  try {
-    await ensurePitchWorklet(pitchAudioContext);
-  } catch (e) {
-    console.error("Worklet no cargó:", e);
-    alert("❌ No se pudo cargar el procesador de audio: " + e.message);
-    return;
-  }
+    try {
+      await loadPitchShifterProcessor(pitchAudioContext);
+    } catch (e) {
+      console.error("Worklet no cargó:", e);
+      alert("❌ No se pudo cargar el procesador de audio: " + e.message);
+      return;
+    }
 
-  try {
+    try {
     pitchSourceNode = pitchAudioContext.createBufferSource();
     pitchSourceNode.buffer = pitchAudioBuffer;
 
@@ -391,11 +392,6 @@ export async function savePitchShiftedToLibrary() {
   }
 
   const semitones = getNetSemitones();
-  if (semitones === 0) {
-    if (!confirm("El cambio actual es 0 semitonos (sin modificación). ¿Guardar de todas formas?")) {
-      return;
-    }
-  }
 
   const status = $("pitchSaveStatus");
   const btn = $("pitchSaveBtn");
@@ -410,7 +406,14 @@ export async function savePitchShiftedToLibrary() {
 
     stopPitchShifted();
 
-    const renderedBuffer = await renderPitchShiftOffline(pitchAudioBuffer, semitones);
+    // FIX: Bypass si no hay cambio de tono (|semitones| < 0.5)
+    // Evita procesamiento innecesario y preserva la calidad original.
+    let renderedBuffer;
+    if (Math.abs(semitones) < 0.5) {
+      renderedBuffer = pitchAudioBuffer;
+    } else {
+      renderedBuffer = await renderPitchShiftOffline(pitchAudioBuffer, semitones);
+    }
     const wavBlob = audioBufferToWavBlob(renderedBuffer);
 
     const nameInput = $("pitchSaveName");
@@ -483,17 +486,18 @@ export async function renderPitchShiftOffline(audioBuffer, semitones) {
   }
 
   const ratio = Math.pow(2, semitones / 12);
-  // FIX: El pitch shifting cambia la duración.
-  // pitch up (ratio > 1) -> audio más corto; pitch down (ratio < 1) -> audio más largo.
-  const outputLength = Math.ceil(audioBuffer.length / ratio);
+    // FIX: Duración invariante 1:1 para sincronía con karaoke.
+    // El pitch shifting NO debe cambiar la duración de la pista.
+    const outputLength = audioBuffer.length;
 
   const offlineCtx = new OfflineAudioContext(
-    audioBuffer.numberOfChannels,
-    outputLength,
-    audioBuffer.sampleRate
-  );
+      audioBuffer.numberOfChannels,
+      outputLength,
+      audioBuffer.sampleRate
+    );
 
-  await ensurePitchWorklet(offlineCtx);
+    // FIX: usar loadPitchShifterProcessor de worklets.js (idempotente)
+    await loadPitchShifterProcessor(offlineCtx);
 
   const source = offlineCtx.createBufferSource();
   source.buffer = audioBuffer;
