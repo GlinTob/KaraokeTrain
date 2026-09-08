@@ -547,6 +547,7 @@ function loadAvatarFromStorage(user) {
     return null;
   }
 }
+
 /*
 function loadAvatarFromStorage(user) {
   try {
