@@ -51,7 +51,7 @@ const EMOJI_OPTIONS = [
 const AVATAR_CATEGORIES = {
   superheroes: {
     name: "Superhéroes",
-    icon: "🦸",
+    icon: "⚡",
     color: "#FF6B6B",
     characters: [
       { id: "batman", name: "Batman: El caballero de la noche", img: "../assets/avatares/batman.png" },
@@ -62,21 +62,39 @@ const AVATAR_CATEGORIES = {
       { id: "flash", name: "Flash: El tiempo es ilusión", img: "../assets/avatares/flash.png" },
       { id: "gambit", name: "Gambit: El encantador ladrón", img: "../assets/avatares/gambit.png" },
       { id: "hulk", name: "Hulk: Un peligroso alter ego", img: "../assets/avatares/hulk.png" },
+      { id: "iron-man", name: "Iron Man: Corazon de acero", img: "../assets/avatares/iron-man.png" },
+      { id: "jean-grey", name: "Jean Grey: Un mundo oscuro", img: "../assets/avatares/jean-grey.png" },
+      { id: "spider-man", name: "Spider Man: Su agradable vecino", img: "../assets/avatares/spider-man.png" },
+      { id: "storm", name: "Storm: La fuerza de la naturaleza", img: "../assets/avatares/storm.png" },
+      { id: "superman", name: "Superman: Un alien legal en la tierra", img: "../assets/avatares/superman.png" },
+      { id: "thor", name: "Thor: El martillo vencedor", img: "../assets/avatares/thor.png" },
+      { id: "venom", name: "Venom: Hoy habrá carnicería", img: "../assets/avatares/venom.png" },
+      { id: "wonder-woman", name: "Wonder Woman: Un cielo dividido", img: "../assets/avatares/wonder-woman.png" },
     ]
   },
   personajes: {
     name: "Personajes",
-    icon: "🏛️",
+    icon: "👽",
     color: "#AB8CFF",
     characters: [
-      { id: "cleopatra", name: "Cleopatra", img: "https://via.placeholder.com/80x80/FFD700/000000?text=CLEO", emoji: "👑", category: "historicos" },
-      { id: "einstein", name: "Einstein", img: "https://via.placeholder.com/80x80/FFFFFF/000000?text=EIN", emoji: "🧠", category: "historicos" },
-      { id: "napoleon", name: "Napoleón", img: "https://via.placeholder.com/80x80/000080/FFFFFF?text=NAP", emoji: "🎩", category: "historicos" },
-      { id: "mozart", name: "Mozart", img: "https://via.placeholder.com/80x80/8B0000/FFFFFF?text=MOZ", emoji: "🎼", category: "historicos" },
-      { id: "daVinci", name: "Da Vinci", img: "https://via.placeholder.com/80x80/8B4513/FFFFFF?text=LEO", emoji: "🎨", category: "historicos" },
-      { id: "shakespeare", name: "Shakespeare", img: "https://via.placeholder.com/80x80/800000/FFFFFF?text=SHAKE", emoji: "📜", category: "historicos" },
-      { id: "curie", name: "Marie Curie", img: "https://via.placeholder.com/80x80/FFFFFF/800080?text=CURIE", emoji: "⚛️", category: "historicos" },
-      { id: "galileo", name: "Galileo", img: "https://via.placeholder.com/80x80/000080/FFD700?text=GAL", emoji: "🔭", category: "historicos" }
+      { id: "anonymous", name: "Anonymous: Ya tengo tu información", img: "../assets/avatares/anonymous.png" },
+      { id: "baby-yoda", name: "Baby Yoda: No quiero crecer", img: "../assets/avatares/baby-yoda.png" },
+      { id: "bart-simpson", name: "Bart: La escuela es adiestramiento", img: "../assets/avatares/bart.png" },
+      { id: "brave", name: "Brave: Me veo mejor rubia", img: "../assets/avatares/brave.png" },
+      { id: "brutus", name: "Brutus: Yo no soy el enemigo", img: "../assets/avatares/brutus.png" },
+      { id: "chucky", name: "Chucky: Recuerda nuestros momentos", img: "../assets/avatares/chucky.png" },
+      { id: "cookie-monster", name: "C Monster: Ya me comí la tuya", img: "../assets/avatares/cookie-monster.png" },
+      { id: "darth-vader", name: "Darth Vader: Yo soy tu padre", img: "../assets/avatares/darth-vader.png" },
+      { id: "donald", name: "Donald: Me van a hacer sopa", img: "../assets/avatares/donald.png" },
+      { id: "finn", name: "Finn: Estoy re malviajado", img: "../assets/avatares/finn.png" },
+      { id: "freddy", name: "Freddy: Siestica o miedo", img: "../assets/avatares/freddy.png" },
+      { id: "genie", name: "Genie: Aladín es severa flor", img: "../assets/avatares/genie.png" },
+      { id: "groot", name: "Groot: Ya me creció la rama", img: "../assets/avatares/groot.png" },
+      { id: "harry", name: "H.P: Me llaman la Ermión", img: "../assets/avatares/harry.png" },
+      { id: "hello-kitty", name: "H. Kitty: Odio el rosa", img: "../assets/avatares/hello-kitty.png" },
+      { id: "homer", name: "Homero: Debí parecer un idiota", img: "../assets/avatares/homer.png" },
+      { id: "jake", name: "Jake: Necesito rehabilitación", img: "../assets/avatares/jake.png" },
+      { id: "pennywise", name: "Pennywise: También flotarás", img: "../assets/avatares/pennywise.png" },
     ]
   }
 };
