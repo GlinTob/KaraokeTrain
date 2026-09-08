@@ -13,10 +13,16 @@
    --accent: #22c55e;
    --accent-hover: #0d7835;
 
-   --danger: #ef4444;
+      --danger: #ef4444;
    --border: #6b7585;
 
-   /* Neon Pink Palette (Afinador/Estudio hero) */
+   /* Accent Secondary (UI general) */
+   --accent-secondary: #3b82f6;
+   --accent-secondary-hover: #2563eb;
+   --accent-secondary-border: rgba(59, 130, 246, 0.4);
+   --accent-secondary-shadow: rgba(59, 130, 246, 0.35);
+
+   /* Neon Pink Palette (solo Afinador) */
    --neon-pink: #ff6ec7;
    --neon-pink-light: #ff85d1;
    --neon-pink-medium: #f472b6;
@@ -328,7 +334,7 @@
 
 body {
   margin: 0;
-  font-family: Orbitron, sans-serif;
+  font-family: Arial, sans-serif;
   background: var(--bg-main);
   color: var(--text-main);
 }
@@ -347,7 +353,7 @@ body {
 }
 
 .sidebar {
-  width: 300px;
+  width: 220px;
   background: var(--bg-sidebar);
   padding: 20px;
   display: flex;
@@ -356,7 +362,7 @@ body {
 }
 
 .sidebar h2 {
-  margin-bottom: 60px;
+  margin-bottom: 10px;
 }
 
 /* ==========================================
@@ -364,15 +370,15 @@ body {
 ========================================== */
 .sidebar button {
   background: linear-gradient(180deg, #334155 0%, #1e293b 100%);
-  border: 2px solid #475569;
+  border: 1px solid #475569;
   color: #e2e8f0;
   padding: 14px 16px;
   text-align: left;
   cursor: pointer;
   border-radius: 12px;
   font-weight: 600;
-  letter-spacing: 1.5px;
-  margin-bottom: 40px;
+  letter-spacing: 0.3px;
+  margin-bottom: 8px;
   position: relative;
   box-shadow:
     0 4px 0 #0f172a,
@@ -547,48 +553,48 @@ audio {
 }
 
 .biblioteca-stats .stat {
-  background: rgba(255, 110, 199, 0.1);
+  background: rgba(59, 130, 246, 0.1);
   padding: 6px 12px;
   border-radius: 8px;
-  border: 1px solid var(--neon-pink-border);
+  border: 1px solid var(--accent-secondary-border);
 }
 
 .upload-card {
   background: linear-gradient(180deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.98) 100%) !important;
   backdrop-filter: blur(12px) !important;
-  border: 1px solid var(--neon-pink-border) !important;
+  border: 1px solid var(--accent-secondary-border) !important;
   border-radius: 16px !important;
   padding: 24px !important;
   margin-bottom: 20px !important;
-  box-shadow:
-    0 0 0 1px rgba(255, 110, 199, 0.1) inset,
+    box-shadow:
+    0 0 0 1px rgba(59, 130, 246, 0.1) inset,
     0 8px 32px rgba(0, 0, 0, 0.4),
-    0 0 24px rgba(255, 110, 199, 0.08);
+    0 0 24px rgba(59, 130, 246, 0.08);
   transition: box-shadow 0.3s ease, border-color 0.3s ease, transform 0.2s ease !important;
 }
 
 .upload-card:hover {
-  box-shadow:
-    0 0 0 1px var(--neon-pink) inset,
+    box-shadow:
+    0 0 0 1px var(--accent-secondary) inset,
     0 12px 40px rgba(0, 0, 0, 0.5),
-    0 0 40px rgba(255, 110, 199, 0.15) !important;
+    0 0 40px rgba(59, 130, 246, 0.15) !important;
   transform: translateY(-2px) !important;
 }
 
 .upload-card h3 {
-  color: var(--neon-pink-text) !important;
+  color: var(--accent-secondary-hover) !important;
   font-family: 'Space Grotesk', 'Orbitron', 'Rajdhani', 'Exo 2', sans-serif !important;
   font-weight: 700 !important;
   letter-spacing: 0.03em !important;
-  text-shadow: 0 0 16px rgba(255, 110, 199, 0.4) !important;
+  text-shadow: 0 0 16px rgba(59, 130, 246, 0.4) !important;
   margin-bottom: 20px !important;
   padding-bottom: 12px !important;
-  border-bottom: 1px solid var(--neon-pink-border) !important;
+  border-bottom: 1px solid var(--accent-secondary-border) !important;
 }
 
 .upload-dropzone {
   position: relative;
-  border: 2px dashed var(--neon-pink-border);
+  border: 2px dashed var(--accent-secondary-border);
   border-radius: 12px;
   padding: 40px 24px;
   text-align: center;
@@ -601,7 +607,7 @@ audio {
 
 .upload-dropzone:hover,
 .upload-dropzone.drag-active {
-  border-color: var(--neon-pink) !important;
+  border-color: var(--accent-secondary) !important;
   border-style: solid !important;
   box-shadow:
     0 0 0 1px var(--neon-pink) inset,
@@ -970,7 +976,7 @@ audio {
   border: 1px solid rgba(255, 110, 199, 0.3);
   border-radius: 12px;
   padding: 12px 16px;
-  min-width: 136px;
+  min-width: 280px;
   cursor: pointer; /* âœ… Esto hace que el cursor cambie a mano */
   transition: all 0.2s ease;
   box-shadow: 0 0 6px rgba(255, 110, 199, 0.1);
@@ -990,11 +996,18 @@ audio {
   background: rgba(255, 110, 199, 0.1);
 }
 
+/* Icono del avatar (emoji) */
+.avatar-card-emoji {
+  font-size: 28px;
+  line-height: 1;
+  width: 40px;
+  text-align: center;
+}
+
 /* Nombre del personaje */
 .avatar-card-name {
   font-size: 16px;
   font-weight: 600;
-  align-items: center;
   color: #ffffff;
   flex: 1;
   overflow: hidden;
@@ -1136,28 +1149,6 @@ audio {
 .avatar-selected-sub {
   font-size: 12px;
   color: var(--text-muted);
-}
-
-/* Centering the grid container */
-#avatarGridP1 {
-  justify-content: center !important;
-}
-
-/* Centering card content */
-#avatarGridP1 .avatar-card {
-  flex-direction: column !important;
-  justify-content: center !important;
-  align-items: center !important;
-}
-
-/* Internal element alignment */
-#avatarGridP1 .avatar-card div {
-  text-align: center !important;
-}
-
-#avatarGridP1 .avatar-card img {
-  display: block !important;
-  margin: 0 auto !important;
 }
 
 .mic-tester-card {
@@ -1491,3 +1482,4 @@ body[data-theme="neon"] {
   height: 3px;
   border-radius: 2px;
 }
+
