@@ -970,7 +970,7 @@ audio {
   border: 1px solid rgba(255, 110, 199, 0.3);
   border-radius: 12px;
   padding: 12px 16px;
-  min-width: 200px;
+  min-width: 150px;
   cursor: pointer; /* âœ… Esto hace que el cursor cambie a mano */
   transition: all 0.2s ease;
   box-shadow: 0 0 6px rgba(255, 110, 199, 0.1);
