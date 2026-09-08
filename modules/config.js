@@ -1,22 +1,5 @@
 import { $ } from "./utils.js";
 
-class Persona {
-  constructor(nombre, avatar) {
-    this.nombre = nombre;
-    this.avatar = avatar;
-  }
-
-  getNombre() {
-    if (!this.nombre) {
-      throw new Error("Persona.getNombre(): nombre no puede ser nulo");
-    }
-    return this.nombre;
-  }
-
-  getAvatar() {
-    return this.avatar;
-  }
-}
 /**
  * MÓDULO CONFIGURACIÓN COMPLETO
  * Gestor de Preferencias Locales, Diagnóstico de Micrófonos y Selector de Avatares Pop
