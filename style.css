@@ -990,18 +990,11 @@ audio {
   background: rgba(255, 110, 199, 0.1);
 }
 
-/* Icono del avatar (emoji) */
-.avatar-card-emoji {
-  font-size: 28px;
-  line-height: 1;
-  width: 40px;
-  text-align: center;
-}
-
 /* Nombre del personaje */
 .avatar-card-name {
   font-size: 16px;
   font-weight: 600;
+  align-items: center;
   color: #ffffff;
   flex: 1;
   overflow: hidden;
