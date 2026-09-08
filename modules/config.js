@@ -54,7 +54,7 @@ const AVATAR_CATEGORIES = {
     icon: "🦸",
     color: "#FF6B6B",
         characters: [
-      { id: "batman", name: "Batman", img: "./assets/avatares/batman.png", emoji: "🍄", category: "superheroes" },
+      { id: "batman", name: "Batman", img: "../assets/avatares/batman.png", emoji: "🍄", category: "superheroes" },
       { id: "sonic", name: "Sonic", img: "https://via.placeholder.com/80x80/00AA00/FFFFFF?text=SONIC", emoji: "🦔", category: "videojuegos" },
       { id: "link", name: "Link", img: "https://via.placeholder.com/80x80/00FFFF/FFFFFF?text=LINK", emoji: "⚔️", category: "videojuegos" },
       { id: "samus", name: "Samus", img: "https://via.placeholder.com/80x80/FFA500/FFFFFF?text=SAMUS", emoji: "🛡️", category: "videojuegos" },
