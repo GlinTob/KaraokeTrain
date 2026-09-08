@@ -336,7 +336,7 @@ export function initializeAvatarSelector() {
     Object.entries(AVATAR_CATEGORIES).forEach(([key, category]) => {
       const btn = document.createElement("button");
       btn.type = "button";
-      btn.className = "avatar-category-tab" + (key === "videojuegos" ? " active" : "");
+      btn.className = "avatar-category-tab" + (key === "superheroes" ? " active" : "");
       btn.dataset.category = key;
       btn.innerHTML = `${category.icon} ${category.name}`;
       btn.onclick = () => switchAvatarCategory(user, key);
@@ -344,7 +344,7 @@ export function initializeAvatarSelector() {
     });
 
     populateEmojiSelects(user);
-    renderAvatarGrid(user, "videojuegos");
+    renderAvatarGrid(user, "superheroes");
     loadSavedAvatar(user);
     renderAvatarSelectedInfo(user);
   });
@@ -399,7 +399,7 @@ export function renderAvatarGrid(user, categoryKey) {
   const gridContainer = $("avatarGrid" + user);
   if (!gridContainer) return;
 
-  const category = AVATAR_CATEGORIES[categoryKey] || AVATAR_CATEGORIES.videojuegos;
+  const category = AVATAR_CATEGORIES[categoryKey] || AVATAR_CATEGORIES.superheroes;
   gridContainer.innerHTML = "";
 
   const saved = loadAvatarFromStorage(user);
