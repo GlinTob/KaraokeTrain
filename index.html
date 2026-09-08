@@ -440,6 +440,14 @@
               <h2>🎙️ Configuración de Micrófonos</h2>
             
               <!-- MICRÓFONO 1 -->
+             <!-- SELECTOR DE MODO -->
+              <div class="settings-group">
+                <label>Modo dúo:</label>
+                <select id="micCount">
+                  <option value="1">1 Cantante</option>
+                  <option value="2">2 Cantantes (Dúo)</option>
+                </select>
+              </div> 
             <div class="settings-group" style="margin-top: 15px;">
               <button type="button" id="refreshMicsBtn" class="btn-neon btn-secondary">🔄 Actualizar lista de micrófonos</button>
             </div>
@@ -450,14 +458,7 @@
                     <option value="">Detectando dispositivos...</option>
                   </select>
                 </div>
-                <!-- SELECTOR DE MODO -->
-              <div class="settings-group">
-                <label>Modo dúo:</label>
-                <select id="micCount">
-                  <option value="1">1 Cantante</option>
-                  <option value="2">2 Cantantes (Dúo)</option>
-                </select>
-              </div>                
+                              
                 <div class="mic-level-bar">
                   <!-- Esta es la barra que se moverá -->
                   <div id="mic1LevelFill" class="mic-level-fill"></div>
