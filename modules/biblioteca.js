@@ -7,16 +7,39 @@ import { $ } from "./utils.js";
 let db = null; 
 
 export function initBiblioteca() {
-  console.log("📚 [biblioteca.js] Inicializado con éxito"); 
+  console.log("📚 [biblioteca.js] Inicializado con éxito");
 
-  // No se carga la biblioteca automáticamente al iniciar.
-  // Los datos se solicitan solo cuando el usuario hace clic en una carpeta.
-  // Esto evita la lentitud en el primer ingreso.
-  
-  // Escuchar el cambio cuando el usuario hace clic y elige archivos mediante el explorador
   const fileInput = $("libraryFileInput");
-  if (fileInput) {
+  const selectBtn = $("selectLibraryFileBtn");
+  const clearBtn = $("clearUploadBtn");
+  const typeSelect = $("libraryFileType");
+
+  if (selectBtn && fileInput && !selectBtn.dataset.bound) {
+    selectBtn.addEventListener("click", () => fileInput.click());
+    selectBtn.dataset.bound = "true";
+  }
+
+  if (fileInput && !fileInput.dataset.bound) {
     fileInput.addEventListener("change", handleFileSelection);
+    fileInput.dataset.bound = "true";
+  }
+
+  if (typeSelect && !typeSelect.dataset.bound) {
+    typeSelect.addEventListener("change", () => {
+      if (!fileInput) return;
+
+      if (typeSelect.value === "texto") {
+        fileInput.setAttribute("accept", ".txt,text/plain");
+      } else {
+        fileInput.setAttribute("accept", "audio/*,.mp3,.wav,.ogg,.webm,.m4a,.mp4");
+      }
+    });
+    typeSelect.dataset.bound = "true";
+  }
+
+  if (clearBtn && !clearBtn.dataset.bound) {
+    clearBtn.addEventListener("click", clearUploadSelection);
+    clearBtn.dataset.bound = "true";
   }
 }
 
@@ -531,6 +554,13 @@ function handleFileSelection(e) {
   const uploadProgressContainer = $("uploadProgressContainer");
   const uploadFilesList = $("uploadFilesList");
   const clearBtn = $("clearUploadBtn");
+  const chosenText = $("libraryFileChosenText");
+
+  if (chosenText) {
+    chosenText.textContent = files.length === 1
+      ? files[0].name
+      : `${files.length} archivos seleccionados`;
+  }
 
   if (uploadOptions) {
     uploadOptions.style.display = "block";
@@ -542,7 +572,7 @@ function handleFileSelection(e) {
 
   if (uploadProgressContainer) uploadProgressContainer.style.display = "block";
   if (clearBtn) clearBtn.style.display = "inline-block";
-  
+
   if (uploadFilesList) {
     uploadFilesList.innerHTML = "";
 
@@ -558,12 +588,13 @@ function handleFileSelection(e) {
       uploadFilesList.appendChild(div);
     }
   }
-  
+
   const bar = document.getElementById("uploadProgressBar");
   const text = document.getElementById("uploadProgressText");
   if (bar) bar.style.width = "0%";
   if (text) text.textContent = `0/${files.length} archivos seleccionados`;
 }
+
 // ============================================
 // 📊 COMPONENTES DE SEGUIMIENTO DE PROGRESO
 // ============================================ 
@@ -665,6 +696,7 @@ export function clearUploadSelection() {
   const statusEl = document.getElementById("uploadStatus");
   const uploadOptions = document.getElementById("uploadOptions");
   const typeSelect = document.getElementById("libraryFileType");
+  const chosenText = document.getElementById("libraryFileChosenText");
 
   if (fileInput) fileInput.value = "";
   if (nameInput) nameInput.value = "";
@@ -676,6 +708,7 @@ export function clearUploadSelection() {
   if (uploadProgressText) uploadProgressText.textContent = "";
   if (uploadOptions) uploadOptions.style.display = "none";
   if (typeSelect) typeSelect.value = "pista";
+  if (chosenText) chosenText.textContent = "Ningún archivo seleccionado";
 
   if (statusEl) {
     statusEl.style.display = "none";
@@ -685,4 +718,3 @@ export function clearUploadSelection() {
 
   console.log("🧼 Interfaz de carga reiniciada de forma segura.");
 }
-
