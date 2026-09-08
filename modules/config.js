@@ -53,15 +53,15 @@ const AVATAR_CATEGORIES = {
     name: "Superhéroes",
     icon: "🦸",
     color: "#FF6B6B",
-        characters: [
-      { id: "batman", name: "Batman", img: "../assets/avatares/batman.png" },
-      { id: "black-panther", name: "Black Panther", img: "../assets/avatares/black-panther.png" },
-      { id: "link", name: "Link", img: "https://via.placeholder.com/80x80/00FFFF/FFFFFF?text=LINK", emoji: "⚔️", category: "videojuegos" },
-      { id: "samus", name: "Samus", img: "https://via.placeholder.com/80x80/FFA500/FFFFFF?text=SAMUS", emoji: "🛡️", category: "videojuegos" },
-      { id: "kirby", name: "Kirby", img: "https://via.placeholder.com/80x80/FF69B4/FFFFFF?text=KIRBY", emoji: "🎈", category: "videojuegos" },
-      { id: "megaman", name: "Mega Man", img: "https://via.placeholder.com/80x80/00BFFF/FFFFFF?text=MEGAMAN", emoji: "🤖", category: "videojuegos" },
-      { id: "pikachu", name: "Pikachu", img: "https://via.placeholder.com/80x80/FFFF00/000000?text=PIKA", emoji: "⚡", category: "videojuegos" },
-      { id: "donkeykong", name: "Donkey Kong", img: "https://via.placeholder.com/80x80/8B4513/FFFFFF?text=DK", emoji: "🦍", category: "videojuegos" }
+    characters: [
+      { id: "batman", name: "Batman: El caballero de la noche", img: "../assets/avatares/batman.png" },
+      { id: "black-panther", name: "Black Panther: Wakanda por siempre", img: "../assets/avatares/black-panther.png" },
+      { id: "captain-america", name: "Captain America: El primer vengador", img: "../assets/avatares/captain-america.png" },
+      { id: "cyclops", name: "Cyclops: La batalla final", img: "../assets/avatares/cyclops.png" },
+      { id: "deadpool", name: "Deadpool: Oscuro y perverso", img: "../assets/avatares/deadpool.png" },
+      { id: "flash", name: "Flash: El tiempo es ilusión", img: "../assets/avatares/flash.png" },
+      { id: "gambit", name: "Gambit: El encantador ladrón", img: "../assets/avatares/gambit.png" },
+      { id: "hulk", name: "Hulk: Un peligroso alter ego", img: "../assets/avatares/hulk.png" },
     ]
   },
   personajes: {
