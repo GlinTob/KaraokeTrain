@@ -1138,6 +1138,28 @@ audio {
   color: var(--text-muted);
 }
 
+/* Centering the grid container */
+#avatarGridP1 {
+  justify-content: center !important;
+}
+
+/* Centering card content */
+#avatarGridP1 .avatar-card {
+  flex-direction: column !important;
+  justify-content: center !important;
+  align-items: center !important;
+}
+
+/* Internal element alignment */
+#avatarGridP1 .avatar-card div {
+  text-align: center !important;
+}
+
+#avatarGridP1 .avatar-card img {
+  display: block !important;
+  margin: 0 auto !important;
+}
+
 .mic-tester-card {
   background: var(--bg-sidebar);
   padding: 15px;
