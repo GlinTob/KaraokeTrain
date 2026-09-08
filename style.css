@@ -328,7 +328,7 @@
 
 body {
   margin: 0;
-  font-family: Arial, sans-serif;
+  font-family: Orbitron, sans-serif;
   background: var(--bg-main);
   color: var(--text-main);
 }
@@ -347,7 +347,7 @@ body {
 }
 
 .sidebar {
-  width: 220px;
+  width: 300px;
   background: var(--bg-sidebar);
   padding: 20px;
   display: flex;
@@ -356,7 +356,7 @@ body {
 }
 
 .sidebar h2 {
-  margin-bottom: 10px;
+  margin-bottom: 60px;
 }
 
 /* ==========================================
@@ -364,15 +364,15 @@ body {
 ========================================== */
 .sidebar button {
   background: linear-gradient(180deg, #334155 0%, #1e293b 100%);
-  border: 1px solid #475569;
+  border: 2px solid #475569;
   color: #e2e8f0;
   padding: 14px 16px;
   text-align: left;
   cursor: pointer;
   border-radius: 12px;
   font-weight: 600;
-  letter-spacing: 0.3px;
-  margin-bottom: 8px;
+  letter-spacing: 1.5px;
+  margin-bottom: 40px;
   position: relative;
   box-shadow:
     0 4px 0 #0f172a,
