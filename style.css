@@ -905,7 +905,7 @@ audio {
   border: 1px solid rgba(59, 130, 246, 0.22);
   border-radius: 12px;
   padding: 12px 16px;
-  min-width: 280px;
+  min-width: 136px;
   cursor: pointer;
   transition: all 0.2s ease;
   box-shadow: 0 0 6px rgba(59, 130, 246, 0.08);
