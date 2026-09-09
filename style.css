@@ -3,15 +3,15 @@
 ========================================== */
 
 :root {
-  --bg-main: #0f172a;
-  --bg-sidebar: #1e293b;
-  --bg-card: #1e293b;
+  --bg-main: #361907;
+  --bg-sidebar: #360623;
+  --bg-card: #521002;
 
   --text-main: #ffffff;
   --text-muted: #94a3b8;
 
-  --accent: #22c55e;
-  --accent-hover: #15803d;
+  --accent: #824448;
+  --accent-hover: #1d5c59;
 
   --danger: #ef4444;
   --border: #475569;
