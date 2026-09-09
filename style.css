@@ -349,7 +349,7 @@ body {
 }
 
 .sidebar h2 {
-  margin-bottom: 60px;
+  margin-bottom: 80px;
 }
 
 /* ==========================================
@@ -357,14 +357,14 @@ body {
 ========================================== */
 .sidebar button {
   background: linear-gradient(180deg, #334155 0%, #1e293b 100%);
-  border: 1px solid #36040f;
+  border: 2px solid #36040f;
   color: #f5ce5b;
   padding: 14px 16px;
   text-align: left;
   cursor: pointer;
   border-radius: 12px;
   font-weight: 600;
-  letter-spacing: 1.9px;
+  letter-spacing: 2.5px;
   margin-bottom: 20px;
   position: relative;
   box-shadow:
@@ -434,7 +434,7 @@ body {
   background: var(--bg-card);
   border-radius: 12px;
   padding: 20px;
-  margin-bottom: 20px;
+  margin-bottom: 40px;
   border: 1px solid rgba(71, 85, 105, 0.55);
   box-shadow: 0 10px 30px rgba(2, 6, 23, 0.24);
 }
@@ -527,7 +527,7 @@ audio {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 30px;
   flex-wrap: wrap;
   gap: 16px;
 }
@@ -570,16 +570,16 @@ audio {
 }
 
 .upload-card h3 {
-  color: #93c5fd !important;
+  color: #efc3fa !important;
   font-family: 'Space Grotesk', 'Orbitron', 'Rajdhani', 'Exo 2', sans-serif !important;
   font-weight: 700 !important;
   letter-spacing: 0.03em !important;
   text-shadow: 0 0 12px rgba(59, 130, 246, 0.22) !important;
   margin-bottom: 20px !important;
   padding-bottom: 12px !important;
-  border-bottom: 1px solid var(--accent-secondary-border) !important;
+  border-bottom: 2px solid var(--accent-secondary-border) !important;
 }
-
+/*
 .upload-progress-container {
   margin-top: 20px;
   padding: 16px;
@@ -605,7 +605,7 @@ audio {
   transition: width 0.3s ease;
   box-shadow: 0 0 10px rgba(59, 130, 246, 0.3);
 }
-
+*/
 .upload-progress-text {
   margin-top: 8px;
   font-family: 'Space Grotesk', 'Rajdhani', 'Exo 2', monospace;
@@ -656,12 +656,12 @@ audio {
   border-radius: 4px;
   font-family: 'Space Grotesk', 'Rajdhani', monospace;
 }
-
+/*
 .file-status.status-pending {
   color: #93c5fd;
   background: rgba(59, 130, 246, 0.15);
 }
-
+*/0
 .file-status.status-success {
   color: #22c55e;
   background: rgba(34, 197, 94, 0.15);
