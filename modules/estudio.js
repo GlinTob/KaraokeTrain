@@ -1040,7 +1040,7 @@ function handleTapSyncKeypress(e) {
   }
 }
 
-export function cancelTapSync() {
+function cancelTapSync() {
   tapSyncMode = false;
   const player = window.activeTapPlayer || $("selectedVoicePlayer") || $("player");
   if (player) {
