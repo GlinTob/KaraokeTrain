@@ -177,7 +177,7 @@ export async function loadSelectedTrackFromLibraryStudio() {
     studioTrackFileName = item.name;
     studioTrackId = item.id;
 
-    const urlOrBlob = item.file_url || item.audioBlob;
+        const urlOrBlob = item.file_url || item.audioBlob;
 
     if (typeof urlOrBlob === 'string') {
       // 1. Indicarle al reproductor que use permisos de origen cruzado nativos
@@ -185,10 +185,17 @@ export async function loadSelectedTrackFromLibraryStudio() {
       player.src = item.file_url || item.audioBlob || "";
       
       // 2. SOLUCIÓN CRÍTICA: Añadir un "cache-buster" (?_cb=...) para obligar al navegador 
-      // a ignorar la caché vieja y leer la nueva política CORS de Cloudflare
-      const urlConCacheBuster = urlOrBlob.includes('?') 
-        ? `${urlOrBlob}&_cb=${Date.now()}` 
-        : `${urlOrBlob}?_cb=${Date.now()}`;
+      // a ignorar la caché vieja y leer la nueva política CORS de Cloudflare de forma segura
+      let urlConCacheBuster = urlOrBlob;
+      try {
+        const parsedUrl = new URL(urlOrBlob, window.location.href);
+        parsedUrl.searchParams.set('_cb', String(Date.now()));
+        urlConCacheBuster = parsedUrl.toString();
+      } catch (_) {
+        urlConCacheBuster = urlOrBlob.includes('?') 
+          ? `${urlOrBlob}&_cb=${Date.now()}` 
+          : `${urlOrBlob}?_cb=${Date.now()}`;
+      }
 
       console.log("📡 Descargando binario con bypass de caché:", urlConCacheBuster);
       
@@ -377,10 +384,9 @@ export async function loadSelectedTextFromLibrary() {
       return;
     }
 
-    selectedTextId = item.id;
-    selectedVoiceId = item.id;
+        selectedTextId = item.id;
 
-        if (Array.isArray(item.lyrics) && item.lyrics.length > 0) {
+    if (Array.isArray(item.lyrics) && item.lyrics.length > 0) {
       textSegments = item.lyrics;
       // FIX #9: sincronizar baseTextSegments con textSegments para que el
       // estado quede consistente antes de cualquier corrección posterior.
@@ -568,7 +574,15 @@ async function decodeAudioBlobToMono(audioSource) {
 
   const arrayBuffer = await blob.arrayBuffer();
   const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+  let audioBuffer;
+
+  try {
+    audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+  } finally {
+    try {
+      await audioCtx.close();
+    } catch (_) {}
+  }
 
   if (!audioBuffer) throw new Error("Error al decodificar el audio.");
 
@@ -589,10 +603,6 @@ async function decodeAudioBlobToMono(audioSource) {
       }
     }
   }
-
-  try {
-    await audioCtx.close();
-  } catch (_) {}
 
   return { monoData, sampleRate };
 }
@@ -743,6 +753,160 @@ function groupWordsToKaraokeSegments(words) {
 // ==========================================
 // ⏱️ MOTOR TAP-SYNC EN TIEMPO REAL
 // ==========================================
+
+// ... código existente ...
+
+// ==========================================
+// 🤖 MOTOR DE SINCRONIZACIÓN AUTOMÁTICA (VAD + ONSET ALIGNMENT)
+// ==========================================
+
+/**
+ * Detecta los segmentos continuos de voz activa (VAD) analizando el RMS de la onda.
+ */
+function detectVocalActivitySegments(monoData, sampleRate, options = {}) {
+  const frameDuration = options.frameDuration || 0.02; // Ventanas de 20ms
+  const frameSize = Math.floor(sampleRate * frameDuration);
+  const totalFrames = Math.floor(monoData.length / frameSize);
+
+  // 1. Calcular RMS por cada frame
+  const rmsValues = new Float32Array(totalFrames);
+  let maxRms = 0;
+
+  for (let i = 0; i < totalFrames; i++) {
+    let sum = 0;
+    const startSample = i * frameSize;
+    for (let j = 0; j < frameSize; j++) {
+      const val = monoData[startSample + j];
+      sum += val * val;
+    }
+    const rms = Math.sqrt(sum / frameSize);
+    rmsValues[i] = rms;
+    if (rms > maxRms) maxRms = rms;
+  }
+
+  if (maxRms === 0) return [];
+
+  // 2. Umbral adaptativo de voz (Noise Floor + Factor de Sensibilidad)
+  const threshold = Math.max(0.008, maxRms * 0.06); 
+  const minVoiceDuration = options.minVoiceDuration || 0.25; // Mínimo 250ms de voz para ser considerado segmento
+  const minSilenceGap = options.minSilenceGap || 0.35; // Mínimo 350ms de silencio para separar renglones
+
+  const rawSegments = [];
+  let inVoice = false;
+  let segStart = 0;
+  let silenceStart = 0;
+
+  for (let i = 0; i < totalFrames; i++) {
+    const time = i * frameDuration;
+    const isVoice = rmsValues[i] >= threshold;
+
+    if (!inVoice && isVoice) {
+      inVoice = true;
+      segStart = time;
+    } else if (inVoice && !isVoice) {
+      // Posible fin de segmento o micro-pausa
+      silenceStart = time;
+      // Verificar si el silencio se mantiene durante minSilenceGap
+      let continuousSilence = true;
+      const lookaheadFrames = Math.floor(minSilenceGap / frameDuration);
+      for (let k = 1; k <= lookaheadFrames && (i + k) < totalFrames; k++) {
+        if (rmsValues[i + k] >= threshold) {
+          continuousSilence = false;
+          break;
+        }
+      }
+
+      if (continuousSilence) {
+        inVoice = false;
+        const duration = silenceStart - segStart;
+        if (duration >= minVoiceDuration) {
+          rawSegments.push({ start: segStart, end: silenceStart, duration });
+        }
+      }
+    }
+  }
+
+  if (inVoice) {
+    const totalTime = totalFrames * frameDuration;
+    if (totalTime - segStart >= minVoiceDuration) {
+      rawSegments.push({ start: segStart, end: totalTime, duration: totalTime - segStart });
+    }
+  }
+
+  return rawSegments;
+}
+
+/**
+ * Función principal de Sincronización Automática
+ */
+export async function startAutoSyncLyrics() {
+  const statusId = selectedVoiceId ? "selectedVoiceStatus" : "selectedTextStatus";
+  const status = $(statusId) || $("studioStatus");
+  
+  const lyricsText = $("lyricsText");
+  const text = $("text");
+  const textoActivo = (lyricsText && lyricsText.value.trim()) ? lyricsText.value.trim() : (text ? text.value.trim() : "");
+
+  if (!textoActivo) {
+    alert("⚠️ Primero escribe, carga o corrige la letra en el área de texto.");
+    return;
+  }
+
+  const currentId = selectedVoiceId || selectedTextId || studioTrackId;
+  if (!currentId) {
+    alert("⚠️ Selecciona un archivo de Voz, Pista o Letra en el Estudio.");
+    return;
+  }
+
+  // Determinar la fuente de audio para analizar la voz
+  const item = await getLibraryItemsByIdFromSupabase(currentId);
+  const trackItem = studioTrackId ? await getLibraryItemsByIdFromSupabase(studioTrackId) : null;
+
+  const audioSource = selectedVoiceBlob || item?.file_url || item?.audioBlob || trackItem?.file_url || studioTrackBlob;
+
+  if (!audioSource) {
+    alert("⚠️ Se requiere un archivo de audio (Voz o Pista) para ejecutar la sincronización automática.");
+    return;
+  }
+
+  try {
+    if (status) status.innerHTML = "🤖 <strong>Auto-Sync:</strong> Analizando forma de onda vocal y detectando transitorios... ⏳";
+
+    // 1. Decodificar audio
+    const { monoData, sampleRate } = await decodeAudioBlobToMono(audioSource);
+    const audioDuration = monoData.length / sampleRate;
+
+    // 2. Extraer líneas de texto
+    const lineasTexto = textoActivo.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    if (!lineasTexto.length) throw new Error("No hay líneas de texto válidas.");
+
+    if (status) status.innerHTML = `🤖 <strong>Auto-Sync:</strong> Alineando ${lineasTexto.length} líneas con envolventes de audio... ⏳`;
+
+    // 3. Detectar actividad vocal
+    let vocalSegments = detectVocalActivitySegments(monoData, sampleRate);
+
+    // Ajuste defensivo: Si la cantidad de segmentos difiere del número de líneas, fusionar/dividir elásticamente
+    if (vocalSegments.length === 0) {
+      // Fallback: repartir en la duración del audio respetando márgenes
+      const marginStart = 1.0;
+      const usableDuration = Math.max(2.0, audioDuration - marginStart - 1.0);
+      const lineDuration = usableDuration / lineasTexto.length;
+      vocalSegments = lineasTexto.map((_, idx) => ({
+        start: marginStart + idx * lineDuration,
+        end: marginStart + (idx + 1) * lineDuration,
+        duration: lineDuration
+      }));
+    } else if (vocalSegments.length !== lineasTexto.length) {
+      // Mapeo elástico proporcional de líneas a segmentos vocales
+      const totalVocalDuration = vocalSegments.reduce((sum, s) => sum + s.duration, 0);
+      let segCursor = 0;
+      let currentSeg = vocalSegments[0];
+      
+      const mappedSegments = [];
+      const totalChars = lineasTexto.reduce((sum, l) => sum + Math.max(1, l.length), 0);
+
+      let currentStart = vocalSegments[0].start;
+      const lastSeg = vocalSegments[vocalSegments.length - 1];
 
 export async function startTapSync() {
   // FIX #8: resetear el estado de tap-sync al inicio de cada sesión para
@@ -911,7 +1075,10 @@ export function recordTap() {
   const player = window.activeTapPlayer || $("selectedVoicePlayer") || $("player");
   if (!tapSyncMode || !player) return;
 
-  tapSyncTimestamps.push(player.currentTime);
+  const currentTime = Number(player.currentTime);
+  if (!Number.isFinite(currentTime) || currentTime < 0) return;
+
+  tapSyncTimestamps.push(currentTime);
   tapSyncParts.push(currentTapPart);
 
   console.log(
