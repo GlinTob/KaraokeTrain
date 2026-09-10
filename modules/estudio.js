@@ -908,7 +908,7 @@ export async function startAutoSyncLyrics() {
       let currentStart = vocalSegments[0].start;
       const lastSeg = vocalSegments[vocalSegments.length - 1];
 
-export async function startTapSync() {
+async function startTapSync() {
   // FIX #8: resetear el estado de tap-sync al inicio de cada sesión para
   // evitar que datos residuales de la sesión anterior (tapSyncLines,
   // tapSyncTimestamps, tapSyncCurrentIndex) contaminen la nueva.
