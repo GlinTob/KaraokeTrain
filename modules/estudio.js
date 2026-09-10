@@ -1071,7 +1071,7 @@ function updateTapPartButtonsUI() {
   if (btnDuo) btnDuo.classList.toggle("active", currentTapPart === "DUO");
 }
 
-export function recordTap() {
+function recordTap() {
   const player = window.activeTapPlayer || $("selectedVoicePlayer") || $("player");
   if (!tapSyncMode || !player) return;
 
