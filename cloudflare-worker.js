@@ -3,9 +3,10 @@
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, Range, X-File-Name, X-Mime-Type",
-  "Access-Control-Expose-Headers": "Content-Length, Content-Range",
-  "Access-Control-Max-Age": "86400"
+  "Access-Control-Allow-Headers": "*",
+  "Access-Control-Expose-Headers": "Content-Length, Content-Range, Accept-Ranges, ETag",
+  "Access-Control-Max-Age": "86400",
+  "Vary": "Origin"
 };
 
 export default {
@@ -13,6 +14,7 @@ export default {
     const url = new URL(request.url);
     const path = url.pathname;
 
+    // PRELIGHT CORS
     if (request.method === "OPTIONS") {
       return new Response(null, {
         status: 204,
@@ -38,7 +40,7 @@ export default {
       return jsonResponse({ error: "Not found" }, 404);
     } catch (error) {
       console.error("Worker error:", error);
-      return jsonResponse({ error: error.message || "Error interno del Worker" }, 500);
+      return jsonResponse({ error: error.message || "Worker internal error" }, 500);
     }
   }
 };
@@ -47,18 +49,12 @@ async function handleUpload(request, env) {
   const t0 = Date.now();
 
   try {
-    console.log("[UPLOAD] Inicio handleUpload");
-
     const url = new URL(request.url);
     const fileName = url.searchParams.get("fileName") || `upload_${Date.now()}`;
-    const mimeType = url.searchParams.get("mimeType") || request.headers.get("Content-Type") || "application/octet-stream";
-    const contentLength = request.headers.get("Content-Length") || "desconocido";
-
-    console.log("[UPLOAD] Params recibidos:", {
-      fileName,
-      mimeType,
-      contentLength
-    });
+    const mimeType =
+      url.searchParams.get("mimeType") ||
+      request.headers.get("content-type") ||
+      "application/octet-stream";
 
     if (!request.body) {
       throw new Error("La solicitud no contiene body.");
@@ -67,22 +63,14 @@ async function handleUpload(request, env) {
     const cleanName = sanitizeFileName(fileName);
     const safePath = `${Date.now()}_${cleanName}`;
 
-    console.log("[UPLOAD] Key destino:", safePath);
-    console.log("[UPLOAD] Iniciando put() a R2...");
-
     await env.VOCAL_APP_STORAGE.put(safePath, request.body, {
-      httpMetadata: {
-        contentType: mimeType
-      }
+      httpMetadata: { contentType: mimeType }
     });
-
-    console.log("[UPLOAD] put() completado");
 
     const publicUrl = `${env.R2_PUBLIC_URL}/api/file/${encodeURIComponent(safePath)}`;
     const elapsed = ((Date.now() - t0) / 1000).toFixed(2);
 
-    console.log("[UPLOAD] Completado en", `${elapsed}s`);
-    console.log("[UPLOAD] URL pública:", publicUrl);
+    console.log("[UPLOAD] OK", { safePath, elapsed });
 
     return jsonResponse({
       success: true,
@@ -90,33 +78,25 @@ async function handleUpload(request, env) {
       fileUrl: publicUrl,
       fileName: cleanName
     }, 200);
-
   } catch (error) {
     const elapsed = ((Date.now() - t0) / 1000).toFixed(2);
-    console.error("[UPLOAD] Error tras", `${elapsed}s:`, error);
-
-    return jsonResponse({
-      error: error.message || "Error desconocido en upload"
-    }, 500);
+    console.error("[UPLOAD] Error", elapsed, error);
+    return jsonResponse({ error: error.message || "Upload error" }, 500);
   }
 }
 
 async function handleDelete(key, env) {
   try {
-    console.log("[DELETE] Eliminando:", key);
     await env.VOCAL_APP_STORAGE.delete(key);
-
     return jsonResponse({ success: true }, 200);
   } catch (error) {
-    console.error("[DELETE] Error:", error);
-    return jsonResponse({ error: error.message || "Error eliminando archivo" }, 500);
+    console.error("[DELETE] Error", error);
+    return jsonResponse({ error: error.message || "Delete error" }, 500);
   }
 }
 
 async function handleGetFile(request, key, env) {
   try {
-    console.log("[GET] Solicitando archivo:", key);
-
     const object = await env.VOCAL_APP_STORAGE.get(key);
 
     if (!object) {
@@ -126,26 +106,19 @@ async function handleGetFile(request, key, env) {
       });
     }
 
-    const headers = new Headers();
+    const headers = new Headers(CORS_HEADERS);
     object.writeHttpMetadata(headers);
 
-    if (object.httpEtag) {
-      headers.set("etag", object.httpEtag);
-    }
-
+    if (object.httpEtag) headers.set("ETag", object.httpEtag);
     headers.set("Accept-Ranges", "bytes");
-
-    for (const [k, v] of Object.entries(CORS_HEADERS)) {
-      headers.set(k, v);
-    }
 
     return new Response(object.body, {
       status: 200,
       headers
     });
   } catch (error) {
-    console.error("[GET] Error:", error);
-    return jsonResponse({ error: error.message || "Error leyendo archivo" }, 500);
+    console.error("[GET] Error", error);
+    return jsonResponse({ error: error.message || "Read error" }, 500);
   }
 }
 
