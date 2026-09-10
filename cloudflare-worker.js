@@ -83,62 +83,69 @@ export default {
 };
 
 async function handleUpload(request, env) {
+  const t0 = Date.now();
+
   try {
-    const contentType = request.headers.get('content-type') || '';
-    
-    // Validar que sea multipart/form-data
-    if (!contentType.includes('multipart/form-data')) {
-      console.warn('Content-Type incorrecto:', contentType);
-      return new Response(JSON.stringify({ error: 'Content-Type debe ser multipart/form-data' }), {
+    const contentType = request.headers.get("content-type") || "";
+
+    console.log("[UPLOAD] Inicio");
+    console.log("[UPLOAD] Content-Type:", contentType);
+
+    if (!contentType.includes("multipart/form-data")) {
+      console.warn("[UPLOAD] Content-Type incorrecto:", contentType);
+      return new Response(JSON.stringify({
+        error: "Content-Type debe ser multipart/form-data"
+      }), {
         status: 400,
-        headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' }
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" }
       });
     }
 
-    // Leer FormData de forma segura
-    let formData;
-    try {
-      formData = await request.formData();
-    } catch (e) {
-      throw new Error(`Error al leer FormData: ${e.message}`);
-    }
+    console.log("[UPLOAD] Leyendo formData...");
+    const formData = await request.formData();
 
-    const file = formData.get('file');
-    const fileName = formData.get('fileName') || file?.name || `upload_${Date.now()}`;
-    const mimeType = formData.get('mimeType') || file?.type || 'application/octet-stream';
+    const file = formData.get("file");
+    const fileName = formData.get("fileName") || file?.name || `upload_${Date.now()}`;
+    const mimeType = formData.get("mimeType") || file?.type || "application/octet-stream";
 
     if (!file) {
-      throw new Error('No se encontró el archivo en el FormData');
+      throw new Error("No se encontró el archivo en el FormData");
     }
 
-    // Limpiar nombre para generar una URL segura
+    console.log("[UPLOAD] Archivo recibido:", {
+      fileName,
+      mimeType,
+      size: file.size
+    });
+
     const cleanName = fileName
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^a-zA-Z0-9._]/g, "_")
-      .replace(/__+/g, "_");
+      .replace(/[^a-zA-Z0-9._-]/g, "_")
+      .replace(/_+/g, "_");
 
     const safePath = `${Date.now()}_${cleanName}`;
+    console.log("[UPLOAD] Key destino:", safePath);
 
-    // ✅ CORRECCIÓN DE MEMORIA: En Cloudflare Workers, los archivos de FormData se leen de forma
-    // ultra veloz convirtiendo el stream a un objeto Blob o consumiéndolo directamente.
-    let arrayBuffer;
-    if (typeof file.arrayBuffer === 'function') {
-      arrayBuffer = await file.arrayBuffer();
+    console.log("[UPLOAD] Subiendo a R2...");
+
+    // ✅ CAMBIO CLAVE: evitar arrayBuffer() completo en memoria
+    if (typeof file.stream === "function") {
+      await env.VOCAL_APP_STORAGE.put(safePath, file.stream(), {
+        httpMetadata: { contentType: mimeType }
+      });
     } else {
-      // Respaldo seguro en caso de streams crudos del navegador
-      const fileBlob = new Blob([file], { type: mimeType });
-      arrayBuffer = await fileBlob.arrayBuffer();
+      await env.VOCAL_APP_STORAGE.put(safePath, file, {
+        httpMetadata: { contentType: mimeType }
+      });
     }
 
-    // Guardar el flujo binario en tu bucket de R2
-    await env.VOCAL_APP_STORAGE.put(safePath, arrayBuffer, {
-      httpMetadata: { contentType: mimeType }
-    });
-
     const publicUrl = `${env.R2_PUBLIC_URL}/api/file/${safePath}`;
+    const elapsed = ((Date.now() - t0) / 1000).toFixed(2);
 
-    // Respuesta exitosa inmediata con los CORS headers globales
+    console.log("[UPLOAD] Completado en", `${elapsed}s`);
+    console.log("[UPLOAD] URL pública:", publicUrl);
+
     return new Response(JSON.stringify({
       success: true,
       filePath: safePath,
@@ -146,17 +153,22 @@ async function handleUpload(request, env) {
       fileName: cleanName
     }), {
       status: 200,
-      headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' }
+      headers: { ...CORS_HEADERS, "Content-Type": "application/json" }
     });
 
   } catch (error) {
-    console.error('Error en handleUpload:', error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    const elapsed = ((Date.now() - t0) / 1000).toFixed(2);
+    console.error("[UPLOAD] Error tras", `${elapsed}s:`, error);
+
+    return new Response(JSON.stringify({
+      error: error.message
+    }), {
       status: 500,
-      headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' }
+      headers: { ...CORS_HEADERS, "Content-Type": "application/json" }
     });
   }
 }
+
 async function handleDelete(key, env) {
   try {
     await env.VOCAL_APP_STORAGE.delete(key);
