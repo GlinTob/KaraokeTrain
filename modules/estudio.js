@@ -1122,7 +1122,7 @@ function updateTapSyncDisplay() {
   }
 }
 
-export function toggleAutoScrollEstudio() {
+function toggleAutoScrollEstudio() {
   autoScrollEnabled = !autoScrollEnabled;
   return autoScrollEnabled;
 }
