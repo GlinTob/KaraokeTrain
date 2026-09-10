@@ -1,6 +1,6 @@
 name = "vocal-app-storage"
 main = "cloudflare-worker.js"
-compatibility_date = "2024-09-23"
+compatibility_date = "2024-09-10"
 
 [[r2_buckets]]
 binding = "VOCAL_APP_STORAGE"
