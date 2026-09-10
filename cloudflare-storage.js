@@ -88,20 +88,20 @@ async function uploadFileToCloudflare(
   console.log(`📊 Tipo MIME: ${mimeType}`);
   console.log(`📡 Enviando a: ${uploadUrl}`);
 
-  const formData = new FormData();
-  formData.append("file", fileOrBlob, fullFileName);
-  formData.append("fileName", fullFileName);
-  formData.append("mimeType", mimeType);
-
   const controller = new AbortController();
-  const timeoutMs = 180000; // 3 minutos
+  const timeoutMs = 180000;
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   const t0 = performance.now();
 
   try {
     const response = await fetch(uploadUrl, {
       method: "POST",
-      body: formData,
+      headers: {
+        "Content-Type": mimeType,
+        "X-File-Name": fullFileName,
+        "X-Mime-Type": mimeType
+      },
+      body: fileOrBlob,
       signal: controller.signal
     });
 
