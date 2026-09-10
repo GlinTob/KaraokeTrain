@@ -24,11 +24,11 @@ export function initBiblioteca() {
     fileInput.dataset.bound = "true";
   }
 
-  if (typeSelect && !typeSelect.dataset.bound) {
+    if (typeSelect && !typeSelect.dataset.bound) {
     typeSelect.addEventListener("change", () => {
       if (!fileInput) return;
 
-      if (typeSelect.value === "texto") {
+      if (typeSelect.value === "texto" || typeSelect.value === "texto_plano" || typeSelect.value === "letra" || typeSelect.value === "ultrastar_txt") {
         fileInput.setAttribute("accept", ".txt,text/plain");
       } else {
         fileInput.setAttribute("accept", "audio/*,.mp3,.wav,.ogg,.webm,.m4a,.mp4");
@@ -168,7 +168,12 @@ export async function saveLibraryItemToSupabase({ name, type, blob, transcriptio
   const mimeType = blob.type || "application/octet-stream";
   
   // 1. Obtener extensión correcta basada en el MIME Type
-  const extension = mimeType.includes("wav") ? "wav" : mimeType.includes("mpeg") ? "mp3" : mimeType.includes("webm") ? "webm" : mimeType.includes("ogg") ? "ogg" : "bin"; 
+  const extension = mimeType.includes("wav") ? "wav" 
+    : mimeType.includes("mpeg") || mimeType.includes("mp3") ? "mp3" 
+    : mimeType.includes("webm") ? "webm" 
+    : mimeType.includes("ogg") ? "ogg" 
+    : mimeType.includes("mp4") || mimeType.includes("m4a") ? "m4a" 
+    : "bin"; 
 
   // 2. Quitar la extensión original si el nombre ya la incluye (ej: "pista.mp3" -> "pista")
   let baseName = name;
@@ -183,8 +188,8 @@ export async function saveLibraryItemToSupabase({ name, type, blob, transcriptio
   let cleanName = baseName
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-zA-Z0-9_]/g, "*") // Cambiado ".*" por "_" para evitar puntos dobles accidentales
-    .replace(/__+/g, "_"); 
+    .replace(/[^a-zA-Z0-9_]/g, "_") // Reemplazar caracteres inválidos por underscore
+    .replace(/_+/g, "_"); 
 
   // 4. Unir el nombre limpio con la extensión final una sola vez
   const fileName = `${cleanName}.${extension}`;
@@ -192,11 +197,11 @@ export async function saveLibraryItemToSupabase({ name, type, blob, transcriptio
 
   const { filePath, fileUrl } = await window.CloudflareStorage.uploadFileToCloudflare(blob, fileName, mimeType, type); 
 
-  const { error } = await db
+  const { data, error } = await db
     .from("library")
     .insert([
       {
-        name: baseName, // Guardamos el nombre limpio sin extensión en la BD si prefieres la interfaz limpia
+        name: baseName, // Guardamos el nombre limpio sin extensión en la BD
         type,
         file_path: filePath,
         file_url: fileUrl,
@@ -204,9 +209,11 @@ export async function saveLibraryItemToSupabase({ name, type, blob, transcriptio
         metadata,
         date: new Date().toISOString()
       }
-    ]); 
+    ])
+    .select(); 
 
   if (error) throw error;
+  return data?.[0]; // Retornar el registro insertado con su ID
 }
 
 export async function saveToLibrary(blob, options = {}) {
@@ -216,7 +223,7 @@ export async function saveToLibrary(blob, options = {}) {
   } 
 
   try {
-    await window.CloudflareStorage.saveLibraryItemToCloudflare({
+        const result = await saveLibraryItemToSupabase({
       name: options.name || "Archivo",
       type: options.type || "audio",
       blob: blob,
@@ -224,10 +231,11 @@ export async function saveToLibrary(blob, options = {}) {
       metadata: { textoPlano: options.textoPlano || null }
     }); 
 
-    console.log("✅ Guardado en biblioteca correctamente (Cloudflare R2)");
+        console.log("✅ Guardado en biblioteca correctamente (Supabase + Cloudflare R2)");
 
     const filtroActual = options.type || 'todos';
     await renderLibrary(filtroActual);
+    return result;
 
   } catch (error) {
     console.error("Error detallado:", error);
