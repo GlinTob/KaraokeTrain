@@ -1056,7 +1056,7 @@ function cancelTapSync() {
   console.log("⏹️ Sesión de marcación de taps cancelada.");
 }
 
-export function setCurrentTapPart(part) {
+function setCurrentTapPart(part) {
   if (part !== "P1" && part !== "P2" && part !== "DUO") return;
   currentTapPart = part;
   updateTapPartButtonsUI();
