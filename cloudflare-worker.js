@@ -49,18 +49,14 @@ async function handleUpload(request, env) {
   try {
     console.log("[UPLOAD] Inicio handleUpload");
 
-    const fileNameHeader = request.headers.get("X-File-Name");
-    const mimeTypeHeader = request.headers.get("X-Mime-Type");
-    const contentType = request.headers.get("Content-Type") || "application/octet-stream";
+    const url = new URL(request.url);
+    const fileName = url.searchParams.get("fileName") || `upload_${Date.now()}`;
+    const mimeType = url.searchParams.get("mimeType") || request.headers.get("Content-Type") || "application/octet-stream";
     const contentLength = request.headers.get("Content-Length") || "desconocido";
 
-    const fileName = fileNameHeader || `upload_${Date.now()}`;
-    const mimeType = mimeTypeHeader || contentType || "application/octet-stream";
-
-    console.log("[UPLOAD] Headers recibidos:", {
+    console.log("[UPLOAD] Params recibidos:", {
       fileName,
       mimeType,
-      contentType,
       contentLength
     });
 
