@@ -1127,7 +1127,7 @@ function toggleAutoScrollEstudio() {
   return autoScrollEnabled;
 }
 
-export async function finishTapSync() {
+async function finishTapSync() {
   tapSyncMode = false;
 
   if (tapSyncTimestamps.length !== tapSyncLines.length) {
