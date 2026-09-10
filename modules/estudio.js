@@ -1335,7 +1335,7 @@ window.segmentarTextoPlano = segmentarTextoPlano;
  * @param {string} type - "pista" | "voz" | "texto" / "letra"
  * @param {string} id - id del ítem recién guardado
  */
-export async function autoLoadSelectedInEstudio(type, id) {
+async function autoLoadSelectedInEstudio(type, id) {
   if (!id) return;
 
   const isText = ["texto", "texto_plano", "letra", "ultrastar_txt", "letras"].includes(type);
