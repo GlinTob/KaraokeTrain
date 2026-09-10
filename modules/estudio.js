@@ -5,29 +5,28 @@ import {
   getAllLibraryItemsFromSupabase,
   updateLibraryItemsFromSupabase,
   renderLibrary
-} from './biblioteca.js';
-import { noteToFrequency, frequencyToMidi, midiToNoteName, frequencyToNoteName } from "./afinador.js";
-// FIX #17: removido `destroyAudioController` del import. Se mantiene el
-// singleton vivo durante toda la sesión del navegador (no se destruye en
-// flujos normales de karaoke/estudio) para evitar romper las promesas en
-// vuelo del afinador y otros consumidores. Si en el futuro algún módulo
-// necesita workers dedicados, refactorizar a un pool.
-import { getAudioController, exportStereoWav, interleave } from "./audio-controller.js";
+} from "./biblioteca.js";
+import { frequencyToMidi } from "./afinador.js";
+import { getAudioController } from "./audio-controller.js";
 
-/** 
+/**
  * MÓDULO ESTUDIO — Sincronizador de Letras (Tap-Sync), Segmentación de Renglones e Inyección a Supabase
  */
 
-// Variables de Control de Estado
+// ==========================================
+// 🧠 ESTADO GLOBAL DEL MÓDULO
+// ==========================================
 let textSegments = [];
 let baseTextSegments = [];
 let autoScrollEnabled = true;
+
 let studioTrackFileName = null;
 let studioTrackBlob = null;
 let studioTrackId = null;
+
 let selectedVoiceBlob = null;
 let selectedVoiceId = null;
-let selectedTextId = null; 
+let selectedTextId = null;
 
 // Variables del Motor Tap-Sync en Tiempo Real
 let tapSyncMode = false;
@@ -37,29 +36,78 @@ let tapSyncCurrentIndex = 0;
 let currentTapPart = "P1";
 let tapSyncParts = [];
 
-
+// ==========================================
+// 🚀 INIT
+// ==========================================
 export function initEstudio() {
-  console.log("🎚️ [estudio.js] Inicializado con éxito"); 
+  console.log("🎚️ [estudio.js] Inicializado con éxito");
 
-  // Enlazar los tres clics de tus botones rosas del HTML
   safeAdd("loadStudioTrackBtn", "click", loadSelectedTrackFromLibraryStudio);
   safeAdd("loadSelectedVoiceBtn", "click", loadSelectedVoiceFromLibrary);
-  safeAdd("loadSelectedTextBtn", "click", loadSelectedTextFromLibrary); // Vincula tu botón de letras manuales
-  //safeAdd("studioTrackFile", "change", cargarAudioEstudio); 
+  safeAdd("loadSelectedTextBtn", "click", loadSelectedTextFromLibrary);
 
-  // Llenar automáticamente los tres menús desplegables al abrir la pestaña
+  // Si existen en tu HTML, ya quedan enlazados
+  safeAdd("startTapSyncBtn", "click", startTapSync);
+  safeAdd("cancelTapSyncBtn", "click", cancelTapSync);
+  safeAdd("finishTapSyncBtn", "click", finishTapSync);
+  safeAdd("toggleAutoScrollBtn", "click", toggleAutoScrollEstudio);
+  safeAdd("startAutoSyncBtn", "click", startAutoSyncLyrics);
+  safeAdd("applyCorrectedLyricsBtn", "click", applyCorrectedLyrics);
+
+  safeAdd("tapPartP1Btn", "click", () => setCurrentTapPart("P1"));
+  safeAdd("tapPartP2Btn", "click", () => setCurrentTapPart("P2"));
+  safeAdd("tapPartDuoBtn", "click", () => setCurrentTapPart("DUO"));
+
   loadTrackOptionsInStudio();
   loadVoiceOptionsInStudio();
-  loadTextOptionsInStudio(); // Alimenta el selector azul 'textLibrarySelect'
-} 
+  loadTextOptionsInStudio();
+
+  updateTapPartButtonsUI();
+}
+
+function getActiveTextValue() {
+  const lyricsText = $("lyricsText");
+  const text = $("text");
+  return (lyricsText && lyricsText.value.trim())
+    ? lyricsText.value.trim()
+    : (text ? text.value.trim() : "");
+}
+
+function getActivePlayer() {
+  const voicePlayer = $("selectedVoicePlayer");
+  const trackPlayer = $("player");
+  return (voicePlayer && voicePlayer.src) ? voicePlayer : trackPlayer;
+}
+
+function setStatusMessage(message, isHtml = false) {
+  const statusId = selectedVoiceId ? "selectedVoiceStatus" : "selectedTextStatus";
+  const status = $(statusId) || $("studioStatus");
+  if (!status) return;
+  if (isHtml) status.innerHTML = message;
+  else status.textContent = message;
+}
+
+function normalizeCacheBustedUrl(url) {
+  if (!url || typeof url !== "string") return url;
+  try {
+    const parsedUrl = new URL(url, window.location.href);
+    parsedUrl.searchParams.set("_cb", String(Date.now()));
+    return parsedUrl.toString();
+  } catch (_) {
+    return url.includes("?")
+      ? `${url}&_cb=${Date.now()}`
+      : `${url}?_cb=${Date.now()}`;
+  }
+}
 
 function buildWordTimingFromSegment(seg) {
   if (!seg.words || seg.words.length === 0) {
     const wordsArr = (seg.text || "").split(" ").filter(Boolean);
     const duration = (seg.end || 0) - (seg.start || 0);
     const wordDuration = duration / Math.max(1, wordsArr.length);
+
     seg.words = wordsArr.map((word, i) => ({
-      word: word,
+      word,
       start: seg.start + i * wordDuration,
       end: seg.start + (i + 1) * wordDuration,
       pitch: 0,
@@ -70,43 +118,57 @@ function buildWordTimingFromSegment(seg) {
 }
 
 function splitSegmentsIntoKaraokeLines(segments, maxWordsPerLine = 6) {
-  let output = [];
+  const output = [];
+
   segments.forEach(seg => {
-    const words = seg.words || [];
+    const prepared = buildWordTimingFromSegment(seg);
+    const words = prepared.words || [];
+
     if (words.length <= maxWordsPerLine) {
-      output.push(seg);
+      output.push(prepared);
       return;
     }
+
     for (let i = 0; i < words.length; i += maxWordsPerLine) {
       const chunkWords = words.slice(i, i + maxWordsPerLine);
       const textLine = chunkWords.map(w => w.word).join(" ");
+
       output.push({
         start: chunkWords[0].start,
         end: chunkWords[chunkWords.length - 1].end,
         text: textLine,
+        parte: prepared.parte || "P1",
+        midi: prepared.midi || chunkWords[0]?.midi || 60,
         words: chunkWords
       });
     }
   });
+
   return output;
 }
 
 function getMediaErrorDesc(code) {
-  const errors = { 1: "MEDIA_ERR_ABORTED", 2: "MEDIA_ERR_NETWORK", 3: "MEDIA_ERR_DECODE", 4: "MEDIA_ERR_SRC_NOT_SUPPORTED" };
+  const errors = {
+    1: "MEDIA_ERR_ABORTED",
+    2: "MEDIA_ERR_NETWORK",
+    3: "MEDIA_ERR_DECODE",
+    4: "MEDIA_ERR_SRC_NOT_SUPPORTED"
+  };
   return errors[code] || "Error desconocido de reproducción";
-} 
+}
 
 // ==========================================
 // 🎵 PROCESAMIENTO Y CARGA DE PISTAS BASE
-// ========================================== 
-
+// ==========================================
 export async function loadTrackOptionsInStudio() {
   const select = $("studioTrackSelect");
-  if (!select) return; 
+  if (!select) return;
 
   select.innerHTML = `<option value="">Selecciona una pista desde Biblioteca</option>`;
+
   try {
     const tracks = await getLibraryItemsByTypeFromSupabase("pista");
+
     if (!tracks.length) {
       const option = document.createElement("option");
       option.value = "";
@@ -114,6 +176,7 @@ export async function loadTrackOptionsInStudio() {
       select.appendChild(option);
       return;
     }
+
     tracks.forEach((item) => {
       const option = document.createElement("option");
       option.value = item.id;
@@ -121,30 +184,9 @@ export async function loadTrackOptionsInStudio() {
       select.appendChild(option);
     });
   } catch (error) {
-    console.error(error);
+    console.error("❌ Error cargando opciones de pista:", error);
   }
 }
-
-/*
-export function cargarAudioEstudio(e) {
-  const file = e.target.files?.[0];
-  if (!file) return;
-
-  studioTrackFileName = file.name;
-  studioTrackBlob = file;
-  studioTrackId = null;
-
-  const player = $("player");
-  const status = $("studioStatus");
-
-  if (player) {
-    player.src = URL.createObjectURL(file);
-  }
-  if (status) {
-    status.textContent = `Estado: pista cargada (${file.name})`;
-  }
-}
-*/
 
 export async function loadSelectedTrackFromLibraryStudio() {
   const select = $("studioTrackSelect");
@@ -177,29 +219,16 @@ export async function loadSelectedTrackFromLibraryStudio() {
     studioTrackFileName = item.name;
     studioTrackId = item.id;
 
-        const urlOrBlob = item.file_url || item.audioBlob;
+    const urlOrBlob = item.file_url || item.audioBlob;
 
-    if (typeof urlOrBlob === 'string') {
-      // 1. Indicarle al reproductor que use permisos de origen cruzado nativos
+    if (typeof urlOrBlob === "string") {
       player.crossOrigin = "anonymous";
-      player.src = item.file_url || item.audioBlob || "";
-      
-      // 2. SOLUCIÓN CRÍTICA: Añadir un "cache-buster" (?_cb=...) para obligar al navegador 
-      // a ignorar la caché vieja y leer la nueva política CORS de Cloudflare de forma segura
-      let urlConCacheBuster = urlOrBlob;
-      try {
-        const parsedUrl = new URL(urlOrBlob, window.location.href);
-        parsedUrl.searchParams.set('_cb', String(Date.now()));
-        urlConCacheBuster = parsedUrl.toString();
-      } catch (_) {
-        urlConCacheBuster = urlOrBlob.includes('?') 
-          ? `${urlOrBlob}&_cb=${Date.now()}` 
-          : `${urlOrBlob}?_cb=${Date.now()}`;
-      }
+      player.src = normalizeCacheBustedUrl(urlOrBlob);
 
-      console.log("📡 Descargando binario con bypass de caché:", urlConCacheBuster);
-      
-      const response = await fetch(urlConCacheBuster);
+      console.log("📡 Descargando binario con bypass de caché:", player.src);
+
+      const response = await fetch(player.src);
+      if (!response.ok) throw new Error(`HTTP ${response.status} al descargar la pista`);
       studioTrackBlob = await response.blob();
     } else if (urlOrBlob instanceof Blob) {
       studioTrackBlob = urlOrBlob;
@@ -209,7 +238,6 @@ export async function loadSelectedTrackFromLibraryStudio() {
     }
 
     status.innerHTML = `🎵 <strong>Estado:</strong> pista cargada desde Biblioteca (<span style="color:#22c55e;">${item.name}</span>)`;
-
   } catch (error) {
     console.error("Error cargando pista:", error);
     alert("❌ No se pudo cargar la pista seleccionada: " + error.message);
@@ -224,13 +252,12 @@ export async function loadVoiceOptionsInStudio() {
   if (!select) return;
 
   select.innerHTML = `<option value="">Selecciona un archivo</option>`;
+
   try {
     const voces = await getLibraryItemsByTypeFromSupabase("voz");
-    //const grabaciones = await getLibraryItemsByTypeFromSupabase("grabacion");
     const merged = [...voces];
 
     console.log(`🔍 Buscando 'voz': se encontraron ${voces.length} coincidencias.`);
-    //console.log(`🔍 Buscando 'grabacion': se encontraron ${grabaciones.length} coincidencias.`);
 
     if (!merged.length) {
       const option = document.createElement("option");
@@ -247,13 +274,10 @@ export async function loadVoiceOptionsInStudio() {
       select.appendChild(option);
     });
   } catch (error) {
-    console.error(error);
+    console.error("❌ Error cargando voces:", error);
   }
 }
 
-/**
- * Carga el archivo de audio de voz en el reproductor de la tarjeta de VOZ
- */
 export async function loadSelectedVoiceFromLibrary() {
   const select = $("voiceLibrarySelect");
   const player = $("selectedVoicePlayer");
@@ -276,23 +300,17 @@ export async function loadSelectedVoiceFromLibrary() {
     }
 
     const urlOrBlob = item.file_url || item.audioBlob;
-
     selectedVoiceId = item.id;
 
-    if (typeof urlOrBlob === 'string') {
+    if (typeof urlOrBlob === "string") {
       selectedVoiceBlob = urlOrBlob;
-
-      const urlConCacheBuster = urlOrBlob.includes('?')
-        ? `${urlOrBlob}&_cb=${Date.now()}`
-        : `${urlOrBlob}?_cb=${Date.now()}`;
-
-      player.src = urlConCacheBuster;
+      player.src = normalizeCacheBustedUrl(urlOrBlob);
     } else if (urlOrBlob instanceof Blob) {
       selectedVoiceBlob = urlOrBlob;
       player.src = URL.createObjectURL(urlOrBlob);
     } else {
       selectedVoiceBlob = null;
-      player.removeAttribute('src');
+      player.removeAttribute("src");
       player.load();
     }
 
@@ -305,7 +323,6 @@ export async function loadSelectedVoiceFromLibrary() {
     if (typeof window.cargarLetrasEnMonitor === "function") {
       window.cargarLetrasEnMonitor();
     }
-
   } catch (error) {
     console.error(error);
     alert("❌ No se pudo cargar el archivo de voz seleccionado");
@@ -313,9 +330,7 @@ export async function loadSelectedVoiceFromLibrary() {
 }
 
 export async function loadTextOptionsInStudio() {
-  const select =
-    document.getElementById("textLibrarySelect") ||
-    $("textLibrarySelect");
+  const select = document.getElementById("textLibrarySelect") || $("textLibrarySelect");
 
   if (!select) {
     console.warn("⚠️ No se encontró el selector de letras en Estudio.");
@@ -361,9 +376,6 @@ export async function loadTextOptionsInStudio() {
   }
 }
 
-/**
- * 2. CARGAR LA LETRA SELECCIONADA EN EL MONITOR (Se ejecuta al pulsar el botón rosa)
- */
 export async function loadSelectedTextFromLibrary() {
   const select = $("textLibrarySelect");
   const status = $("selectedTextStatus");
@@ -384,14 +396,15 @@ export async function loadSelectedTextFromLibrary() {
       return;
     }
 
-        selectedTextId = item.id;
+    selectedTextId = item.id;
 
     if (Array.isArray(item.lyrics) && item.lyrics.length > 0) {
       textSegments = item.lyrics;
-      // FIX #9: sincronizar baseTextSegments con textSegments para que el
-      // estado quede consistente antes de cualquier corrección posterior.
       baseTextSegments = item.lyrics;
-      if (typeof window.renderKaraokeLyrics === "function") window.renderKaraokeLyrics(textSegments);
+
+      if (typeof window.renderKaraokeLyrics === "function") {
+        window.renderKaraokeLyrics(textSegments);
+      }
 
       let textoFormateadoParaPantalla = "";
       textSegments.forEach((word, index) => {
@@ -406,15 +419,14 @@ export async function loadSelectedTextFromLibrary() {
       status.innerHTML = `📄 <strong>Estado:</strong> Letra cargada respetando tus líneas de estrofa original ⚡`;
     } else if (item.textoPlano || item.metadata?.textoPlano) {
       textInput.value = item.textoPlano || item.metadata?.textoPlano || "";
-      // FIX #9: también actualizar textSegments/baseTextSegments para que el
-      // monitor de karaoke refleje el texto plano y futuros taps/tap-sync
-      // tengan una base sobre la que trabajar.
       const flatSegments = segmentarTextoPlano(textInput.value);
       textSegments = flatSegments;
       baseTextSegments = flatSegments;
+
       if (flatSegments.length > 0 && typeof window.renderKaraokeLyrics === "function") {
-        window.renderKaraokeLyrics(flatSegments);
+        window.renderKaraokeLyrics(groupWordsToKaraokeSegments(flatSegments));
       }
+
       status.innerHTML = `📄 <strong>Estado:</strong> Letra plana cargada en el monitor ⚡`;
     } else {
       textSegments = [];
@@ -431,7 +443,6 @@ export async function loadSelectedTextFromLibrary() {
 // ==========================================
 // 📝 MONITOR Y EDICIÓN MANUAL DE LETRAS
 // ==========================================
-
 export async function applyCorrectedLyrics() {
   const lyricsText = $("lyricsText");
   const text = $("text");
@@ -441,6 +452,7 @@ export async function applyCorrectedLyrics() {
   const status = $(statusId);
 
   if (!currentTextInput) return;
+
   const correctedText = currentTextInput.value.trim();
 
   if (!correctedText) {
@@ -456,12 +468,13 @@ export async function applyCorrectedLyrics() {
     const item = await getLibraryItemsByIdFromSupabase(currentId);
     if (!item) throw new Error("No se encontró el ítem en la base de datos");
 
-    // Procesamos siempre como segmentación manual de texto plano para crear los renglones limpios
     const finalSegments = segmentarTextoPlano(correctedText);
     baseTextSegments = finalSegments;
     textSegments = finalSegments;
 
-    if (typeof window.renderKaraokeLyrics === "function") window.renderKaraokeLyrics(textSegments);
+    if (typeof window.renderKaraokeLyrics === "function") {
+      window.renderKaraokeLyrics(groupWordsToKaraokeSegments(finalSegments));
+    }
 
     let textoFormateado = "";
     textSegments.forEach((word, index) => {
@@ -475,7 +488,6 @@ export async function applyCorrectedLyrics() {
     if (text) text.value = textoFormateado;
     if (lyricsText) lyricsText.value = textoFormateado;
 
-    // Guardar únicamente la estructura limpia en Supabase
     await updateLibraryItemsFromSupabase(currentId, {
       name: item.name,
       textoPlano: correctedText,
@@ -495,22 +507,26 @@ export async function applyCorrectedLyrics() {
 export function segmentarTextoPlano(texto) {
   if (!texto || texto.trim() === "") return [];
 
-  const textoLimpio = texto.replace(/[ \t]+/g, ' ').trim();
-  const lineas = textoLimpio.split('\n');
+  const lineas = texto
+    .replace(/\r/g, "")
+    .split("\n");
+
   let palabraGlobalIndex = 1;
-  let todasLasPalabras = [];
+  const todasLasPalabras = [];
 
   lineas.forEach((lineaTexto, renglonIndex) => {
-    const lineaLimpia = lineaTexto.trim();
+    const lineaLimpia = lineaTexto.replace(/[ \t]+/g, " ").trim();
     if (!lineaLimpia) return;
 
-    const palabrasDeLaLinea = lineaLimpia.split(' ');
+    const palabrasDeLaLinea = lineaLimpia.split(" ");
     palabrasDeLaLinea.forEach((palabra) => {
       todasLasPalabras.push({
         id: palabraGlobalIndex++,
         text: palabra,
+        word: palabra,
         renglon: renglonIndex + 1,
-        time: 0 // Usaremos una única marca de tiempo limpia para la sincronización nativa
+        time: 0,
+        parte: "P1"
       });
     });
   });
@@ -587,7 +603,6 @@ async function decodeAudioBlobToMono(audioSource) {
   if (!audioBuffer) throw new Error("Error al decodificar el audio.");
 
   const sampleRate = audioBuffer.sampleRate;
-
   let monoData;
 
   if (audioBuffer.numberOfChannels === 1) {
@@ -610,6 +625,7 @@ async function decodeAudioBlobToMono(audioSource) {
 function getMedianMidi(values) {
   const valid = values.filter(isFiniteMidi).sort((a, b) => a - b);
   if (!valid.length) return null;
+
   const mid = Math.floor(valid.length / 2);
   return valid.length % 2 === 0
     ? Math.round((valid[mid - 1] + valid[mid]) / 2)
@@ -660,7 +676,6 @@ async function analyzePitchForTimedWords(audioSource, timedWords) {
 
   const { monoData, sampleRate } = await decodeAudioBlobToMono(audioSource);
   const audioController = getAudioController();
-
   const analyzedWords = [];
 
   for (const w of timedWords) {
@@ -674,6 +689,7 @@ async function analyzePitchForTimedWords(audioSource, timedWords) {
 
     if (endSample - startSample >= 256) {
       const slice = monoData.slice(startSample, endSample);
+
       try {
         const freq = await audioController.detectPitch(slice, sampleRate);
         if (typeof freq === "number" && freq > 0) {
@@ -702,9 +718,7 @@ function groupWordsToKaraokeSegments(words) {
 
   words.forEach((w) => {
     const renglon = w.renglon || 1;
-    if (!grouped.has(renglon)) {
-      grouped.set(renglon, []);
-    }
+    if (!grouped.has(renglon)) grouped.set(renglon, []);
     grouped.get(renglon).push(w);
   });
 
@@ -751,34 +765,25 @@ function groupWordsToKaraokeSegments(words) {
 }
 
 // ==========================================
-// ⏱️ MOTOR TAP-SYNC EN TIEMPO REAL
+// 🤖 MOTOR DE SINCRONIZACIÓN AUTOMÁTICA
 // ==========================================
-
-// ... código existente ...
-
-// ==========================================
-// 🤖 MOTOR DE SINCRONIZACIÓN AUTOMÁTICA (VAD + ONSET ALIGNMENT)
-// ==========================================
-
-/**
- * Detecta los segmentos continuos de voz activa (VAD) analizando el RMS de la onda.
- */
 function detectVocalActivitySegments(monoData, sampleRate, options = {}) {
-  const frameDuration = options.frameDuration || 0.02; // Ventanas de 20ms
+  const frameDuration = options.frameDuration || 0.02;
   const frameSize = Math.floor(sampleRate * frameDuration);
   const totalFrames = Math.floor(monoData.length / frameSize);
 
-  // 1. Calcular RMS por cada frame
   const rmsValues = new Float32Array(totalFrames);
   let maxRms = 0;
 
   for (let i = 0; i < totalFrames; i++) {
     let sum = 0;
     const startSample = i * frameSize;
+
     for (let j = 0; j < frameSize; j++) {
       const val = monoData[startSample + j];
       sum += val * val;
     }
+
     const rms = Math.sqrt(sum / frameSize);
     rmsValues[i] = rms;
     if (rms > maxRms) maxRms = rms;
@@ -786,10 +791,9 @@ function detectVocalActivitySegments(monoData, sampleRate, options = {}) {
 
   if (maxRms === 0) return [];
 
-  // 2. Umbral adaptativo de voz (Noise Floor + Factor de Sensibilidad)
-  const threshold = Math.max(0.008, maxRms * 0.06); 
-  const minVoiceDuration = options.minVoiceDuration || 0.25; // Mínimo 250ms de voz para ser considerado segmento
-  const minSilenceGap = options.minSilenceGap || 0.35; // Mínimo 350ms de silencio para separar renglones
+  const threshold = Math.max(0.008, maxRms * 0.06);
+  const minVoiceDuration = options.minVoiceDuration || 0.25;
+  const minSilenceGap = options.minSilenceGap || 0.35;
 
   const rawSegments = [];
   let inVoice = false;
@@ -804,11 +808,11 @@ function detectVocalActivitySegments(monoData, sampleRate, options = {}) {
       inVoice = true;
       segStart = time;
     } else if (inVoice && !isVoice) {
-      // Posible fin de segmento o micro-pausa
       silenceStart = time;
-      // Verificar si el silencio se mantiene durante minSilenceGap
+
       let continuousSilence = true;
       const lookaheadFrames = Math.floor(minSilenceGap / frameDuration);
+
       for (let k = 1; k <= lookaheadFrames && (i + k) < totalFrames; k++) {
         if (rmsValues[i + k] >= threshold) {
           continuousSilence = false;
@@ -836,96 +840,150 @@ function detectVocalActivitySegments(monoData, sampleRate, options = {}) {
   return rawSegments;
 }
 
-/**
- * Función principal de Sincronización Automática
- */
 export async function startAutoSyncLyrics() {
-  const statusId = selectedVoiceId ? "selectedVoiceStatus" : "selectedTextStatus";
-  const status = $(statusId) || $("studioStatus");
-  
-  const lyricsText = $("lyricsText");
-  const text = $("text");
-  const textoActivo = (lyricsText && lyricsText.value.trim()) ? lyricsText.value.trim() : (text ? text.value.trim() : "");
+  const textoActivo = getActiveTextValue();
 
   if (!textoActivo) {
     alert("⚠️ Primero escribe, carga o corrige la letra en el área de texto.");
-    return;
+    return [];
   }
 
   const currentId = selectedVoiceId || selectedTextId || studioTrackId;
   if (!currentId) {
     alert("⚠️ Selecciona un archivo de Voz, Pista o Letra en el Estudio.");
-    return;
-  }
-
-  // Determinar la fuente de audio para analizar la voz
-  const item = await getLibraryItemsByIdFromSupabase(currentId);
-  const trackItem = studioTrackId ? await getLibraryItemsByIdFromSupabase(studioTrackId) : null;
-
-  const audioSource = selectedVoiceBlob || item?.file_url || item?.audioBlob || trackItem?.file_url || studioTrackBlob;
-
-  if (!audioSource) {
-    alert("⚠️ Se requiere un archivo de audio (Voz o Pista) para ejecutar la sincronización automática.");
-    return;
+    return [];
   }
 
   try {
-    if (status) status.innerHTML = "🤖 <strong>Auto-Sync:</strong> Analizando forma de onda vocal y detectando transitorios... ⏳";
+    setStatusMessage("🤖 Auto-Sync: Analizando forma de onda vocal y detectando transitorios... ⏳");
 
-    // 1. Decodificar audio
+    const item = await getLibraryItemsByIdFromSupabase(currentId);
+    const trackItem = studioTrackId ? await getLibraryItemsByIdFromSupabase(studioTrackId) : null;
+
+    const audioSource =
+      selectedVoiceBlob ||
+      item?.file_url ||
+      item?.audioBlob ||
+      trackItem?.file_url ||
+      studioTrackBlob;
+
+    if (!audioSource) {
+      alert("⚠️ Se requiere un archivo de audio (Voz o Pista) para ejecutar la sincronización automática.");
+      return [];
+    }
+
     const { monoData, sampleRate } = await decodeAudioBlobToMono(audioSource);
     const audioDuration = monoData.length / sampleRate;
 
-    // 2. Extraer líneas de texto
     const lineasTexto = textoActivo.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
     if (!lineasTexto.length) throw new Error("No hay líneas de texto válidas.");
 
-    if (status) status.innerHTML = `🤖 <strong>Auto-Sync:</strong> Alineando ${lineasTexto.length} líneas con envolventes de audio... ⏳`;
+    setStatusMessage(`🤖 Auto-Sync: Alineando ${lineasTexto.length} líneas con envolventes de audio... ⏳`);
 
-    // 3. Detectar actividad vocal
     let vocalSegments = detectVocalActivitySegments(monoData, sampleRate);
 
-    // Ajuste defensivo: Si la cantidad de segmentos difiere del número de líneas, fusionar/dividir elásticamente
     if (vocalSegments.length === 0) {
-      // Fallback: repartir en la duración del audio respetando márgenes
       const marginStart = 1.0;
       const usableDuration = Math.max(2.0, audioDuration - marginStart - 1.0);
       const lineDuration = usableDuration / lineasTexto.length;
+
       vocalSegments = lineasTexto.map((_, idx) => ({
         start: marginStart + idx * lineDuration,
         end: marginStart + (idx + 1) * lineDuration,
         duration: lineDuration
       }));
     } else if (vocalSegments.length !== lineasTexto.length) {
-      // Mapeo elástico proporcional de líneas a segmentos vocales
       const totalVocalDuration = vocalSegments.reduce((sum, s) => sum + s.duration, 0);
-      let segCursor = 0;
-      let currentSeg = vocalSegments[0];
-      
-      const mappedSegments = [];
       const totalChars = lineasTexto.reduce((sum, l) => sum + Math.max(1, l.length), 0);
+      const mappedSegments = [];
 
-      let currentStart = vocalSegments[0].start;
-      const lastSeg = vocalSegments[vocalSegments.length - 1];
+      let accumulatedTime = vocalSegments[0].start;
 
-async function startTapSync() {
-  // FIX #8: resetear el estado de tap-sync al inicio de cada sesión para
-  // evitar que datos residuales de la sesión anterior (tapSyncLines,
-  // tapSyncTimestamps, tapSyncCurrentIndex) contaminen la nueva.
-  // Sin este reset, si el usuario hace "Volver a intentar" después de
-  // un cancel o finish, podría ver progreso fantasma o saltos en el índice.
+      for (let i = 0; i < lineasTexto.length; i++) {
+        const line = lineasTexto[i];
+        const weight = Math.max(1, line.length) / totalChars;
+        const duration = totalVocalDuration * weight;
+
+        mappedSegments.push({
+          start: accumulatedTime,
+          end: accumulatedTime + duration,
+          duration
+        });
+
+        accumulatedTime += duration;
+      }
+
+      vocalSegments = mappedSegments;
+    }
+
+    const syncedWords = [];
+
+    vocalSegments.forEach((seg, idx) => {
+      const linea = lineasTexto[idx];
+      if (!linea) return;
+
+      const palabras = linea.split(/\s+/).filter(Boolean).map((txt, wIdx) => ({
+        id: `${idx + 1}-${wIdx + 1}`,
+        text: txt,
+        word: txt,
+        renglon: idx + 1,
+        parte: "P1"
+      }));
+
+      const timedWords = estimateWordWindowsFromLine(palabras, seg.start, seg.end);
+
+      timedWords.forEach(w => {
+        syncedWords.push({
+          ...w,
+          startTime: w.start,
+          midi: 60
+        });
+      });
+    });
+
+    const karaokeSegments = splitSegmentsIntoKaraokeLines(groupWordsToKaraokeSegments(syncedWords));
+
+    textSegments = syncedWords;
+    baseTextSegments = syncedWords;
+
+    if (typeof window.renderKaraokeLyrics === "function") {
+      window.renderKaraokeLyrics(karaokeSegments);
+    }
+
+    await updateLibraryItemsFromSupabase(currentId, {
+      lyrics: karaokeSegments,
+      transcription: karaokeSegments,
+      textoPlano: textoActivo,
+      isSincronizada: true
+    });
+
+    setStatusMessage("✅ Auto-Sync: sincronización automática completada.");
+    await renderLibrary("todos");
+
+    console.log("✅ Auto-Sync completado:", syncedWords);
+    return syncedWords;
+  } catch (error) {
+    console.error("❌ Error en Auto-Sync:", error);
+    setStatusMessage("❌ Auto-Sync: error durante la sincronización.");
+    alert("❌ Error en la sincronización automática: " + error.message);
+    return [];
+  }
+}
+
+// ==========================================
+// ⏱️ MOTOR TAP-SYNC EN TIEMPO REAL
+// ==========================================
+export async function startTapSync() {
   tapSyncLines = [];
   tapSyncTimestamps = [];
   tapSyncCurrentIndex = 0;
+  tapSyncParts = [];
+  currentTapPart = "P1";
 
-  const lyricsText = $("lyricsText");
-  const text = $("text");
-  const voicePlayer = $("selectedVoicePlayer");
-  const trackPlayer = $("player");
+  const activePlayer = getActivePlayer();
   const methodSelect = $("tapSyncMethodSelect");
   const modoSeleccionado = methodSelect ? methodSelect.value : "linea";
-  const activePlayer = (voicePlayer && voicePlayer.src) ? voicePlayer : trackPlayer;
-  const textoActivo = (lyricsText && lyricsText.value.trim()) ? lyricsText.value.trim() : (text ? text.value.trim() : "");
+  const textoActivo = getActiveTextValue();
 
   if (!textoActivo) {
     alert("⚠️ Primero escribe, carga o corrige la letra en el área de texto.");
@@ -937,12 +995,7 @@ async function startTapSync() {
   }
 
   window.currentTapSyncModeType = modoSeleccionado;
-  tapSyncTimestamps = [];
-  tapSyncCurrentIndex = 0;
-  tapSyncParts = [];
-  currentTapPart = "P1";
   tapSyncMode = true;
-
   updateTapPartButtonsUI();
 
   if ($("startTapSyncBtn")) $("startTapSyncBtn").style.display = "none";
@@ -951,12 +1004,13 @@ async function startTapSync() {
   if ($("tapSyncResult")) $("tapSyncResult").style.display = "none";
 
   if (modoSeleccionado === "linea") {
-    tapSyncLines = textoActivo.split(/\r?\n/).map(line => line.trim()).filter(line => line.length > 0);
+    tapSyncLines = textoActivo.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
   } else {
-    tapSyncLines = textoActivo.split(/\s+/).map(palabra => palabra.trim()).filter(palabra => palabra.length > 0);
+    tapSyncLines = textoActivo.split(/\s+/).map(palabra => palabra.trim()).filter(Boolean);
   }
 
   if (tapSyncLines.length === 0) {
+    tapSyncMode = false;
     alert("⚠️ No hay elementos de texto válidos para sincronizar.");
     return;
   }
@@ -964,7 +1018,7 @@ async function startTapSync() {
   updateTapSyncDisplay();
   activePlayer.currentTime = 0;
 
-  console.log('⏳ Esperando a que el audio cargue en segundo plano...');
+  console.log("⏳ Esperando a que el audio cargue en segundo plano...");
 
   await new Promise((resolve, reject) => {
     if (activePlayer.readyState >= 3) {
@@ -973,18 +1027,18 @@ async function startTapSync() {
       return;
     }
 
-    const timeout = setTimeout(() => reject(new Error('Audio load timeout (60s)')), 60000);
+    const timeout = setTimeout(() => reject(new Error("Audio load timeout (60s)")), 60000);
 
-    activePlayer.addEventListener('canplay', () => {
+    activePlayer.addEventListener("canplay", () => {
       clearTimeout(timeout);
       window.activeTapPlayer = activePlayer;
       resolve();
     }, { once: true });
 
-    activePlayer.addEventListener('error', () => {
+    activePlayer.addEventListener("error", () => {
       clearTimeout(timeout);
       const mediaError = activePlayer.error;
-      reject(new Error('Audio error: ' + (mediaError ? getMediaErrorDesc(mediaError.code) : "Desconocido")));
+      reject(new Error("Audio error: " + (mediaError ? getMediaErrorDesc(mediaError.code) : "Desconocido")));
     }, { once: true });
 
     activePlayer.load();
@@ -993,7 +1047,8 @@ async function startTapSync() {
   try {
     await activePlayer.play();
   } catch (e) {
-    alert('❌ No se pudo reproducir el audio de taps: ' + e.message);
+    tapSyncMode = false;
+    alert("❌ No se pudo reproducir el audio de taps: " + e.message);
     return;
   }
 
@@ -1016,21 +1071,18 @@ function handleTapSyncKeypress(e) {
   if (key === "1" || code === "Digit1" || code === "Numpad1") {
     e.preventDefault();
     setCurrentTapPart("P1");
-    console.log("🎤 Parte activa: P1");
     return;
   }
 
   if (key === "2" || code === "Digit2" || code === "Numpad2") {
     e.preventDefault();
     setCurrentTapPart("P2");
-    console.log("🎤 Parte activa: P2");
     return;
   }
 
   if (key === "3" || code === "Digit3" || code === "Numpad3") {
     e.preventDefault();
     setCurrentTapPart("DUO");
-    console.log("🎤 Parte activa: DÚO");
     return;
   }
 
@@ -1040,24 +1092,28 @@ function handleTapSyncKeypress(e) {
   }
 }
 
-function cancelTapSync() {
+export function cancelTapSync() {
   tapSyncMode = false;
+
   const player = window.activeTapPlayer || $("selectedVoicePlayer") || $("player");
   if (player) {
     try {
       player.pause();
       player.currentTime = 0;
-    } catch(e) {}
+    } catch (_) {}
   }
+
   document.removeEventListener("keydown", handleTapSyncKeypress, { capture: true });
+
   if ($("startTapSyncBtn")) $("startTapSyncBtn").style.display = "inline-block";
   if ($("cancelTapSyncBtn")) $("cancelTapSyncBtn").style.display = "none";
   if ($("tapSyncActive")) $("tapSyncActive").style.display = "none";
+
   console.log("⏹️ Sesión de marcación de taps cancelada.");
 }
 
 function setCurrentTapPart(part) {
-  if (part !== "P1" && part !== "P2" && part !== "DUO") return;
+  if (!["P1", "P2", "DUO"].includes(part)) return;
   currentTapPart = part;
   updateTapPartButtonsUI();
 }
@@ -1066,6 +1122,7 @@ function updateTapPartButtonsUI() {
   const btnP1 = $("tapPartP1Btn");
   const btnP2 = $("tapPartP2Btn");
   const btnDuo = $("tapPartDuoBtn");
+
   if (btnP1) btnP1.classList.toggle("active", currentTapPart === "P1");
   if (btnP2) btnP2.classList.toggle("active", currentTapPart === "P2");
   if (btnDuo) btnDuo.classList.toggle("active", currentTapPart === "DUO");
@@ -1082,7 +1139,7 @@ function recordTap() {
   tapSyncParts.push(currentTapPart);
 
   console.log(
-    `🎵 [estudio.js] TAP REGISTRADO -> Línea ${tapSyncCurrentIndex + 1}: "${tapSyncLines[tapSyncCurrentIndex]}" a los ${player.currentTime.toFixed(2)}s [${currentTapPart}]`
+    `🎵 [estudio.js] TAP REGISTRADO -> ${tapSyncCurrentIndex + 1}: "${tapSyncLines[tapSyncCurrentIndex]}" a ${player.currentTime.toFixed(2)}s [${currentTapPart}]`
   );
 
   tapSyncCurrentIndex++;
@@ -1108,8 +1165,9 @@ function updateTapSyncDisplay() {
   if (currentLineEl && tapSyncCurrentIndex < tapSyncLines.length) {
     currentLineEl.textContent = tapSyncLines[tapSyncCurrentIndex];
   }
+
   if (progressEl) {
-    const tipoUnidad = (window.currentTapSyncModeType === "palabra") ? "palabras" : "líneas";
+    const tipoUnidad = window.currentTapSyncModeType === "palabra" ? "palabras" : "líneas";
     progressEl.textContent = `${tapSyncCurrentIndex} / ${tapSyncLines.length} ${tipoUnidad}`;
   }
 
@@ -1122,17 +1180,18 @@ function updateTapSyncDisplay() {
   }
 }
 
-function toggleAutoScrollEstudio() {
+export function toggleAutoScrollEstudio() {
   autoScrollEnabled = !autoScrollEnabled;
+  console.log(`📜 Auto-scroll ${autoScrollEnabled ? "activado" : "desactivado"}`);
   return autoScrollEnabled;
 }
 
-async function finishTapSync() {
+export async function finishTapSync() {
   tapSyncMode = false;
 
   if (tapSyncTimestamps.length !== tapSyncLines.length) {
     const remaining = tapSyncLines.length - tapSyncTimestamps.length;
-    const tipoUnidad = (window.currentTapSyncModeType === "palabra") ? "palabras" : "líneas";
+    const tipoUnidad = window.currentTapSyncModeType === "palabra" ? "palabras" : "líneas";
 
     if (!confirm(
       `⚠️ Sincronización incompleta: faltan ${remaining} ${tipoUnidad} por tocar.\n\n` +
@@ -1146,7 +1205,9 @@ async function finishTapSync() {
 
   const activePlayer = window.activeTapPlayer || $("selectedVoicePlayer") || $("player");
   if (activePlayer) {
-    try { activePlayer.pause(); } catch (e) {}
+    try {
+      activePlayer.pause();
+    } catch (_) {}
   }
 
   document.removeEventListener("keydown", handleTapSyncKeypress, { capture: true });
@@ -1156,11 +1217,7 @@ async function finishTapSync() {
   if ($("cancelTapSyncBtn")) $("cancelTapSyncBtn").style.display = "none";
   if ($("startTapSyncBtn")) $("startTapSyncBtn").style.display = "inline-block";
 
-  const statusId = selectedVoiceId ? "selectedVoiceStatus" : "selectedTextStatus";
-  const status = $(statusId);
-  if (status) {
-    status.textContent = "Estado: sincronizando tiempos y analizando pitch... ⏳";
-  }
+  setStatusMessage("Estado: sincronizando tiempos y analizando pitch... ⏳");
 
   const audioDuration = activePlayer ? activePlayer.duration : 0;
   const avgInterval = tapSyncTimestamps.length >= 2
@@ -1175,27 +1232,34 @@ async function finishTapSync() {
     if (!item) throw new Error("No se pudo obtener el elemento de la biblioteca remota");
 
     const baseWords = Array.isArray(item.lyrics) && item.lyrics.length
-      ? item.lyrics.map((w, idx) => ({
-          id: w.id || (idx + 1),
-          text: w.text || w.word || "",
-          word: w.word || w.text || "",
-          renglon: w.renglon || 1,
-          parte: w.parte || "P1"
-        }))
-      : segmentarTextoPlano(($("lyricsText")?.value || "").trim());
+      ? item.lyrics.flatMap((seg, segIndex) => {
+          if (Array.isArray(seg.words) && seg.words.length) {
+            return seg.words.map((w, idx) => ({
+              id: `${segIndex + 1}-${idx + 1}`,
+              text: w.text || w.word || "",
+              word: w.word || w.text || "",
+              renglon: segIndex + 1,
+              parte: w.parte || seg.parte || "P1"
+            }));
+          }
+          return [];
+        })
+      : segmentarTextoPlano(getActiveTextValue());
 
     if (!baseWords.length) {
       throw new Error("No hay palabras base para sincronizar.");
     }
 
     let timedWords = [];
-    const isWordMode = (window.currentTapSyncModeType === "palabra");
+    const isWordMode = window.currentTapSyncModeType === "palabra";
 
     if (isWordMode) {
       timedWords = baseWords.map((word, index) => {
         const startTime = tapSyncTimestamps[index] || 0;
         const nextTap = tapSyncTimestamps[index + 1];
-        const endTime = Number.isFinite(nextTap) ? nextTap : (startTime + Math.max(0.2, avgInterval || 0.5));
+        const endTime = Number.isFinite(nextTap)
+          ? nextTap
+          : (startTime + Math.max(0.2, avgInterval || 0.5));
 
         return {
           id: word.id || (index + 1),
@@ -1245,9 +1309,7 @@ async function finishTapSync() {
       });
     }
 
-    if (status) {
-      status.textContent = "Estado: detectando notas por palabra desde la voz seleccionada... 🎵";
-    }
+    setStatusMessage("Estado: detectando notas por palabra desde la voz seleccionada... 🎵");
 
     const audioSourceForPitch =
       selectedVoiceBlob ||
@@ -1269,7 +1331,7 @@ async function finishTapSync() {
       midi: isFiniteMidi(w.midi) ? w.midi : 60
     }));
 
-    const karaokeSegments = groupWordsToKaraokeSegments(finalWords);
+    const karaokeSegments = splitSegmentsIntoKaraokeLines(groupWordsToKaraokeSegments(finalWords));
 
     textSegments = finalWords;
     baseTextSegments = finalWords;
@@ -1299,12 +1361,15 @@ async function finishTapSync() {
       isReadyKaraoke: true,
       tapModeStyle: window.currentTapSyncModeType,
       file_url: fileUrlFinal,
-      file_path: filePathFinal
+      file_path: filePathFinal,
+      textoPlano: getActiveTextValue()
     });
 
-    if (status) {
-      status.textContent = "Estado: ¡Karaoke generado con tiempos y notas automáticas! ✅";
+    if (typeof window.renderKaraokeLyrics === "function") {
+      window.renderKaraokeLyrics(karaokeSegments);
     }
+
+    setStatusMessage("Estado: ¡Karaoke generado con tiempos y notas automáticas! ✅");
 
     console.log("✅ Karaoke generado con pitch automático por palabra.", {
       totalWords: finalWords.length,
@@ -1318,24 +1383,22 @@ async function finishTapSync() {
       "✅ ¡Sincronización completada!\n\n" +
       "Se guardaron los tiempos y las notas automáticas por palabra."
     );
-
   } catch (error) {
     console.error("Error al finalizar sincronización:", error);
-    if (status) status.textContent = "Estado: Error al guardar la sincronización";
+    setStatusMessage("Estado: Error al guardar la sincronización");
     alert("❌ Error al aplicar taps y analizar pitch: " + error.message);
   }
 }
 
-// Exponer globalmente para cloudflare-storage.js (script no-module)
+// Exponer globalmente para cloudflare-storage.js
 window.segmentarTextoPlano = segmentarTextoPlano;
 
 /**
- * AUTO-CARGA EN ESTUDIO: refresca el selector correspondiente y 
- * carga el ítem recién subido a la Biblioteca para usar sin buscarlo.
- * @param {string} type - "pista" | "voz" | "texto" / "letra"
+ * AUTO-CARGA EN ESTUDIO
+ * @param {string} type - "pista" | "voz" | "texto" | "letra"
  * @param {string} id - id del ítem recién guardado
  */
-async function autoLoadSelectedInEstudio(type, id) {
+export async function autoLoadSelectedInEstudio(type, id) {
   if (!id) return;
 
   const isText = ["texto", "texto_plano", "letra", "ultrastar_txt", "letras"].includes(type);
@@ -1374,4 +1437,3 @@ function hasOptionValue(select, id) {
   }
   return false;
 }
-
