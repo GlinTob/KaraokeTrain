@@ -819,6 +819,18 @@ export function setKaraokeData(lyrics, name, fileUrl) {
 function normalizeKaraokeSegments(rawSegments = []) {
   if (!Array.isArray(rawSegments)) return [];
 
+  // Detectar si el formato es "plano" (array de palabras sin estructura de segmentos)
+  const isFlatFormat = rawSegments.length > 0 && 
+    rawSegments.every(item => item && typeof item === 'object' && 
+      (Number.isFinite(item.start) || Number.isFinite(item.startTime)) &&
+      (item.word || item.text) &&
+      !Array.isArray(item.words));
+
+  if (isFlatFormat) {
+    // Convertir formato plano a segmentos agrupados por tiempo o parte
+    return groupFlatWordsIntoSegments(rawSegments);
+  }
+
   return rawSegments.map((seg) => {
     const rawWords = Array.isArray(seg.words) ? seg.words : [];
 
@@ -867,6 +879,96 @@ function normalizeKaraokeSegments(rawSegments = []) {
       words
     };
   });
+}
+
+/**
+ * Agrupa palabras en formato plano en segmentos de karaoke
+ * Agrupa por proximidad temporal (gap > 1.5s = nuevo segmento) y por parte
+ */
+function groupFlatWordsIntoSegments(flatWords) {
+  if (!flatWords.length) return [];
+  
+  // Normalizar palabras primero
+  const normalizedWords = flatWords.map((w, idx) => ({
+    word: w.word || w.text || "",
+    text: w.text || w.word || "",
+    start: Number.isFinite(w.start) ? w.start : (Number.isFinite(w.startTime) ? w.startTime : 0),
+    end: Number.isFinite(w.end) ? w.end : null,
+    midi: Number.isFinite(w.midi) ? w.midi : null,
+    parte: w.parte || "P1",
+    originalIndex: idx
+  })).sort((a, b) => a.start - b.start);
+  
+  // Calcular end para palabras que no lo tienen (basado en la siguiente palabra)
+  for (let i = 0; i < normalizedWords.length; i++) {
+    if (!Number.isFinite(normalizedWords[i].end)) {
+      const nextWord = normalizedWords[i + 1];
+      if (nextWord && Number.isFinite(nextWord.start)) {
+        normalizedWords[i].end = nextWord.start;
+      } else {
+        normalizedWords[i].end = normalizedWords[i].start + 0.35;
+      }
+    }
+  }
+  
+  // Agrupar en segmentos
+  const segments = [];
+  let currentSegment = {
+    words: [normalizedWords[0]],
+    parte: normalizedWords[0].parte
+  };
+  
+  for (let i = 1; i < normalizedWords.length; i++) {
+    const word = normalizedWords[i];
+    const prevWord = normalizedWords[i - 1];
+    const gap = word.start - prevWord.end;
+    const sameParte = word.parte === currentSegment.parte;
+    
+    // Nuevo segmento si: gap grande (>1.5s), cambio de parte, o es la primera palabra
+    if (gap > 1.5 || !sameParte) {
+      // Finalizar segmento actual
+      segments.push(createSegmentFromWords(currentSegment.words));
+      // Iniciar nuevo segmento
+      currentSegment = {
+        words: [word],
+        parte: word.parte
+      };
+    } else {
+      currentSegment.words.push(word);
+    }
+  }
+  
+  // Agregar el último segmento
+  if (currentSegment.words.length > 0) {
+    segments.push(createSegmentFromWords(currentSegment.words));
+  }
+  
+  return segments;
+}
+
+function createSegmentFromWords(words) {
+  if (!words.length) return null;
+  
+  const segStart = words[0].start;
+  const segEnd = words[words.length - 1].end;
+  const parte = words[0].parte;
+  const midi = words.find(w => Number.isFinite(w.midi))?.midi ?? 60;
+  
+  return {
+    start: segStart,
+    end: segEnd,
+    text: words.map(w => w.word).join(" "),
+    parte,
+    midi,
+    words: words.map(w => ({
+      word: w.word,
+      text: w.text,
+      start: w.start,
+      end: w.end,
+      midi: w.midi,
+      parte: w.parte
+    }))
+  };
 }
 
 export function cargarLetrasEnMonitor() {
@@ -1217,13 +1319,3 @@ window.addEventListener("avatarChanged", () => {
   const currentTime = track ? track.currentTime : 0;
   drawKaraokeMonitor(currentTime, karaokePitchP1, karaokePitchP2);
 });
-
-/*
-window.addEventListener("avatarChanged", () => {
-  avatarCache.P1 = null;
-  avatarCache.P2 = null;
-  const track = $("karaokeTrack") || $("karaokeAudio") || $("audioKaraoke") || $("trackPlayer");
-  const currentTime = track ? track.currentTime : 0;
-  drawKaraokeMonitor(currentTime, karaokePitchP1, karaokePitchP2);
-});
-*/
