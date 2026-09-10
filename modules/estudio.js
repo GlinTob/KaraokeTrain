@@ -1001,7 +1001,7 @@ async function startTapSync() {
   document.addEventListener("keydown", handleTapSyncKeypress, { capture: true });
 }
 
-export function handleTapSyncKeypress(e) {
+function handleTapSyncKeypress(e) {
   if (!tapSyncMode) return;
 
   const key = e.key;
