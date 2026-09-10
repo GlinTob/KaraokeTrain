@@ -3,9 +3,9 @@
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, Range",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, Range, X-File-Name, X-Mime-Type",
   "Access-Control-Expose-Headers": "Content-Length, Content-Range",
-  "Access-Control-Max-Age": "86400",
+  "Access-Control-Max-Age": "86400"
 };
 
 export default {
@@ -26,46 +26,19 @@ export default {
       }
 
       if (request.method === "DELETE" && path.startsWith("/api/delete/")) {
-        const key = path.replace("/api/delete/", "");
+        const key = decodeURIComponent(path.replace("/api/delete/", ""));
         return await handleDelete(key, env);
       }
 
       if (request.method === "GET" && path.startsWith("/api/file/")) {
-        const key = path.replace("/api/file/", "");
-        const object = await env.VOCAL_APP_STORAGE.get(key);
-
-        if (!object) {
-          return new Response("Archivo no encontrado", {
-            status: 404,
-            headers: CORS_HEADERS
-          });
-        }
-
-        const responseHeaders = new Headers();
-        object.writeHttpMetadata(responseHeaders);
-        responseHeaders.set("etag", object.httpEtag);
-        responseHeaders.set("Accept-Ranges", "bytes");
-
-        for (const [corsKey, corsValue] of Object.entries(CORS_HEADERS)) {
-          responseHeaders.set(corsKey, corsValue);
-        }
-
-        return new Response(object.body, {
-          status: 200,
-          headers: responseHeaders
-        });
+        const key = decodeURIComponent(path.replace("/api/file/", ""));
+        return await handleGetFile(request, key, env);
       }
 
-      return new Response(JSON.stringify({ error: "Not found" }), {
-        status: 404,
-        headers: { ...CORS_HEADERS, "Content-Type": "application/json" }
-      });
+      return jsonResponse({ error: "Not found" }, 404);
     } catch (error) {
       console.error("Worker error:", error);
-      return new Response(JSON.stringify({ error: error.message }), {
-        status: 500,
-        headers: { ...CORS_HEADERS, "Content-Type": "application/json" }
-      });
+      return jsonResponse({ error: error.message || "Error interno del Worker" }, 500);
     }
   }
 };
@@ -74,97 +47,128 @@ async function handleUpload(request, env) {
   const t0 = Date.now();
 
   try {
-    const contentType = request.headers.get("content-type") || "";
-    console.log("[UPLOAD] Inicio");
-    console.log("[UPLOAD] Content-Type:", contentType);
+    console.log("[UPLOAD] Inicio handleUpload");
 
-    if (!contentType.includes("multipart/form-data")) {
-      console.warn("[UPLOAD] Content-Type incorrecto:", contentType);
-      return new Response(JSON.stringify({
-        error: "Content-Type debe ser multipart/form-data"
-      }), {
-        status: 400,
-        headers: { ...CORS_HEADERS, "Content-Type": "application/json" }
-      });
-    }
+    const fileNameHeader = request.headers.get("X-File-Name");
+    const mimeTypeHeader = request.headers.get("X-Mime-Type");
+    const contentType = request.headers.get("Content-Type") || "application/octet-stream";
+    const contentLength = request.headers.get("Content-Length") || "desconocido";
 
-    console.log("[UPLOAD] Leyendo formData...");
-    const formData = await request.formData();
+    const fileName = fileNameHeader || `upload_${Date.now()}`;
+    const mimeType = mimeTypeHeader || contentType || "application/octet-stream";
 
-    const file = formData.get("file");
-    const fileName = formData.get("fileName") || file?.name || `upload_${Date.now()}`;
-    const mimeType = formData.get("mimeType") || file?.type || "application/octet-stream";
-
-    if (!file) {
-      throw new Error("No se encontró el archivo en el FormData");
-    }
-
-    console.log("[UPLOAD] Archivo recibido:", {
+    console.log("[UPLOAD] Headers recibidos:", {
       fileName,
       mimeType,
-      size: file.size
+      contentType,
+      contentLength
     });
 
-    const cleanName = fileName
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^a-zA-Z0-9._-]/g, "_")
-      .replace(/_+/g, "_");
-
-    const safePath = `${Date.now()}_${cleanName}`;
-    console.log("[UPLOAD] Key destino:", safePath);
-
-    console.log("[UPLOAD] Subiendo a R2...");
-    if (typeof file.stream === "function") {
-      await env.VOCAL_APP_STORAGE.put(safePath, file.stream(), {
-        httpMetadata: { contentType: mimeType }
-      });
-    } else {
-      await env.VOCAL_APP_STORAGE.put(safePath, file, {
-        httpMetadata: { contentType: mimeType }
-      });
+    if (!request.body) {
+      throw new Error("La solicitud no contiene body.");
     }
 
-    const publicUrl = `${env.R2_PUBLIC_URL}/api/file/${safePath}`;
+    const cleanName = sanitizeFileName(fileName);
+    const safePath = `${Date.now()}_${cleanName}`;
+
+    console.log("[UPLOAD] Key destino:", safePath);
+    console.log("[UPLOAD] Iniciando put() a R2...");
+
+    await env.VOCAL_APP_STORAGE.put(safePath, request.body, {
+      httpMetadata: {
+        contentType: mimeType
+      }
+    });
+
+    console.log("[UPLOAD] put() completado");
+
+    const publicUrl = `${env.R2_PUBLIC_URL}/api/file/${encodeURIComponent(safePath)}`;
     const elapsed = ((Date.now() - t0) / 1000).toFixed(2);
 
     console.log("[UPLOAD] Completado en", `${elapsed}s`);
     console.log("[UPLOAD] URL pública:", publicUrl);
 
-    return new Response(JSON.stringify({
+    return jsonResponse({
       success: true,
       filePath: safePath,
       fileUrl: publicUrl,
       fileName: cleanName
-    }), {
-      status: 200,
-      headers: { ...CORS_HEADERS, "Content-Type": "application/json" }
-    });
+    }, 200);
+
   } catch (error) {
     const elapsed = ((Date.now() - t0) / 1000).toFixed(2);
     console.error("[UPLOAD] Error tras", `${elapsed}s:`, error);
 
-    return new Response(JSON.stringify({
-      error: error.message
-    }), {
-      status: 500,
-      headers: { ...CORS_HEADERS, "Content-Type": "application/json" }
-    });
+    return jsonResponse({
+      error: error.message || "Error desconocido en upload"
+    }, 500);
   }
 }
 
 async function handleDelete(key, env) {
   try {
+    console.log("[DELETE] Eliminando:", key);
     await env.VOCAL_APP_STORAGE.delete(key);
-    return new Response(JSON.stringify({ success: true }), {
+
+    return jsonResponse({ success: true }, 200);
+  } catch (error) {
+    console.error("[DELETE] Error:", error);
+    return jsonResponse({ error: error.message || "Error eliminando archivo" }, 500);
+  }
+}
+
+async function handleGetFile(request, key, env) {
+  try {
+    console.log("[GET] Solicitando archivo:", key);
+
+    const object = await env.VOCAL_APP_STORAGE.get(key);
+
+    if (!object) {
+      return new Response("Archivo no encontrado", {
+        status: 404,
+        headers: CORS_HEADERS
+      });
+    }
+
+    const headers = new Headers();
+    object.writeHttpMetadata(headers);
+
+    if (object.httpEtag) {
+      headers.set("etag", object.httpEtag);
+    }
+
+    headers.set("Accept-Ranges", "bytes");
+
+    for (const [k, v] of Object.entries(CORS_HEADERS)) {
+      headers.set(k, v);
+    }
+
+    return new Response(object.body, {
       status: 200,
-      headers: { ...CORS_HEADERS, "Content-Type": "application/json" }
+      headers
     });
   } catch (error) {
-    console.error("Error en handleDelete:", error);
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { ...CORS_HEADERS, "Content-Type": "application/json" }
-    });
+    console.error("[GET] Error:", error);
+    return jsonResponse({ error: error.message || "Error leyendo archivo" }, 500);
   }
+}
+
+function sanitizeFileName(fileName) {
+  return String(fileName)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9._ -]/g, "_")
+    .replace(/\s+/g, " ")
+    .replace(/_+/g, "_")
+    .trim();
+}
+
+function jsonResponse(data, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      ...CORS_HEADERS,
+      "Content-Type": "application/json"
+    }
+  });
 }
