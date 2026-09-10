@@ -81,7 +81,7 @@ async function uploadFileToCloudflare(
 
   const fullFileName = `${tipo}_${fileName}`;
   const size = typeof fileOrBlob?.size === "number" ? fileOrBlob.size : NaN;
-  const uploadUrl = `${config.baseUrl}/api/upload`;
+  const uploadUrl = `${config.baseUrl}/api/upload?fileName=${encodeURIComponent(fullFileName)}&mimeType=${encodeURIComponent(mimeType)}`;
 
   console.log(`☁️ Subiendo a Cloudflare R2: ${fullFileName}`);
   console.log(`📊 Tamaño del archivo: ${formatBytes(size)}`);
@@ -96,11 +96,6 @@ async function uploadFileToCloudflare(
   try {
     const response = await fetch(uploadUrl, {
       method: "POST",
-      headers: {
-        "Content-Type": mimeType,
-        "X-File-Name": fullFileName,
-        "X-Mime-Type": mimeType
-      },
       body: fileOrBlob,
       signal: controller.signal
     });
@@ -134,16 +129,10 @@ async function uploadFileToCloudflare(
       throw new Error("El Worker respondió sin fileUrl/url.");
     }
 
-    const finalFileUrl = result.fileUrl || result.url || null;
-    const finalFilePath = result.filePath || result.key || null;
-    const finalFileName = result.fileName || fullFileName;
-
-    console.log(`✅ Subido a R2: ${finalFileUrl}`);
-
     return {
-      filePath: finalFilePath,
-      fileUrl: finalFileUrl,
-      fileName: finalFileName
+      filePath: result.filePath || result.key || null,
+      fileUrl: result.fileUrl || result.url || null,
+      fileName: result.fileName || fullFileName
     };
   } catch (error) {
     clearTimeout(timeoutId);
@@ -154,7 +143,7 @@ async function uploadFileToCloudflare(
       throw new Error(
         `La subida tardó demasiado (${timeoutMs / 1000}s) y se canceló. ` +
         `Archivo: ${fullFileName} (${formatBytes(size)}). ` +
-        `Tiempo transcurrido: ${elapsed}s. Verifica logs del Worker y velocidad de subida.`
+        `Tiempo transcurrido: ${elapsed}s.`
       );
     }
 
