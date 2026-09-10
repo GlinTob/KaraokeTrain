@@ -7,4 +7,4 @@ binding = "VOCAL_APP_STORAGE"
 bucket_name = "vocal-app-storage"
 
 [vars]
-R2_PUBLIC_URL = "https://vocal-app-storage.jodatomx.workers.dev"
+R2_PUBLIC_URL = "https://vocal-app-storage-worker.jodatomx.workers.dev"
