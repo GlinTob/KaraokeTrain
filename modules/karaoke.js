@@ -477,6 +477,19 @@ export async function startKaraokeRecording() {
     if (karaokeStream2) { karaokeStream2.getTracks().forEach(t => t.stop()); karaokeStream2 = null; }
 
     const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+
+    // FIX: reproducir la pista ANTES de pedir el micrófono, dentro del gesto
+    // del usuario (click). Llamarlo después de `getUserMedia` solía provocar
+    // NotAllowedError de autoplay y la pista quedaba muda.
+    let trackPlaybackFailed = false;
+    try {
+      track.volume = 0.7;
+      await track.play();
+    } catch (e) {
+      trackPlaybackFailed = true;
+      console.warn("No se pudo reproducir la pista:", e);
+    }
+
     karaokePitchDetectionAudioCtx = new AudioContextCtor();
     if (karaokePitchDetectionAudioCtx.state === "suspended") {
       await karaokePitchDetectionAudioCtx.resume();
@@ -508,30 +521,26 @@ export async function startKaraokeRecording() {
     }
 
     const source1 = karaokePitchDetectionAudioCtx.createMediaStreamSource(karaokeStream);
-    let chainNode = source1;
 
     // El micrófono se usa SOLO para análisis (pitch) y grabación.
     // NUNCA se conecta al altavoz: así no se escucha la voz del usuario mientras canta.
     // La voz se graba en crudo y se reproduce después para que el usuario la evalúe.
+    // FIX: el análisis de pitch lee SIEMPRE el micrófono crudo (source1). Si el
+    // procesador vocal está activo, su noise-gate/compresor podría silenciar su
+    // salida y las barras del monitor quedarían vacías aunque la voz se grabe bien.
     if ($("vocalProcessorEnabled")?.checked) {
       try {
         karaokePitchWorkletNode = new AudioWorkletNode(karaokePitchDetectionAudioCtx, "vocal-processor");
         source1.connect(karaokePitchWorkletNode);
-        // FIX #1: chainNode debe ser el worklet (la salida procesada) para que el
-        // analyser reciba la voz con HP/EQ/Gate/Compresor ya aplicados. Antes
-        // apuntaba a source1, así que el pitch se detectaba sobre la señal cruda
-        // y el vocal-processor trabajaba en vano.
-        chainNode = karaokePitchWorkletNode;
       } catch (e) {
         console.warn("Vocal processor no aplicado en karaoke:", e);
         karaokePitchWorkletNode = null;
-        // Mantener chainNode = source1 como fallback (señal cruda)
       }
     }
 
     karaokePitchDetectionAnalyser = karaokePitchDetectionAudioCtx.createAnalyser();
     karaokePitchDetectionAnalyser.fftSize = 2048;
-    chainNode.connect(karaokePitchDetectionAnalyser);
+    source1.connect(karaokePitchDetectionAnalyser);
 
     if (karaokeDuoSplitMode && karaokeStream2) {
       const source2 = karaokePitchDetectionAudioCtx.createMediaStreamSource(karaokeStream2);
@@ -565,16 +574,18 @@ export async function startKaraokeRecording() {
       karaokeMediaRecorder = null;
     }
 
-    try {
-      await track.play();
-      track.volume = 0.7;
-    } catch (e) {
-      console.warn("No se pudo reproducir la pista:", e);
+    if (trackPlaybackFailed) {
+      const warnEl = $("karaokeStatus");
+      if (warnEl) warnEl.textContent = "⚠️ La pista no pudo reproducirse (autoplay/CORS). Grabando la voz de todos modos.";
     }
 
     const duoIndicator = $("karaokeDuoIndicator");
     if (duoIndicator) {
       duoIndicator.style.display = karaokeDuoSplitMode ? "block" : "none";
+    }
+    const soloMicIndicator = $("karaokeSoloMicIndicator");
+    if (soloMicIndicator) {
+      soloMicIndicator.style.display = karaokeDuoSplitMode ? "none" : "block";
     }
 
     const statusEl = $("karaokeStatus");
@@ -595,6 +606,7 @@ export async function startKaraokeRecording() {
     }
     if (karaokeStream) { karaokeStream.getTracks().forEach(t => t.stop()); karaokeStream = null; }
     if (karaokeStream2) { karaokeStream2.getTracks().forEach(t => t.stop()); karaokeStream2 = null; }
+    if (track) { try { track.pause(); } catch (e) {} }
     karaokeRecordingActive = false;
     alert("❌ No se pudo iniciar la grabación. Revisa que el micrófono esté permitido.");
   }
@@ -648,6 +660,7 @@ async function loop() {
     karaokePitchP2 = pitch2 > 0 ? pitch2 : -1;
 
     if (karaokeDuoSplitMode) updateDuoLevels();
+    else setBarWidth("karaokeMic1Level", karaokePitchDetectionAnalyser);
 
     drawKaraokeMonitor(currentTime, karaokePitchP1, karaokePitchP2);
 
@@ -716,6 +729,8 @@ export function stopKaraokeRecording() {
 
   const duoIndicator = $("karaokeDuoIndicator");
   if (duoIndicator) duoIndicator.style.display = "none";
+  const soloMicIndicator = $("karaokeSoloMicIndicator");
+  if (soloMicIndicator) soloMicIndicator.style.display = "none";
 
   const track = $("karaokeTrack") || $("karaokeAudio") || $("audioKaraoke") || $("trackPlayer");
   if (track) {
