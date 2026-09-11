@@ -122,10 +122,10 @@ function drawRegion(pTop, pBottom, pVal, pHist, filtro, etiqueta, paleta, curren
   const noteLabelsX = 28 + avatarBlockW;
 
   // FIX: escala del pentagrama sin medios tonos: solo las notas naturales de
-  // la escala de Do mayor, de C3 (48) a B4 (71). Los sostenidos/bemoles caen
+  // la escala de Do mayor, de C3 (48) a E5 (76). Los sostenidos/bemoles caen
   // entre líneas. Notas fuera del rango se pinzan a los extremos.
   const MIN_MIDI = 48; // C3
-  const MAX_MIDI = 71; // B4
+  const MAX_MIDI = 76; // E5
   const MAJOR_NATURALS = [0, 2, 4, 5, 7, 9, 11];
   const midiToY = (midi) => pTop + ((MAX_MIDI - Math.min(MAX_MIDI, Math.max(MIN_MIDI, midi > 0 ? midi : MIN_MIDI))) / (MAX_MIDI - MIN_MIDI) * pHeight);
 
