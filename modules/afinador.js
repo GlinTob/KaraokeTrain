@@ -31,7 +31,10 @@ function frequencyToCentsOff(freq, targetFreq) {
 export function noteToFrequency(noteName) {
   const notes = { C: 0, 'C#': 1, D: 2, 'D#': 3, E: 4, F: 5, 'F#': 6, G: 7, 'G#': 8, A: 9, 'A#': 10, B: 11 };
   const match = noteName.match(/^([A-G]#?)(\d)$/);
-  if (!match) return 82.41;
+  if (!match) {
+    console.warn(`Nota inválida para el afinador: "${noteName}". Se asume E2 (82.41 Hz).`);
+    return 82.41;
+  }
   const key = match[1];
   const octave = parseInt(match[2], 10);
   const semitonesFromA4 = (notes[key] - 9) + (octave - 4) * 12;
@@ -116,6 +119,16 @@ export class AfinadorVisual {
     this.resize = this.resize.bind(this);
     window.addEventListener('resize', this.resize);
     this.resize();
+
+    // FIX perf: el color de fondo solo puede cambiar al cambiar el tema, así
+    // que lo leemos con getComputedStyle únicamente en ese momento (Mutation
+    // Observer sobre data-theme), no en cada frame.
+    this._themeObserver = new MutationObserver(() => this.updateThemeColors());
+    this._themeObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-theme']
+    });
+    this.updateThemeColors();
   }
 
   resize() {
@@ -169,7 +182,7 @@ export class AfinadorVisual {
     this.cents = frequencyToCentsOff(freq, this.targetFreq);
 
     // --- LÓGICA DE CONGELAMIENTO (FREEZE) Y EFECTOS ---
-    const isTuned = Math.abs(this.cents) <= Math.max(6, this.maxCents * 0.35);
+    const isTuned = Math.abs(this.cents) <= this.maxCents * 0.35;
 
     if (isTuned) {
       if (!this.wasTuned && this.rippleCooldown <= 0) {
@@ -338,8 +351,6 @@ export class AfinadorVisual {
       r.alpha = Math.max(0, (r.baseAlpha != null ? r.baseAlpha : 0.85) * (1 - r.radius / r.maxRadius));
       return r.alpha > 0.02 && r.radius < r.maxRadius;
     });
-
-    this.updateThemeColors();
   }
 
   updateThemeColors() {
@@ -446,7 +457,7 @@ export class AfinadorVisual {
 
     // Punto móvil
     const markerY = cy + this.markerOffset;
-    const tuned = this.currentFreq > 0 && Math.abs(this.cents) <= Math.max(6, this.maxCents * 0.35);
+    const tuned = this.currentFreq > 0 && Math.abs(this.cents) <= this.maxCents * 0.35;
 
     const markerColor = tuned
       ? this.colors.marker
@@ -543,6 +554,10 @@ export class AfinadorVisual {
   destroy() {
     this.stop();
     window.removeEventListener('resize', this.resize);
+    if (this._themeObserver) {
+      this._themeObserver.disconnect();
+      this._themeObserver = null;
+    }
     // FIX #15: limpiar los handlers onchange que el constructor asignó a
     // los selectores de target note / difficulty, para que el siguiente
     // AfinadorVisual no termine con handlers apilados apuntando a
@@ -581,7 +596,7 @@ export async function toggleRecording() {
       btn.classList.remove('recording');
       btn.setAttribute('aria-pressed', 'false');
 
-      alert('❌ No se pudo iniciar el micrófono del afinador: ' + error.message);
+      alert('❌ No se pudo iniciar el micrófono del afinador: ' + (error?.message || 'Error desconocido'));
       stopAfinador();
     }
   } else {
@@ -784,7 +799,7 @@ async function runPitchDetectionLoop(pitchBuffer) {
         const tolerances = { facil: 50, medio: 30, dificil: 15, experto: 5 };
         const tolerance = tolerances[level] || 30;
 
-        if (Math.abs(cents) <= Math.max(6, tolerance * 0.35)) {
+        if (Math.abs(cents) <= tolerance * 0.35) {
           guideText.textContent = '✅ Afinado';
           guideText.className = 'guide-text state-good';
         } else if (cents < 0) {
