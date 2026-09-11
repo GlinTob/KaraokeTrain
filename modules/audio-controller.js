@@ -95,15 +95,19 @@ export class AudioProcessorController {
       }
     });
 
-    // Preparar transferibles: los buffers subyacentes (ArrayBuffer) de cada Float32Array
-    const transferables = normalizedBuffers.map(b => b.buffer);
+    // Preparar transferibles: los buffers subyacentes (ArrayBuffer) de cada Float32Array.
+    // OJO: transferir un ArrayBuffer DETACHA el buffer en el hilo principal; el llamador
+    // no debe reutilizar los buffers de entrada tras esta llamada. Se deduplican los
+    // ArrayBuffers para evitar que postMessage lance DataCloneError si el mismo buffer
+    // se pasa más de una vez (p.ej. L/R apuntando al mismo ArrayBuffer).
+    const transferables = Array.from(new Set(normalizedBuffers.map(b => b.buffer)));
 
     const result = await this.execute("mix", {
       buffers: normalizedBuffers,
       gains
     }, transferables);
 
-    return new Float32Array(result);
+    return result;
   }
 
   async detectPitch(buffer, sampleRate) {
@@ -129,13 +133,35 @@ export class AudioProcessorController {
     return result;
   }
 
+  async encodeWavToBlob(audioBuffer) {
+    if (!audioBuffer || !audioBuffer.numberOfChannels) {
+      throw new Error("encodeWavToBlob requiere un audioBuffer válido.");
+    }
+
+    // Copiamos los canales para transferirlos al worker SIN detachar el
+    // AudioBuffer original (getChannelData devuelve una vista en vivo).
+    const channels = [];
+    for (let c = 0; c < audioBuffer.numberOfChannels; c++) {
+      channels.push(new Float32Array(audioBuffer.getChannelData(c)));
+    }
+
+    const result = await this.execute("encodeWav", {
+      channels,
+      sampleRate: audioBuffer.sampleRate,
+      numberOfChannels: audioBuffer.numberOfChannels
+    }, channels.map((c) => c.buffer));
+
+    return new Blob([result], { type: "audio/wav" });
+  }
+
   async applyGain(buffer, gain) {
     if (!buffer) throw new Error("applyGain requiere un buffer válido.");
 
     const floatBuffer = buffer instanceof Float32Array ? buffer : new Float32Array(buffer);
+    // OJO: transferir el buffer de entrada lo DETACHA en el hilo principal.
     const result = await this.execute("applyGain", { buffer: floatBuffer, gain }, [floatBuffer.buffer]);
 
-    return new Float32Array(result);
+    return result;
   }
 
   async applyLowPassFilter(buffer, cutoffFrequency, sampleRate) {
@@ -145,13 +171,14 @@ export class AudioProcessorController {
     }
 
     const floatBuffer = buffer instanceof Float32Array ? buffer : new Float32Array(buffer);
+    // OJO: transferir el buffer de entrada lo DETACHA en el hilo principal.
     const result = await this.execute("lowPassFilter", {
       buffer: floatBuffer,
       cutoffFrequency,
       sampleRate
     }, [floatBuffer.buffer]);
 
-    return new Float32Array(result);
+    return result;
   }
 
   async detectSilence(buffer, threshold = 0.01) {
@@ -169,18 +196,20 @@ export class AudioProcessorController {
     if (!buffer) throw new Error("normalizeAudio requiere un buffer válido.");
 
     const floatBuffer = buffer instanceof Float32Array ? buffer : new Float32Array(buffer);
+    // OJO: transferir el buffer de entrada lo DETACHA en el hilo principal.
     const result = await this.execute("normalize", {
       buffer: floatBuffer,
       targetLevel
     }, [floatBuffer.buffer]);
 
-    return new Float32Array(result);
+    return result;
   }
 
   async processInChunks(buffer, chunkSize = 4096) {
     if (!buffer) throw new Error("processInChunks requiere un buffer válido.");
 
     const floatBuffer = buffer instanceof Float32Array ? buffer : new Float32Array(buffer);
+    // OJO: transferir el buffer de entrada lo DETACHA en el hilo principal.
     const chunks = await this.execute("processChunks", {
       buffer: floatBuffer,
       chunkSize
@@ -190,7 +219,8 @@ export class AudioProcessorController {
       throw new Error("Respuesta inválida del worker en processInChunks.");
     }
 
-    return chunks.map((c) => new Float32Array(c));
+    // El worker ya devuelve Float32Array independientes (los clona), no hace falta copiar.
+    return chunks.map((c) => (c instanceof Float32Array ? c : new Float32Array(c)));
   }
 
   terminate() {
