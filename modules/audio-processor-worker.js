@@ -250,6 +250,65 @@ class AudioProcessor {
 
     return result;
   }
+
+  /**
+   * Codifica AudioBuffer channels (Float32Array[]) a WAV PCM16 en un ArrayBuffer.
+   * Estéreo si hay >= 2 canales, mono en caso contrario.
+   */
+  encodeWav(channels, sampleRate, numberOfChannels = (channels && channels.length) || 1) {
+    if (!channels || !channels.length || !sampleRate || sampleRate <= 0) {
+      throw new Error("encodeWav requiere channels y sampleRate válidos.");
+    }
+
+    const requestedChannels = Math.max(1, numberOfChannels | 0);
+    const numChannels = requestedChannels >= 2 ? 2 : 1;
+    const numSamples = channels[0].length || 0;
+    const bytesPerSample = 2;
+    const blockAlign = numChannels * bytesPerSample;
+    const byteRate = sampleRate * blockAlign;
+    const dataSize = numSamples * blockAlign;
+
+    const buffer = new ArrayBuffer(44 + dataSize);
+    const view = new DataView(buffer);
+
+    const writeString = (offset, str) => {
+      for (let i = 0; i < str.length; i++) {
+        view.setUint8(offset + i, str.charCodeAt(i));
+      }
+    };
+
+    writeString(0, "RIFF");
+    view.setUint32(4, 36 + dataSize, true);
+    writeString(8, "WAVE");
+    writeString(12, "fmt ");
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, numChannels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, byteRate, true);
+    view.setUint16(32, blockAlign, true);
+    view.setUint16(34, 16, true);
+    writeString(36, "data");
+    view.setUint32(40, dataSize, true);
+
+    const chL = channels[0] || new Float32Array(numSamples);
+    const chR = numChannels === 2 ? (channels[1] || chL) : chL;
+
+    let offset = 44;
+    for (let i = 0; i < numSamples; i++) {
+      const s0 = Math.max(-1, Math.min(1, chL[i] || 0));
+      view.setInt16(offset, s0 < 0 ? s0 * 0x8000 : s0 * 0x7FFF, true);
+      offset += 2;
+
+      if (numChannels === 2) {
+        const s1 = Math.max(-1, Math.min(1, chR[i] || 0));
+        view.setInt16(offset, s1 < 0 ? s1 * 0x8000 : s1 * 0x7FFF, true);
+        offset += 2;
+      }
+    }
+
+    return buffer;
+  }
 }
 
 const processor = new AudioProcessor();
@@ -284,6 +343,12 @@ self.onmessage = function (event) {
       case "applyGain":
         result = processor.applyGain(data?.buffer, data?.gain);
         self.postMessage({ id, result, success: true }, [result.buffer]);
+        break;
+
+      case "encodeWav":
+        result = processor.encodeWav(data?.channels, data?.sampleRate, data?.numberOfChannels);
+        // Transferir el ArrayBuffer de la WAV (Zero-Copy)
+        self.postMessage({ id, result, success: true }, [result]);
         break;
 
       case "lowPassFilter":
