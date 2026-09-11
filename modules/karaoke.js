@@ -107,7 +107,7 @@ export function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2) {
   } else {
     pitchHistory.push(karaokePitchP1 > 0 ? karaokePitchP1 : null);
     if (pitchHistory.length > 80) pitchHistory.shift();
-    drawRegion(20, canvas.height - 100, karaokePitchP1, pitchHistory, null, null, paleta, currentTime, canvas, 0);
+    drawRegion(20, canvas.height - 122, karaokePitchP1, pitchHistory, null, null, paleta, currentTime, canvas, 0);
   }
 
   drawLyricsBar(canvas, ctx, currentTime);
@@ -131,35 +131,58 @@ function drawRegion(pTop, pBottom, pVal, pHist, filtro, etiqueta, paleta, curren
 
   if (etiqueta) drawAvatarBlock(pTop, pBottom, etiqueta, avatarBlockW, ctx);
 
-  // Pentagrama con una línea por nota natural dentro de C3..F5.
-  const naturalLines = [];
-  for (let m = MIN_MIDI; m <= MAX_MIDI; m++) {
-    if (NATURAL_PITCH.includes(m % 12)) naturalLines.push(m);
-  }
-
-  ctx.strokeStyle = paleta.lineas;
+  // Pentagrama: una línea principal (más oscura) por nota natural y una línea
+  // "medio" (sostenido, más clara) entre cada par de naturales.
   ctx.lineWidth = 1;
-  naturalLines.forEach(m => {
+  ctx.strokeStyle = paleta.lineas;
+  ctx.globalAlpha = 0.3;
+  for (let m = MIN_MIDI; m <= MAX_MIDI; m++) {
+    if (NATURAL_PITCH.includes(m % 12)) continue;
     const y = midiToY(m);
     ctx.beginPath();
     ctx.moveTo(pentagramStartX, y);
     ctx.lineTo(canvas.width, y);
     ctx.stroke();
-  });
+  }
+  ctx.globalAlpha = 1;
 
-  // Etiquetas adaptativas: si el pentagrama es muy pequeño (modo dúo), se
-  // rotulan menos líneas para que el texto no se solape.
+  ctx.lineWidth = 2;
+  for (let m = MIN_MIDI; m <= MAX_MIDI; m++) {
+    if (!NATURAL_PITCH.includes(m % 12)) continue;
+    const y = midiToY(m);
+    ctx.beginPath();
+    ctx.moveTo(pentagramStartX, y);
+    ctx.lineTo(canvas.width, y);
+    ctx.stroke();
+  }
+  ctx.lineWidth = 1;
+
+  // Etiquetas de TODAS las notas naturales. Solo en regiones muy pequeñas
+  // (modo dúo) se omiten algunas para evitar que el texto se solape.
   ctx.fillStyle = paleta.etiquetas;
   ctx.font = "bold 18px Arial";
   ctx.textAlign = "right";
   ctx.textBaseline = "alphabetic";
-  let lastLabelY = -16;
-  naturalLines.forEach(m => {
+  let lastLabelY = -1000;
+  for (let m = MIN_MIDI; m <= MAX_MIDI; m++) {
+    if (!NATURAL_PITCH.includes(m % 12)) continue;
     const y = midiToY(m);
-    if (y - lastLabelY < 14) return;
+    if (y - lastLabelY < 8) continue;
     lastLabelY = y;
     ctx.fillText(midiToNoteName(m), noteLabelsX, y + 7);
-  });
+  }
+
+  // Símbolo de pentagrama (clave de sol) en modo solitario; en dúo ese
+  // espacio izquierdo lo ocupan los avatares. Se sitúa entre las etiquetas
+  // de nota y la línea de disparo, detrás de las barras.
+  if (!etiqueta) {
+    const clefY = (pTop + pBottom) / 2;
+    ctx.fillStyle = paleta.lineas;
+    ctx.font = `bold ${Math.round(pHeight * 0.42)}px "Segoe UI Symbol", "Noto Music", Arial`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("\uD834\uDD1E", 85, clefY);
+  }
 
   if (Array.isArray(textSegments)) {
     textSegments.forEach(seg => {
