@@ -837,16 +837,20 @@ export function setKaraokeData(lyrics, name, fileUrl) {
 function normalizeKaraokeSegments(rawSegments = []) {
   if (!Array.isArray(rawSegments)) return [];
 
-  // Detectar si el formato es "plano" (array de palabras sin estructura de segmentos)
-  const isFlatFormat = rawSegments.length > 0 && 
-    rawSegments.every(item => item && typeof item === 'object' && 
-      (Number.isFinite(item.start) || Number.isFinite(item.startTime)) &&
+  // Detectar si es una lista plana de palabras (con .word/.text y sin .words[])
+  const isWordList = rawSegments.length > 0 &&
+    rawSegments.every(item => item && typeof item === 'object' &&
       (item.word || item.text) &&
       !Array.isArray(item.words));
 
-  if (isFlatFormat) {
-    // Convertir formato plano a segmentos agrupados por tiempo o parte
-    return groupFlatWordsIntoSegments(rawSegments);
+  if (isWordList) {
+    const withTimes = rawSegments.every(item =>
+      Number.isFinite(item.start) || Number.isFinite(item.startTime));
+    if (withTimes) {
+      return groupFlatWordsIntoSegments(rawSegments);
+    }
+    // Lista de palabras sin tiempos (p.ej. segmentarTextoPlano): agrupar por renglón
+    return groupWordsByLineIntoSegments(rawSegments);
   }
 
   return rawSegments.map((seg) => {
@@ -897,6 +901,64 @@ function normalizeKaraokeSegments(rawSegments = []) {
       words
     };
   });
+}
+
+/**
+ * Agrupa una lista plana de palabras SIN tiempos en segmentos por renglón.
+ * Usa el campo `.renglon` (segmentarTextoPlano) para reconstruir las líneas;
+ * si no existe, agrupa en bloques de MAX_LINE_WORDS palabras.
+ */
+function groupWordsByLineIntoSegments(flatWords) {
+  if (!flatWords.length) return [];
+
+  const MAX_LINE_WORDS = 10;
+  const lines = [];
+  let currentRenglon = null;
+  let currentLine = null;
+
+  const pushLine = () => {
+    if (!currentLine || !currentLine.words.length) return;
+    lines.push({
+      renglon: currentLine.renglon,
+      text: currentLine.words.map(w => w.word).join(" "),
+      parte: currentLine.words[0].parte || "P1",
+      midi: 60,
+      words: currentLine.words
+    });
+    currentLine = null;
+  };
+
+  flatWords.forEach((w) => {
+    const text = (w.word || w.text || "").trim();
+    if (!text) return;
+
+    let renglon = null;
+    if (w.renglon !== undefined && w.renglon !== null && String(w.renglon).trim() !== "") {
+      renglon = Number(w.renglon);
+      if (!Number.isFinite(renglon)) renglon = null;
+    }
+
+    if (!currentLine ||
+        (renglon !== null && renglon !== currentRenglon) ||
+        currentLine.words.length >= MAX_LINE_WORDS) {
+      pushLine();
+      currentRenglon = (renglon !== null) ? renglon : (currentRenglon ?? 0);
+      currentLine = { renglon: currentRenglon, words: [] };
+    }
+
+    currentLine.words.push({
+      word: text,
+      text,
+      start: null,
+      end: null,
+      midi: Number.isFinite(w.midi) ? w.midi : null,
+      parte: w.parte || "P1"
+    });
+  });
+
+  pushLine();
+
+  return lines;
 }
 
 /**
@@ -1001,10 +1063,11 @@ function createSegmentFromWords(words) {
 }
 
 /**
- * FIX: cuando los segmentos llegan SIN tiempos reales (letra plana en uno o
- * pocos segmentos), los reparte a lo largo de la duración total para que el
- * monitor muestre UN renglón a la vez en lugar de dibujar toda la letra en
- * una línea continua. Las líneas muy largas se parten por palabras.
+ * FIX: cuando los segmentos llegan SIN tiempos reales (letra plana), reparte
+ * los RENGLONES a lo largo de la duración total (para que el monitor muestre
+ * una línea a la vez, no toda la letra junta) y las palabras DENTRO de cada
+ * renglón (para que el canvas pinte las barras y el teleprompter ilumine
+ * palabra por palabra en su línea).
  */
 function ensureTextLineTimings(segments, totalDuration) {
   if (!Array.isArray(segments) || !segments.length) return segments;
@@ -1014,40 +1077,54 @@ function ensureTextLineTimings(segments, totalDuration) {
   const span = Math.max(...ends) - Math.min(...starts);
   if (span >= 0.8) return segments; // ya tienen tiempos reales
 
-  const MAX_LINE_WORDS = 10;
-  const lines = [];
-  segments.forEach(seg => {
-    const raw = String(seg.text || "");
-    const partes = raw.split(/\r?\n+/).map(p => p.trim()).filter(Boolean);
-    const base = partes.length ? partes : (raw ? [raw] : []);
-    base.forEach(text => {
-      const words = text.split(/\s+/).filter(Boolean);
-      if (words.length <= MAX_LINE_WORDS) {
-        lines.push({ text, parte: seg.parte || "P1" });
-        return;
-      }
-      for (let i = 0; i < words.length; i += MAX_LINE_WORDS) {
-        lines.push({ text: words.slice(i, i + MAX_LINE_WORDS).join(" "), parte: seg.parte || "P1" });
-      }
-    });
-  });
-  if (!lines.length) return segments;
-
   const dur = (Number.isFinite(totalDuration) && totalDuration > 1)
     ? totalDuration
-    : Math.max(3, lines.length * 2.4);
+    : Math.max(3, segments.length * 2.4);
   const usable = Math.max(2, dur - 1.0);
-  const step = usable / lines.length;
+  const step = usable / segments.length;
 
-  return lines.map((line, i) => {
-    const start = Math.round((0.5 + i * step) * 1000) / 1000;
+  return segments.map((seg, i) => {
+    const lineStart = 0.5 + i * step;
+    const lineEnd = 0.5 + (i + 1) * step;
+    const rawWords = (Array.isArray(seg.words) && seg.words.length)
+      ? seg.words
+      : null;
+
+    let words = [];
+    if (rawWords) {
+      const totalChars = rawWords.reduce((sum, w) => {
+        const txt = (w.text || w.word || "").trim();
+        return sum + Math.max(1, txt.length);
+      }, 0) || rawWords.length;
+      let cursor = lineStart;
+      words = rawWords.map((w, wi) => {
+        const txt = (w.text || w.word || "").trim();
+        const weight = Math.max(1, txt.length) / totalChars;
+        let wDur = (lineEnd - lineStart) * weight;
+        if (wi === rawWords.length - 1) wDur = Math.max(0.05, lineEnd - cursor);
+        const start = Math.round(cursor * 1000) / 1000;
+        cursor += wDur;
+        const end = Math.round(Math.min(lineEnd, cursor) * 1000) / 1000;
+        return {
+          word: w.word || w.text || txt,
+          text: w.text || w.word || txt,
+          start,
+          end,
+          midi: Number.isFinite(w.midi) ? w.midi : null,
+          parte: w.parte || seg.parte || "P1"
+        };
+      });
+    }
+
     return {
-      start,
-      end: Math.round((start + step) * 1000) / 1000,
-      text: line.text,
-      parte: line.parte,
-      midi: 60,
-      words: []
+      start: Math.round(lineStart * 1000) / 1000,
+      end: Math.round(lineEnd * 1000) / 1000,
+      text: seg.text || words.map(w => w.word).join(" "),
+      parte: seg.parte || words[0]?.parte || "P1",
+      midi: Number.isFinite(seg.midi)
+        ? seg.midi
+        : (Number.isFinite(words[0]?.midi) ? words[0].midi : 60),
+      words
     };
   });
 }
