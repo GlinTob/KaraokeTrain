@@ -809,7 +809,8 @@ export function syncKaraokeMonitor(currentTime) {
 }
 
 export function setKaraokeData(lyrics, name, fileUrl) {
-  textSegments = normalizeKaraokeSegments(lyrics);
+  const karaokeTrackEl = $("karaokeTrack") || $("karaokeAudio") || $("audioKaraoke") || $("trackPlayer");
+  textSegments = ensureTextLineTimings(normalizeKaraokeSegments(lyrics), karaokeTrackEl?.duration);
   baseTextSegments = [...textSegments];
 
   karaokeSelectedTrackName = name || "Sin nombre";
@@ -928,6 +929,17 @@ function groupFlatWordsIntoSegments(flatWords) {
     }
   }
   
+  // FIX: si ninguna palabra trae tiempo (start=0), repartirlas uniformemente
+  // para que las barras no se amontonen en una línea continua.
+  const hasRealStart = normalizedWords.some(w => (w.start || 0) !== 0);
+  if (!hasRealStart && normalizedWords.length > 1) {
+    const step = 0.5;
+    normalizedWords.forEach((w, i) => {
+      w.start = +(i * step).toFixed(3);
+      w.end = +(w.start + 0.45).toFixed(3);
+    });
+  }
+  
   // Agrupar en segmentos
   const segments = [];
   let currentSegment = {
@@ -986,6 +998,58 @@ function createSegmentFromWords(words) {
       parte: w.parte
     }))
   };
+}
+
+/**
+ * FIX: cuando los segmentos llegan SIN tiempos reales (letra plana en uno o
+ * pocos segmentos), los reparte a lo largo de la duración total para que el
+ * monitor muestre UN renglón a la vez en lugar de dibujar toda la letra en
+ * una línea continua. Las líneas muy largas se parten por palabras.
+ */
+function ensureTextLineTimings(segments, totalDuration) {
+  if (!Array.isArray(segments) || !segments.length) return segments;
+
+  const starts = segments.map(s => Number.isFinite(s.start) ? s.start : 0);
+  const ends = segments.map(s => Number.isFinite(s.end) ? s.end : starts[segments.indexOf(s)]);
+  const span = Math.max(...ends) - Math.min(...starts);
+  if (span >= 0.8) return segments; // ya tienen tiempos reales
+
+  const MAX_LINE_WORDS = 10;
+  const lines = [];
+  segments.forEach(seg => {
+    const raw = String(seg.text || "");
+    const partes = raw.split(/\r?\n+/).map(p => p.trim()).filter(Boolean);
+    const base = partes.length ? partes : (raw ? [raw] : []);
+    base.forEach(text => {
+      const words = text.split(/\s+/).filter(Boolean);
+      if (words.length <= MAX_LINE_WORDS) {
+        lines.push({ text, parte: seg.parte || "P1" });
+        return;
+      }
+      for (let i = 0; i < words.length; i += MAX_LINE_WORDS) {
+        lines.push({ text: words.slice(i, i + MAX_LINE_WORDS).join(" "), parte: seg.parte || "P1" });
+      }
+    });
+  });
+  if (!lines.length) return segments;
+
+  const dur = (Number.isFinite(totalDuration) && totalDuration > 1)
+    ? totalDuration
+    : Math.max(3, lines.length * 2.4);
+  const usable = Math.max(2, dur - 1.0);
+  const step = usable / lines.length;
+
+  return lines.map((line, i) => {
+    const start = Math.round((0.5 + i * step) * 1000) / 1000;
+    return {
+      start,
+      end: Math.round((start + step) * 1000) / 1000,
+      text: line.text,
+      parte: line.parte,
+      midi: 60,
+      words: []
+    };
+  });
 }
 
 export function cargarLetrasEnMonitor() {
@@ -1047,7 +1111,9 @@ export async function loadKaraokeSong(id) {
       track.volume = 0.5;
       track.load();
 
-      track.onloadedmetadata = () => {
+track.onloadedmetadata = () => {
+        textSegments = ensureTextLineTimings(karaokeLoadedLyrics, track.duration);
+        cargarLetrasEnMonitor();
         drawKaraokeMonitor(track.currentTime || 0, -1, -1);
       };
     }
@@ -1062,6 +1128,8 @@ export async function loadKaraokeSong(id) {
       textSegments = [];
       karaokeLoadedLyrics = [];
     }
+
+    textSegments = ensureTextLineTimings(karaokeLoadedLyrics, track?.duration);
 
     cargarLetrasEnMonitor();
 
@@ -1294,7 +1362,8 @@ export function renderKaraokeLyrics(segments) {
   }
 
   // Reutilizar el normalizador central para aceptar ambos formatos.
-  textSegments = normalizeKaraokeSegments(segments);
+  const track = $("karaokeTrack") || $("karaokeAudio") || $("audioKaraoke") || $("trackPlayer");
+  textSegments = ensureTextLineTimings(normalizeKaraokeSegments(segments), track?.duration);
   baseTextSegments = [...textSegments];
 
   cargarLetrasEnMonitor();
@@ -1302,7 +1371,6 @@ export function renderKaraokeLyrics(segments) {
   // Repintar el canvas en t=0 con pitch neutro. Si el karaoke ya está abierto,
   // usamos el currentTime del reproductor para que el monitor se sincronice
   // visualmente con la posición actual.
-  const track = $("karaokeTrack") || $("karaokeAudio") || $("audioKaraoke") || $("trackPlayer");
   const t = track ? (track.currentTime || 0) : 0;
   drawKaraokeMonitor(t, -1, -1);
 
