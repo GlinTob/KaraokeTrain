@@ -121,34 +121,21 @@ function drawRegion(pTop, pBottom, pVal, pHist, filtro, etiqueta, paleta, curren
   const pentagramStartX = 35 + avatarBlockW;
   const noteLabelsX = 28 + avatarBlockW;
 
-  // FIX: escala del pentagrama reestructurada a un rango vocal no profesional
-  // C3 (48) – F5 (77). Una línea por nota natural; los sostenidos ("medios")
-  // quedan exactamente entre dos líneas. Notas fuera del rango se pinzan.
+  // FIX: escala del pentagrama sin medios tonos: solo las notas naturales de
+  // la escala de Do mayor, de C3 (48) a B4 (71). Los sostenidos/bemoles caen
+  // entre líneas. Notas fuera del rango se pinzan a los extremos.
   const MIN_MIDI = 48; // C3
-  const MAX_MIDI = 77; // F5
-  const NATURAL_PITCH = [0, 2, 4, 5, 7, 9, 11];
+  const MAX_MIDI = 71; // B4
+  const MAJOR_NATURALS = [0, 2, 4, 5, 7, 9, 11];
   const midiToY = (midi) => pTop + ((MAX_MIDI - Math.min(MAX_MIDI, Math.max(MIN_MIDI, midi > 0 ? midi : MIN_MIDI))) / (MAX_MIDI - MIN_MIDI) * pHeight);
 
   if (etiqueta) drawAvatarBlock(pTop, pBottom, etiqueta, avatarBlockW, ctx);
 
-  // Pentagrama: una línea principal (más oscura) por nota natural y una línea
-  // "medio" (sostenido, más clara) entre cada par de naturales.
-  ctx.lineWidth = 1;
+  // Pentagrama: una línea (más gruesa/oscura) por cada nota natural C..B.
   ctx.strokeStyle = paleta.lineas;
-  ctx.globalAlpha = 0.3;
-  for (let m = MIN_MIDI; m <= MAX_MIDI; m++) {
-    if (NATURAL_PITCH.includes(m % 12)) continue;
-    const y = midiToY(m);
-    ctx.beginPath();
-    ctx.moveTo(pentagramStartX, y);
-    ctx.lineTo(canvas.width, y);
-    ctx.stroke();
-  }
-  ctx.globalAlpha = 1;
-
   ctx.lineWidth = 2;
   for (let m = MIN_MIDI; m <= MAX_MIDI; m++) {
-    if (!NATURAL_PITCH.includes(m % 12)) continue;
+    if (!MAJOR_NATURALS.includes(m % 12)) continue;
     const y = midiToY(m);
     ctx.beginPath();
     ctx.moveTo(pentagramStartX, y);
@@ -158,14 +145,14 @@ function drawRegion(pTop, pBottom, pVal, pHist, filtro, etiqueta, paleta, curren
   ctx.lineWidth = 1;
 
   // Etiquetas de TODAS las notas naturales. Solo en regiones muy pequeñas
-  // (modo dúo) se omiten algunas para evitar que el texto se solape.
+  // se omiten algunas para evitar que el texto se solape.
   ctx.fillStyle = paleta.etiquetas;
   ctx.font = "bold 18px Arial";
   ctx.textAlign = "right";
   ctx.textBaseline = "alphabetic";
   let lastLabelY = -1000;
   for (let m = MIN_MIDI; m <= MAX_MIDI; m++) {
-    if (!NATURAL_PITCH.includes(m % 12)) continue;
+    if (!MAJOR_NATURALS.includes(m % 12)) continue;
     const y = midiToY(m);
     if (y - lastLabelY < 8) continue;
     lastLabelY = y;
