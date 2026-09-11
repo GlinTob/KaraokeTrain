@@ -325,6 +325,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 
   // --- EVENTOS KARAOKE ---
+  safeAdd("karaokeTrackSelect", "change", async () => {
+    const { loadKaraokeSong } = await import("./modules/karaoke.js");
+    const id = $("karaokeTrackSelect")?.value;
+    if (id && typeof loadKaraokeSong === "function") loadKaraokeSong(id);
+  });
   safeAdd("karaokeDuoSplitToggleBtn", "click", async () => {
     const { toggleKaraokeDuoSplitMode } = await import("./modules/karaoke.js");
     if (typeof toggleKaraokeDuoSplitMode === "function") toggleKaraokeDuoSplitMode();
