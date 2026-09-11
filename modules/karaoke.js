@@ -3,7 +3,9 @@ import { getLibraryItemsByIdFromSupabase, getLibraryItemsByTypeFromSupabase, sav
 // FIX #17: removido `destroyAudioController` del import. Se mantiene el
 // singleton vivo durante toda la sesión (no se destruye en flujos normales)
 // para evitar romper las promesas en vuelo de otros consumidores (afina-dor).
-import { getAudioController, exportStereoWav } from "./audio-controller.js";
+// El encode WAV ahora corre en el worker (encodeWavToBlob) para no bloquear
+// el hilo principal con mezclas largas.
+import { getAudioController } from "./audio-controller.js";
 import { getSelectedMicId } from "./config.js";
 
 let textSegments = [];
@@ -1201,7 +1203,7 @@ export async function mixKaraoke() {
     voiceSource.start(0);
 
     const renderedBuffer = await offlineCtx.startRendering();
-    const finalWavBlob = exportStereoWav(renderedBuffer);
+    const finalWavBlob = await getAudioController().encodeWavToBlob(renderedBuffer);
     const finalUrl = URL.createObjectURL(finalWavBlob);
 
     if (resultDiv) {
