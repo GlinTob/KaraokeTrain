@@ -7,6 +7,7 @@ import { getLibraryItemsByIdFromSupabase, getLibraryItemsByTypeFromSupabase, sav
 // el hilo principal con mezclas largas.
 import { getAudioController } from "./audio-controller.js";
 import { getSelectedMicId } from "./config.js";
+import { midiToNoteName } from "./afinador.js";
 
 let textSegments = [];
 let baseTextSegments = [];
@@ -119,38 +120,45 @@ function drawRegion(pTop, pBottom, pVal, pHist, filtro, etiqueta, paleta, curren
   const dynLineX = 130 + avatarBlockW;
   const pentagramStartX = 35 + avatarBlockW;
   const noteLabelsX = 28 + avatarBlockW;
-  // Escala musical del canvas: de C6 (84) a A3 (57). Notas fuera de este rango
-  // se pinzan a los extremos para que no se dibujen fuera del monitor.
-  const midiToY = (midi) => pTop + ((84 - Math.min(84, Math.max(57, midi > 0 ? midi : 57))) / (84 - 57) * pHeight);
+
+  // FIX: escala del pentagrama reestructurada a un rango vocal no profesional
+  // C3 (48) – F5 (77). Una línea por nota natural; los sostenidos ("medios")
+  // quedan exactamente entre dos líneas. Notas fuera del rango se pinzan.
+  const MIN_MIDI = 48; // C3
+  const MAX_MIDI = 77; // F5
+  const NATURAL_PITCH = [0, 2, 4, 5, 7, 9, 11];
+  const midiToY = (midi) => pTop + ((MAX_MIDI - Math.min(MAX_MIDI, Math.max(MIN_MIDI, midi > 0 ? midi : MIN_MIDI))) / (MAX_MIDI - MIN_MIDI) * pHeight);
 
   if (etiqueta) drawAvatarBlock(pTop, pBottom, etiqueta, avatarBlockW, ctx);
 
+  // Pentagrama con una línea por nota natural dentro de C3..F5.
+  const naturalLines = [];
+  for (let m = MIN_MIDI; m <= MAX_MIDI; m++) {
+    if (NATURAL_PITCH.includes(m % 12)) naturalLines.push(m);
+  }
+
   ctx.strokeStyle = paleta.lineas;
   ctx.lineWidth = 1;
-  // Pentagrama con 9 intervalos (10 líneas) para que cada línea coincida con una nota
-  // de la escala (cada 3 semitonos: C6, A5, F#5, ..., A3).
-  const numLines = 9;
-  for (let i = 0; i <= numLines; i++) {
-    const y = pTop + (pHeight / numLines) * i;
+  naturalLines.forEach(m => {
+    const y = midiToY(m);
     ctx.beginPath();
     ctx.moveTo(pentagramStartX, y);
     ctx.lineTo(canvas.width, y);
     ctx.stroke();
-  }
+  });
 
+  // Etiquetas adaptativas: si el pentagrama es muy pequeño (modo dúo), se
+  // rotulan menos líneas para que el texto no se solape.
   ctx.fillStyle = paleta.etiquetas;
-  ctx.font = "bold 20px Arial";
+  ctx.font = "bold 18px Arial";
   ctx.textAlign = "right";
   ctx.textBaseline = "alphabetic";
-  // Escala visible: de A3 (abajo) a C6 (arriba), cada 3 semitonos.
-  const noteLabels = [
-    { n: "C6", m: 84 }, { n: "A5", m: 81 }, { n: "F#5", m: 78 }, { n: "D#5", m: 75 },
-    { n: "C5", m: 72 }, { n: "A4", m: 69 }, { n: "F#4", m: 66 }, { n: "D#4", m: 63 },
-    { n: "C4", m: 60 }, { n: "A3", m: 57 }
-  ];
-  noteLabels.forEach((lb) => {
-    const y = midiToY(lb.m) + 7;
-    ctx.fillText(lb.n, noteLabelsX, y);
+  let lastLabelY = -16;
+  naturalLines.forEach(m => {
+    const y = midiToY(m);
+    if (y - lastLabelY < 14) return;
+    lastLabelY = y;
+    ctx.fillText(midiToNoteName(m), noteLabelsX, y + 7);
   });
 
   if (Array.isArray(textSegments)) {
