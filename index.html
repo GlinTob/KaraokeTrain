@@ -13,7 +13,7 @@
     (function() {
       window.VITE_SUPABASE_URL = "https://qfvhwbmgeunvgjwmlxjd.supabase.co";
       window.VITE_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmdmh3Ym1nZXVudmdqd21seGpkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY2MzI5NTksImV4cCI6MjEwMjIwODk1OX0.VHm0pxBrhSg3q5E1KfU8EhBmNKdwBFiRTEmoO4Om3Os";
-      window.VITE_CLOUDFLARE_R2_BASE_URL = "https://vocal-app-storage-worker.jodatomx.workers.dev";
+      window.VITE_CLOUDFLARE_R2_BASE_URL = "https://vocal-app-storage.jodatomx.workers.dev";
       window.CLOUDFLARE_R2_CONFIG = {
         uploadUrl: window.VITE_CLOUDFLARE_R2_BASE_URL
       };
@@ -31,6 +31,7 @@
         <button id="btnBiblioteca" type="button">Biblioteca</button>
         <button id="btnEstudio" type="button">Estudio</button>
         <button id="btnAfinador" type="button">Afinador</button>
+        <button id="btnCambiarTono" type="button">Cambiar Tono</button>
         <button id="btnKaraoke" type="button">Karaoke</button>
       </nav>
       
@@ -184,9 +185,10 @@
                   Usa la barra espaciadora para hacer TAP.
                 </p>
                 <div class="studio-controls" style="margin-bottom: 20px;">
-                  <button id="startTapSyncBtn" type="button" style="background: #3b82f6; color: white;">▶️ Iniciar Sincronización</button>
-                  <button id="cancelTapSyncBtn" type="button" style="background: #6b7280; display: none;">❌ Cancelar</button>
-                </div>
+                                  <button id="startAutoSyncBtn" type="button" style="background: linear-gradient(135deg, #a855f7, #3b82f6); color: white; font-weight: bold;">🤖 Sincronización Automática</button>
+                                  <button id="startTapSyncBtn" type="button" style="background: #3b82f6; color: white;">▶️ Iniciar Sincronización</button>
+                                  <button id="cancelTapSyncBtn" type="button" style="background: #6b7280; display: none;">❌ Cancelar</button>
+                                </div>
 
                 <!-- Modo de sincronización -->
                 <div id="tapSyncActive" style="display: none;">
@@ -607,6 +609,82 @@
                 <button type="button" id="resetVocalProcessorBtn" class="btn-neon btn-secondary">↩️ Resetear Valores</button>
               </div>
             </div>
+
+        <!-- CAMBIAR TONO -->
+        <section id="cambiar-tono" class="tab">
+          <h1>🎼 CAMBIAR TONO: Modifica el tono de un karaoke</h1>
+
+          <div class="card">
+            <h3>🎧 1. Selecciona un karaoke desde tu biblioteca</h3>
+            <select id="pitchKaraokeSelect">
+              <option value="">Selecciona un archivo karaoke</option>
+            </select>
+            <div class="studio-controls">
+              <button id="loadPitchKaraokeBtn" type="button" style="margin-top: 15px">Cargar karaoke ↩️</button>
+            </div>
+            <p id="pitchLoadStatus" style="color: var(--text-muted); margin-top: 15px; font-weight: bold;">Estado: sin archivo cargado</p>
+          </div>
+
+          <div class="card">
+            <h3>🎛️ 2. Ajusta el tono (semitonos)</h3>
+            <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+              <div style="flex: 1; min-width: 180px;">
+                <label for="pitchUpSelect">⬆️ Subir tono</label>
+                <select id="pitchUpSelect">
+                  <option value="0" selected>0 semitonos</option>
+                  <option value="1">+1</option>
+                  <option value="2">+2</option>
+                  <option value="3">+3</option>
+                  <option value="4">+4</option>
+                  <option value="5">+5</option>
+                  <option value="6">+6</option>
+                  <option value="7">+7</option>
+                  <option value="8">+8</option>
+                  <option value="9">+9</option>
+                  <option value="10">+10</option>
+                  <option value="11">+11</option>
+                  <option value="12">+12</option>
+                </select>
+              </div>
+              <div style="flex: 1; min-width: 180px;">
+                <label for="pitchDownSelect">⬇️ Bajar tono</label>
+                <select id="pitchDownSelect">
+                  <option value="0" selected>0 semitonos</option>
+                  <option value="1">-1</option>
+                  <option value="2">-2</option>
+                  <option value="3">-3</option>
+                  <option value="4">-4</option>
+                  <option value="5">-5</option>
+                  <option value="6">-6</option>
+                  <option value="7">-7</option>
+                  <option value="8">-8</option>
+                  <option value="9">-9</option>
+                  <option value="10">-10</option>
+                  <option value="11">-11</option>
+                  <option value="12">-12</option>
+                </select>
+              </div>
+            </div>
+            <p id="pitchCurrentDisplay" style="color: var(--text-muted); font-weight: bold; margin-top: 15px;">Cambio actual: 0 semitonos</p>
+            <div class="studio-controls">
+              <button id="pitchPlayBtn" type="button" style="margin-top: 15px">▶️ Reproducir</button>
+              <button id="pitchStopBtn" type="button" style="margin-top: 15px">⏹️ Detener</button>
+            </div>
+            <p id="pitchPlayStatus" style="color: var(--text-muted); font-weight: bold;">Estado: detenido.</p>
+          </div>
+
+          <div class="card">
+            <h3>💾 3. Guarda el archivo con el tono modificado</h3>
+            <label for="pitchSaveName" style="display: block; margin-bottom: 5px;">Nombre de archivo</label>
+            <input type="text" id="pitchSaveName" placeholder="Nombre del karaoke (tono modificado)" style="width: 100%; padding: 8px; background: var(--bg-main); border: 1px solid #3b82f6; color: white; border-radius: 4px;">
+            <div class="studio-controls">
+              <button id="pitchSaveBtn" type="button" style="margin-top: 15px">💾 Guardar en mi biblioteca</button>
+              <button id="pitchSendToKaraokeBtn" type="button" style="margin-top: 15px" disabled>🎤 Enviar al monitor karaoke</button>
+            </div>
+            <p id="pitchSaveStatus" style="color: var(--text-muted); font-weight: bold; margin-top: 15px;">Estado: sin guardar.</p>
+          </div>
+        </section>
+
       </main>
     </div>
     <script>
