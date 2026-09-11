@@ -47,6 +47,7 @@ export async function showTab(tabId) {
     biblioteca: "btnBiblioteca",
     estudio: "btnEstudio",
     afinador: "btnAfinador",
+    "cambiar-tono": "btnCambiarTono",
     karaoke: "btnKaraoke"
   };
 
@@ -73,6 +74,11 @@ export async function showTab(tabId) {
       }
     } else if (normalizedTabId === "afinador") {
       console.log("🎵 [Lazy Load] Módulo Afinador Vocal listo.");
+    } else if (normalizedTabId === "cambiar-tono") {
+      console.log("🎼 [Lazy Load] Módulo Cambiar Tono listo.");
+      const { initCambiarTono, loadPitchKaraokeOptions } = await import("./modules/cambiar-tono.js");
+      if (typeof initCambiarTono === "function") initCambiarTono();
+      if (typeof loadPitchKaraokeOptions === "function") await loadPitchKaraokeOptions();
     } else if (normalizedTabId === "karaoke") {
       console.log("🎤 [Lazy Load] Inicializando Canvas e Históricos de Canto...");
       const { loadTrackOptionsInKaraoke, loadKaraokeSong } = await import("./modules/karaoke.js");
@@ -196,6 +202,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   safeAdd("btnAfinador", "click", () => showTab("afinador"));
   safeAdd("btnEstudio", "click", () => showTab("estudio"));
   safeAdd("btnBiblioteca", "click", () => showTab("biblioteca"));
+  safeAdd("btnCambiarTono", "click", () => showTab("cambiar-tono"));
   safeAdd("btnKaraoke", "click", () => showTab("karaoke"));
   safeAdd("btnConfig", "click", () => showTab("Config"));
 
@@ -293,6 +300,28 @@ document.addEventListener("DOMContentLoaded", async () => {
         fileInput.setAttribute("accept", "audio/*");
       }
     }
+  });
+
+  // --- EVENTOS CAMBIAR TONO ---
+  safeAdd("loadPitchKaraokeBtn", "click", async () => {
+    const { loadSelectedPitchKaraoke } = await import("./modules/cambiar-tono.js");
+    if (typeof loadSelectedPitchKaraoke === "function") loadSelectedPitchKaraoke();
+  });
+  safeAdd("pitchPlayBtn", "click", async () => {
+    const { playPitchShifted } = await import("./modules/cambiar-tono.js");
+    if (typeof playPitchShifted === "function") playPitchShifted();
+  });
+  safeAdd("pitchStopBtn", "click", async () => {
+    const { stopPitchShifted } = await import("./modules/cambiar-tono.js");
+    if (typeof stopPitchShifted === "function") stopPitchShifted();
+  });
+  safeAdd("pitchSaveBtn", "click", async () => {
+    const { savePitchShiftedToLibrary } = await import("./modules/cambiar-tono.js");
+    if (typeof savePitchShiftedToLibrary === "function") savePitchShiftedToLibrary();
+  });
+  safeAdd("pitchSendToKaraokeBtn", "click", async () => {
+    const { sendPitchShiftedToKaraokeMonitor } = await import("./modules/cambiar-tono.js");
+    if (typeof sendPitchShiftedToKaraokeMonitor === "function") sendPitchShiftedToKaraokeMonitor();
   });
 
   // --- EVENTOS KARAOKE ---
