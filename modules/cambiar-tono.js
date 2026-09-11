@@ -39,9 +39,6 @@ export function destroyCambiarTono() {
   const downSelect = $("pitchDownSelect");
   if (upSelect) upSelect.onchange = null;
   if (downSelect) downSelect.onchange = null;
-
-  // Limpiar WeakMap de worklets cargados
-  _pitchWorkletLoaded = new WeakMap();
 }
 
 // Variables de Control de Estado de Audio
@@ -52,52 +49,8 @@ let pitchWorkletNode = null;
 let pitchSourceNode = null;
 let pitchGainNode = null;
 let pitchIsPlaying = false;
+let pitchStartPending = false;
 let pitchLastSavedId = null;
-
-// Cache de promesas addModule por contexto
-const _pitchWorkletLoaded = new WeakMap();
-
-function _getWorkletUrl() {
-  return window.__PITCH_WORKLET_URL__ || new URL("./pitch-shifter-processor.js", import.meta.url).href;
-}
-
-async function ensurePitchWorklet(ctx) {
-  if (!ctx || !ctx.audioWorklet || typeof ctx.audioWorklet.addModule !== "function") {
-    throw new Error("AudioWorklet no está soportado en este navegador.");
-  }
-
-  let p = _pitchWorkletLoaded.get(ctx);
-  if (p) return p;
-
-  const url = _getWorkletUrl();
-
-  p = (async () => {
-    const res = await fetch(url, { cache: "no-store" });
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status} cargando ${url}`);
-    }
-
-    const text = await res.text();
-    if (/<!doctype html>|<html/i.test(text)) {
-      throw new Error(`La URL del worklet devolvió HTML en vez de JS: ${url}`);
-    }
-
-    // Cargar el worklet desde una URL blob: evita problemas de rutas, MIME y CORS
-    // al servirlo desde un servidor estático como Vercel.
-    const blobUrl = URL.createObjectURL(new Blob([text], { type: "application/javascript" }));
-    try {
-      await ctx.audioWorklet.addModule(blobUrl);
-    } finally {
-      URL.revokeObjectURL(blobUrl);
-    }
-  })().catch(err => {
-    _pitchWorkletLoaded.delete(ctx);
-    throw err;
-  });
-
-  _pitchWorkletLoaded.set(ctx, p);
-  return p;
-}
 
 function getNetSemitones() {
   const up = parseInt(($("pitchUpSelect")?.value) || "0", 10);
@@ -253,11 +206,19 @@ export async function playPitchShifted() {
     return;
   }
 
-  if (!pitchAudioContext || pitchAudioContext.state === "closed") {
-    pitchAudioContext = new (window.AudioContext || window.webkitAudioContext)();
-  }
+  // FIX: evitar doble arranque (dos clicks rápidos durante el await de carga
+  // del worklet / resume) que dejaba dos BufferSource sonando a la vez, con
+  // pitchSourceNode apuntando solo al último (el otro quedaba huérfano).
+  if (pitchStartPending) return;
+  if (pitchIsPlaying) return;
+  pitchStartPending = true;
 
-  stopPitchShifted();
+  try {
+    if (!pitchAudioContext || pitchAudioContext.state === "closed") {
+      pitchAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+    }
+
+    stopPitchShifted();
 
     try {
       await loadPitchShifterProcessor(pitchAudioContext);
@@ -268,42 +229,45 @@ export async function playPitchShifted() {
     }
 
     try {
-    pitchSourceNode = pitchAudioContext.createBufferSource();
-    pitchSourceNode.buffer = pitchAudioBuffer;
+      pitchSourceNode = pitchAudioContext.createBufferSource();
+      pitchSourceNode.buffer = pitchAudioBuffer;
 
-    pitchWorkletNode = new AudioWorkletNode(pitchAudioContext, "pitch-shifter-processor");
+      pitchWorkletNode = new AudioWorkletNode(pitchAudioContext, "pitch-shifter-processor");
 
-    const pitchParam = pitchWorkletNode.parameters.get("pitchRatio");
-    if (pitchParam) {
-      pitchParam.setValueAtTime(getPitchRatio(), pitchAudioContext.currentTime);
+      const pitchParam = pitchWorkletNode.parameters.get("pitchRatio");
+      if (pitchParam) {
+        pitchParam.setValueAtTime(getPitchRatio(), pitchAudioContext.currentTime);
+      }
+
+      pitchGainNode = pitchAudioContext.createGain();
+      pitchGainNode.gain.value = 1.0;
+
+      pitchSourceNode.connect(pitchWorkletNode);
+      pitchWorkletNode.connect(pitchGainNode);
+      pitchGainNode.connect(pitchAudioContext.destination);
+
+      pitchSourceNode.onended = () => {
+        if (pitchIsPlaying) stopPitchShifted();
+      };
+
+      // Reanudar el contexto DESPUÉS de stopPitchShifted() (que lo suspende)
+      // y de armar el grafo, justo antes de reproducir, para que sí suene.
+      if (pitchAudioContext.state === "suspended") {
+        await pitchAudioContext.resume();
+      }
+
+      pitchSourceNode.start();
+      pitchIsPlaying = true;
+
+      const st = $("pitchPlayStatus");
+      if (st) st.textContent = "Estado: ▶️ reproduciendo con tono modificado…";
+    } catch (e) {
+      console.error("Error iniciando reproducción con pitch shift:", e);
+      alert("❌ Error iniciando el cambio de tono: " + e.message);
+      stopPitchShifted();
     }
-
-    pitchGainNode = pitchAudioContext.createGain();
-    pitchGainNode.gain.value = 1.0;
-
-    pitchSourceNode.connect(pitchWorkletNode);
-    pitchWorkletNode.connect(pitchGainNode);
-    pitchGainNode.connect(pitchAudioContext.destination);
-
-    pitchSourceNode.onended = () => {
-      if (pitchIsPlaying) stopPitchShifted();
-    };
-
-    // Reanudar el contexto DESPUÉS de stopPitchShifted() (que lo suspende)
-    // y de armar el grafo, justo antes de reproducir, para que sí suene.
-    if (pitchAudioContext.state === "suspended") {
-      await pitchAudioContext.resume();
-    }
-
-    pitchSourceNode.start();
-    pitchIsPlaying = true;
-
-    const st = $("pitchPlayStatus");
-    if (st) st.textContent = "Estado: ▶️ reproduciendo con tono modificado…";
-  } catch (e) {
-    console.error("Error iniciando reproducción con pitch shift:", e);
-    alert("❌ Error iniciando el cambio de tono: " + e.message);
-    stopPitchShifted();
+  } finally {
+    pitchStartPending = false;
   }
 }
 
@@ -488,7 +452,12 @@ export async function renderPitchShiftOffline(audioBuffer, semitones) {
   const ratio = Math.pow(2, semitones / 12);
     // FIX: Duración invariante 1:1 para sincronía con karaoke.
     // El pitch shifting NO debe cambiar la duración de la pista.
-    const outputLength = audioBuffer.length;
+    // FIX cola truncada: el worklet lee SIEMPRE `fftSize/ratio` muestras
+    // detrás del write, así que los últimos `fftSize/ratio` samples de la
+    // fuente solo se emiten si alargamos el render. Sin esto, la pista
+    // guardada perdía ~23-93 ms del final.
+    const pitchDelaySamples = Math.ceil(2048 / Math.max(0.5, Math.min(2, ratio))); // = fftSize / ratio (clamp del worklet)
+    const outputLength = audioBuffer.length + pitchDelaySamples;
 
   const offlineCtx = new OfflineAudioContext(
       audioBuffer.numberOfChannels,
