@@ -185,7 +185,6 @@
                   Usa la barra espaciadora para hacer TAP.
                 </p>
                 <div class="studio-controls" style="margin-bottom: 20px;">
-                                  <button id="startAutoSyncBtn" type="button" style="background: linear-gradient(135deg, #a855f7, #3b82f6); color: white; font-weight: bold;">🤖 Sincronización Automática</button>
                                   <button id="startTapSyncBtn" type="button" style="background: #3b82f6; color: white;">▶️ Iniciar Sincronización</button>
                                   <button id="cancelTapSyncBtn" type="button" style="background: #6b7280; display: none;">❌ Cancelar</button>
                                 </div>
@@ -313,6 +312,9 @@
           
           <div class="card" style="background: #1a1a1a; padding: 0; border: 2px solid var(--border); overflow: hidden;">
             <div style="padding: 10px 12px; background: #0f172a; border-bottom: 1px solid var(--border); display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+              <select id="karaokeTrackSelect" aria-label="Selecciona un karaoke" style="padding: 8px 10px; background: var(--bg-main); border: 1px solid #3b82f6; color: white; border-radius: 4px; min-width: 220px;">
+                <option value="">Selecciona un karaoke...</option>
+              </select>
               <button id="karaokeDuoSplitToggleBtn" type="button" data-testid="karaoke-duo-split-toggle" style="background: #3b82f6; color: white; padding: 8px 14px; border-radius: 6px; border: none; cursor: pointer; font-weight: bold;">
                 👩🎤🧔 Modo Dúo Split: Inactivo. Haz click aquí para activarlo.
               </button>
@@ -332,7 +334,12 @@
             <h3>Grabación Sincronizada🎙️👄</h3>
             <p id="karaokeStatus" style="color: var(--text-muted); margin-bottom: 15px;">Estado: selecciona un karaoke de la lista y presiona Cantar.</p>
 
-            <audio id="karaokeTrack" preload="auto" crossorigin="anonymous" style="display:none;"></audio>
+            <audio id="karaokeTrack" preload="auto" style="display:none;"></audio>
+
+            <div id="karaokeSoloMicIndicator" style="display: none; margin-bottom: 15px; padding: 15px; background: var(--bg-main); border-radius: 8px; border: 1px solid var(--border);">
+              <p style="margin: 0 0 10px 0; font-weight: bold; color: var(--accent);">🎤 Nivel de voz</p>
+              <div class="mic-level-bar"><div id="karaokeMic1Level" class="mic-level-fill"></div></div>
+            </div>
 
             <div id="karaokeDuoIndicator" style="display: none; margin-bottom: 15px; padding: 15px; background: var(--bg-main); border-radius: 8px; border: 1px solid var(--border);">
               <p style="margin: 0 0 10px 0; font-weight: bold; color: var(--accent);">🎤🎤 Modo Dúo Activo</p>
@@ -609,6 +616,7 @@
                 <button type="button" id="resetVocalProcessorBtn" class="btn-neon btn-secondary">↩️ Resetear Valores</button>
               </div>
             </div>
+        </section>
 
         <!-- CAMBIAR TONO -->
         <section id="cambiar-tono" class="tab">
