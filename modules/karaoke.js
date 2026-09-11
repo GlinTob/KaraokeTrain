@@ -540,13 +540,23 @@ export async function startKaraokeRecording() {
 
     karaokePitchDetectionAnalyser = karaokePitchDetectionAudioCtx.createAnalyser();
     karaokePitchDetectionAnalyser.fftSize = 2048;
-    source1.connect(karaokePitchDetectionAnalyser);
+    // FIX: el pitch/dot solo reaccionaba al cantar muy fuerte o gritar porque
+    // la señal cruda del micrófono queda por debajo del umbral de RMS de
+    // detectPitch. Aplicamos una ganancia fija SOLO en la ruta de análisis;
+    // la grabación sigue usando el micrófono en crudo.
+    const pitchInputGain = karaokePitchDetectionAudioCtx.createGain();
+    pitchInputGain.gain.value = 4;
+    source1.connect(pitchInputGain);
+    pitchInputGain.connect(karaokePitchDetectionAnalyser);
 
     if (karaokeDuoSplitMode && karaokeStream2) {
       const source2 = karaokePitchDetectionAudioCtx.createMediaStreamSource(karaokeStream2);
       karaokeSplitAnalyser2 = karaokePitchDetectionAudioCtx.createAnalyser();
       karaokeSplitAnalyser2.fftSize = 2048;
-      source2.connect(karaokeSplitAnalyser2);
+      const pitchInputGain2 = karaokePitchDetectionAudioCtx.createGain();
+      pitchInputGain2.gain.value = 4;
+      source2.connect(pitchInputGain2);
+      pitchInputGain2.connect(karaokeSplitAnalyser2);
     }
 
     karaokeAudioController = getAudioController();
