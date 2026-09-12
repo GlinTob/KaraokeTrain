@@ -7,7 +7,11 @@ class VocalProcessor extends AudioWorkletProcessor {
       { name: "highGain", defaultValue: 4, minValue: -12, maxValue: 12, automationRate: "k-rate" },
       { name: "gateThreshold", defaultValue: -40, minValue: -60, maxValue: 0, automationRate: "k-rate" },
       { name: "compThreshold", defaultValue: -18, minValue: -40, maxValue: 0, automationRate: "k-rate" },
-      { name: "outputGain", defaultValue: 3, minValue: -24, maxValue: 24, automationRate: "k-rate" }
+      { name: "compRatio", defaultValue: 4, minValue: 1, maxValue: 20, automationRate: "k-rate" },
+      { name: "attackMs", defaultValue: 10, minValue: 1, maxValue: 200, automationRate: "k-rate" },
+      { name: "releaseMs", defaultValue: 100, minValue: 10, maxValue: 2000, automationRate: "k-rate" },
+      { name: "outputGain", defaultValue: 3, minValue: -24, maxValue: 24, automationRate: "k-rate" },
+      { name: "bypass", defaultValue: 0, minValue: 0, maxValue: 1, automationRate: "k-rate" }
     ];
   }
 
@@ -31,12 +35,16 @@ class VocalProcessor extends AudioWorkletProcessor {
     }
 
     const outChannels = output.length;
+    const bypassOn = (parameters.bypass?.[0] ?? 0) > 0.5;
     const highpass = parameters.highpass?.[0] ?? 120;
     const lowGainLin = Math.pow(10, (parameters.lowGain?.[0] ?? -2) / 20);
     const midGainLin = Math.pow(10, (parameters.midGain?.[0] ?? 5) / 20);
     const highGainLin = Math.pow(10, (parameters.highGain?.[0] ?? 4) / 20);
     const gateThreshLin = Math.pow(10, (parameters.gateThreshold?.[0] ?? -40) / 20);
     const compThreshLin = Math.pow(10, (parameters.compThreshold?.[0] ?? -18) / 20);
+    const compRatio = Math.max(1, parameters.compRatio?.[0] ?? 4);
+    const attackMs = Math.max(0.5, parameters.attackMs?.[0] ?? 10);
+    const releaseMs = Math.max(1, parameters.releaseMs?.[0] ?? 100);
     const outputGainLin = Math.pow(10, (parameters.outputGain?.[0] ?? 3) / 20);
 
     const sr = sampleRate;
@@ -45,11 +53,20 @@ class VocalProcessor extends AudioWorkletProcessor {
     const lowCoeff = Math.exp(-2 * Math.PI * 100 / sr);
     const midCoeff = Math.exp(-2 * Math.PI * 3000 / sr);
     const highCoeff = Math.exp(-2 * Math.PI * 8000 / sr);
+    const attackCoeff = Math.exp(-1000 / (attackMs * sr));
+    const releaseCoeff = Math.exp(-1000 / (releaseMs * sr));
 
     for (let ch = 0; ch < outChannels; ch++) {
       const out = output[ch];
       const inp = input[ch] || input[0];
       if (!inp) { out.fill(0); continue; }
+
+      if (bypassOn) {
+        for (let i = 0; i < Math.min(inp.length, out.length); i++) {
+          out[i] = Math.max(-1, Math.min(1, inp[i]));
+        }
+        continue;
+      }
 
       if (!this.hpState[ch]) this.hpState[ch] = { x1: 0, y1: 0 };
       if (!this.lowState[ch]) this.lowState[ch] = { x1: 0, x2: 0, y1: 0, y2: 0 };
@@ -85,10 +102,14 @@ class VocalProcessor extends AudioWorkletProcessor {
         gateEnv = gateEnv * 0.999 + absSample * 0.001;
         if (gateEnv < gateThreshLin) sample *= 0.001;
 
-        compEnv = compEnv * 0.999 + absSample * 0.001;
+        if (absSample > compEnv) {
+          compEnv = compEnv * attackCoeff + absSample * (1 - attackCoeff);
+        } else {
+          compEnv = compEnv * releaseCoeff + absSample * (1 - releaseCoeff);
+        }
         if (compEnv > compThreshLin) {
           const over = compEnv / compThreshLin;
-          sample *= Math.pow(over, 1 - 1 / 4) / over;
+          sample *= Math.pow(over, 1 - 1 / compRatio) / over;
         }
 
         out[i] = Math.max(-1, Math.min(1, sample * outputGainLin));
@@ -115,4 +136,3 @@ class VocalProcessor extends AudioWorkletProcessor {
 }
 }
 registerProcessor("vocal-processor", VocalProcessor);
-
