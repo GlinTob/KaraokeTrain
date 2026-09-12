@@ -27,7 +27,8 @@ const EMOJI_OPTIONS = [
   "🍄", "🦔", "⚔️", "👽", "🎈", "⚡", "🦍", "🌈", "🍀", "🔭",
   "🍭", "🥩", "🍉", "🍋", "🔮", "🪀", "🎁", "🎖️", "🐉",
   "🎻", "🎺", "☎️", "⚖️", "🛁", "🧬", "💉", "🔬", "🧫",
-  "🙊", "🙉", "🙈", "💁‍♀️", "💁‍♂️", "🐬", "🐢", "🦚", "🦋"
+  "🙊", "🙉", "🙈", "💁‍♀️", "💁‍♂️", "🐬", "🐢", "🦚", "🦋",
+  "🧨", "🍧", "🍗", "🎠", "🌞", "🪐", "☄️", "🌬️", "🌌"
 ];
 
 // ====================================================================
@@ -80,7 +81,23 @@ const AVATAR_CATEGORIES = {
       { id: "hello-kitty", name: "H. Kitty", img: "../assets/avatares/hello-kitty.png" },
       { id: "homer", name: "Homero", img: "../assets/avatares/homer.png" },
       { id: "jake", name: "Jake", img: "../assets/avatares/jake.png" },
+      { id: "jason", name: "Jason", img: "../assets/avatares/jason.png" },
+      { id: "joker", name: "Joker", img: "../assets/avatares/joker.png" },
+      { id: "lumpy-princess", name: "Lumpy Space", img: "../assets/avatares/lumpy-princess.png" },
+      { id: "marceline", name: "Marceline", img: "../assets/avatares/marceline.png" },
+      { id: "money-dali", name: "Money Dali", img: "../assets/avatares/money-dali.png" },
+      { id: "morty", name: "Morty", img: "../assets/avatares/morty.png" },
+      { id: "neo", name: "Neo", img: "../assets/avatares/neo.png" },
       { id: "pennywise", name: "Pennywise", img: "../assets/avatares/pennywise.png" },
+      { id: "popeye", name: "Popeye", img: "../assets/avatares/popeye.png" },
+      { id: "predator", name: "Predator", img: "../assets/avatares/predator.png" },
+      { id: "r2-d2", name: "R2-D2", img: "../assets/avatares/r2-d2.png" },
+      { id: "rick", name: "Rick", img: "../assets/avatares/rick.png" },
+      { id: "sonic", name: "Sonic", img: "../assets/avatares/sonic.png" },
+      { id: "stich", name: "Stitch", img: "../assets/avatares/stich.png" },
+      { id: "stormtrooper", name: "Stormtrooper", img: "../assets/avatares/stormtrooper.png" },
+      { id: "super-mario", name: "Super Mario", img: "../assets/avatares/super-mario.png" },
+      { id: "walter", name: "Walter", img: "../assets/avatares/walter.png" },
     ]
   }
 };
@@ -322,6 +339,7 @@ function storageKeysForUser(user) {
   const prefix = user === "P2" ? "karaokeTrain_p2" : "karaokeTrain_p1";
   return {
     avatar: prefix + "_avatar",
+    name: prefix + "_name",
     emoji1: prefix + "_emoji1",
     emoji2: prefix + "_emoji2"
   };
@@ -348,7 +366,8 @@ export function initializeAvatarSelector() {
       tabsContainer.appendChild(btn);
     });
 
-    populateEmojiSelects(user);
+    initAvatarNameInput(user);
+    populateEmojiPickers(user);
     renderAvatarGrid(user, "superheroes");
     loadSavedAvatar(user);
     renderAvatarSelectedInfo(user);
@@ -370,25 +389,38 @@ function initializeAvatarUserTabs() {
   });
 }
 
-function populateEmojiSelects(user) {
+function initAvatarNameInput(user) {
   const keys = storageKeysForUser(user);
-  [[keys.emoji1, "avatarEmoji1" + user], [keys.emoji2, "avatarEmoji2" + user]].forEach(([storageKey, selectId]) => {
-    const select = $(selectId);
-    if (!select) return;
-    select.innerHTML = "";
+  const input = $("avatarName" + user);
+  if (!input) return;
+
+  input.value = localStorage.getItem(keys.name) || "";
+  input.addEventListener("input", () => {
+    localStorage.setItem(keys.name, input.value);
+    notifyAvatarChange(user);
+  });
+}
+
+function populateEmojiPickers(user) {
+  const keys = storageKeysForUser(user);
+  [[keys.emoji1, "avatarEmoji1" + user], [keys.emoji2, "avatarEmoji2" + user]].forEach(([storageKey, containerId]) => {
+    const container = $(containerId);
+    if (!container) return;
+    container.innerHTML = "";
+
+    const saved = localStorage.getItem(storageKey) || "";
     EMOJI_OPTIONS.forEach((emoji) => {
-      const option = document.createElement("option");
-      option.value = emoji;
-      option.textContent = emoji;
-      select.appendChild(option);
-    });
-    const saved = localStorage.getItem(storageKey);
-    if (saved && EMOJI_OPTIONS.includes(saved)) {
-      select.value = saved;
-    }
-    select.addEventListener("change", () => {
-      localStorage.setItem(storageKey, select.value);
-      notifyAvatarChange(user);
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "emoji-chip" + (emoji === saved ? " active" : "");
+      btn.textContent = emoji;
+      btn.title = emoji;
+      btn.onclick = () => {
+        localStorage.setItem(storageKey, emoji);
+        container.querySelectorAll(".emoji-chip").forEach((c) => c.classList.toggle("active", c.textContent === emoji));
+        notifyAvatarChange(user);
+      };
+      container.appendChild(btn);
     });
   });
 }
@@ -520,7 +552,7 @@ window.getAvatarForUser = function (user) {
   return {
     avatar: avatar || null,
     name: avatar ? avatar.name : null,
-    emoji: avatar ? avatar.emoji : null,
+    userName: localStorage.getItem(keys.name) || "",
     emoji1: localStorage.getItem(keys.emoji1) || "",
     emoji2: localStorage.getItem(keys.emoji2) || ""
   };
