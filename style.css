@@ -21,16 +21,6 @@
   --accent-secondary-hover: #7a3802;
   --accent-secondary-border: rgba(59, 130, 246, 0.35);
   --accent-secondary-shadow: rgba(59, 130, 246, 0.28);
-
-  /* Solo Afinador */
-  --neon-pink: #ff6ec7;
-  --neon-pink-light: #ff85d1;
-  --neon-pink-medium: #f472b6;
-  --neon-pink-dark: #d946ef;
-  --neon-pink-glow: #c026d3;
-  --neon-pink-text: #ff8fd6;
-  --neon-pink-border: rgba(255, 110, 199, 0.4);
-  --neon-pink-shadow: rgba(255, 110, 199, 0.45);
 }
 
 /* ==========================================
@@ -179,20 +169,20 @@
 .cents-display.cents-sharp { color: #f59e0b; }
 
 .guide-text {
-  font-size: clamp(18px, 2.5vw, 28px);
-  font-weight: 500;
-  min-height: 1.5em;
-  color: #ff8fd6;
-  transition: color 0.15s ease, text-shadow 0.2s ease;
-  max-width: 90%;
-  font-family: 'Space Grotesk', 'Orbitron', 'Rajdhani', 'Exo 2', 'JetBrains Mono', 'Fira Code', 'SF Mono', 'Monaco', 'Consolas', monospace;
-  letter-spacing: 0.04em;
-  text-shadow: 0 0 20px rgba(255, 143, 214, 0.4), 0 0 40px rgba(255, 106, 196, 0.2);
+    font-size: clamp(18px, 2.5vw, 28px);
+    font-weight: 500;
+    min-height: 1.5em;
+    color: var(--text-main);
+    transition: color 0.15s ease, text-shadow 0.2s ease;
+    max-width: 90%;
+    font-family: 'SF Mono', 'JetBrains Mono', 'Fira Code', monospace;
+    letter-spacing: 0.04em;
+    text-shadow: 0 0 20px var(--accent-secondary-shadow), 0 0 40px var(--accent-secondary-shadow);
 }
 
 .guide-text.state-on {
-  color: #f472b6;
-  text-shadow: 0 0 30px rgba(244, 114, 182, 0.6), 0 0 60px rgba(244, 114, 182, 0.3);
+    color: var(--accent);
+    text-shadow: 0 0 30px var(--accent-secondary-shadow), 0 0 60px var(--accent-secondary-shadow);
 }
 .guide-text.state-flat,
 .guide-text.state-sharp {
@@ -211,7 +201,7 @@
   display: inline-flex;
   align-items: center;
   gap: 12px;
-  background: linear-gradient(135deg, #ff6ec7 0%, #f472b6 50%, #d946ef 100%);
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%);
   color: #fff;
   border: none;
   border-radius: 16px;
@@ -223,31 +213,31 @@
   font-family: 'Space Grotesk', 'Orbitron', 'Rajdhani', 'Exo 2', 'JetBrains Mono', 'Fira Code', 'SF Mono', 'Monaco', 'Consolas', monospace;
   text-transform: uppercase;
   box-shadow:
-    0 4px 0 #c026d3,
-    0 8px 24px rgba(255, 110, 199, 0.45),
-    0 0 0 1px rgba(255, 110, 199, 0.3),
+    0 4px 0 var(--accent-hover),
+    0 8px 24px var(--accent-secondary-shadow),
+    0 0 0 1px var(--accent-secondary-border),
     inset 0 1px 0 rgba(255,255,255,0.25);
   transition: transform 0.1s, box-shadow 0.15s, background 0.2s, filter 0.15s;
-  filter: drop-shadow(0 0 8px rgba(255, 110, 199, 0.5));
+  filter: drop-shadow(0 0 8px var(--accent-secondary-shadow));
 }
 
 .btn-record:hover {
-  transform: translateY(-3px) scale(1.02);
-  background: linear-gradient(135deg, #ff85d1 0%, #f472b6 50%, #e879f9 100%);
-  box-shadow:
-    0 8px 0 #c026d3,
-    0 16px 32px rgba(255, 110, 199, 0.55),
-    0 0 0 2px rgba(255, 110, 199, 0.4),
-    inset 0 1px 0 rgba(255,255,255,0.3);
-  filter: drop-shadow(0 0 16px rgba(255, 110, 199, 0.7));
+    transform: translateY(-3px) scale(1.02);
+    background: linear-gradient(135deg, var(--accent-hover) 0%, var(--accent) 100%);
+    box-shadow:
+      0 8px 0 var(--accent-hover),
+      0 16px 32px var(--accent-secondary-shadow),
+      0 0 0 2px var(--accent-secondary-border),
+      inset 0 1px 0 rgba(255,255,255,0.3);
+    filter: drop-shadow(0 0 16px var(--accent-secondary-shadow));
 }
 
 .btn-record:active {
-  transform: translateY(1px) scale(0.98);
-  box-shadow:
-    0 2px 0 #c026d3,
-    0 4px 8px rgba(255, 110, 199, 0.35),
-    inset 0 1px 0 rgba(255,255,255,0.15);
+    transform: translateY(2px) scale(0.96);
+    box-shadow:
+      0 2px 0 var(--accent-hover),
+      0 4px 8px var(--accent-secondary-shadow),
+      inset 0 1px 0 rgba(255,255,255,0.15);
 }
 
 .btn-record.recording {
@@ -1015,23 +1005,29 @@ audio {
   user-select: none;
 }
 
-.avatar-user-name {
-  display: inline-block;
-  min-width: 80px;
+.avatar-user-input {
+  flex: 1;
+  min-width: 70px;
   max-width: 100%;
-  padding: 2px 6px;
-  border-radius: 6px;
-  outline: none;
+  background: transparent;
   border: 1px dashed transparent;
-  transition: border-color 0.2s, background 0.2s;
+  border-radius: 6px;
+  color: inherit;
+  font: inherit;
+  text-align: center;
+  padding: 2px 6px;
+  outline: none;
   cursor: text;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  transition: border-color 0.2s, background 0.2s;
 }
 
-.avatar-user-name:hover,
-.avatar-user-name:focus {
+.avatar-user-input::placeholder {
+  color: inherit;
+  opacity: 0.55;
+}
+
+.avatar-user-input:hover,
+.avatar-user-input:focus {
   border-color: var(--accent-secondary);
   background: rgba(255, 255, 255, 0.07);
 }
