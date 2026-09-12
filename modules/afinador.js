@@ -89,7 +89,7 @@ export class AfinadorVisual {
     this.lastTime = 0;
 
     this.axisSparks = [];
-    this.maxAxisSparks = 450;
+    this.maxAxisSparks = 200;
 
     this.burstParticles = [];
     this.ripples = [];
@@ -426,34 +426,39 @@ export class AfinadorVisual {
     });
 
     // Chispas del eje
+    // FIX: antes cada partícula creaba su PROPIO createRadialGradient por frame
+    // (hasta 450 partículas), lo que hundía el RAF y "congelaba" la animación
+    // al sostener una nota. Ahora se dibujan dos arcos baratos (halo + núcleo).
     this.axisSparks.forEach(p => {
-      ctx.save();
-      ctx.globalAlpha = p.alpha;
       const rgb = this.hexToRgb(p.color);
-      const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size * 4);
-      g.addColorStop(0, `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, 0.95)`);
-      g.addColorStop(1, `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, 0)`);
-      ctx.fillStyle = g;
+      ctx.globalAlpha = p.alpha * 0.35;
+      ctx.fillStyle = `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, 0.3)`;
       ctx.beginPath();
-      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      ctx.arc(p.x, p.y, p.size * 3.2, 0, Math.PI * 2);
       ctx.fill();
-      ctx.restore();
+      ctx.globalAlpha = p.alpha;
+      ctx.fillStyle = `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, 0.95)`;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size * 0.9, 0, Math.PI * 2);
+      ctx.fill();
     });
+    ctx.globalAlpha = 1;
 
     // Explosión al afinar
     this.burstParticles.forEach(p => {
-      ctx.save();
-      ctx.globalAlpha = p.alpha;
       const rgb = this.hexToRgb(p.color);
-      const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size * 5);
-      g.addColorStop(0, `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, 1)`);
-      g.addColorStop(1, `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, 0)`);
-      ctx.fillStyle = g;
+      ctx.globalAlpha = p.alpha * 0.35;
+      ctx.fillStyle = `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, 0.3)`;
       ctx.beginPath();
-      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      ctx.arc(p.x, p.y, p.size * 3.6, 0, Math.PI * 2);
       ctx.fill();
-      ctx.restore();
+      ctx.globalAlpha = p.alpha;
+      ctx.fillStyle = `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, 1)`;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size * 1, 0, Math.PI * 2);
+      ctx.fill();
     });
+    ctx.globalAlpha = 1;
 
     // Punto móvil
     const markerY = cy + this.markerOffset;
