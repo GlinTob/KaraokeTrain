@@ -233,6 +233,7 @@ class PitchShifterProcessor extends AudioWorkletProcessor {
       }
     }
     const headIn = this.headIn + block;
+    this.headIn = headIn;
 
     // 2. Procesar frames completos
     while (this.frameStart + this.N <= headIn) {
