@@ -451,13 +451,13 @@ export async function renderPitchShiftOffline(audioBuffer, semitones) {
 
   const ratio = Math.pow(2, semitones / 12);
     // FIX: Duración invariante 1:1 para sincronía con karaoke.
-    // El pitch shifting NO debe cambiar la duración de la pista.
-    // FIX cola truncada: el worklet lee SIEMPRE `fftSize/ratio` muestras
-    // detrás del write, así que los últimos `fftSize/ratio` samples de la
-    // fuente solo se emiten si alargamos el render. Sin esto, la pista
-    // guardada perdía ~23-93 ms del final.
-    const pitchDelaySamples = Math.ceil(2048 / Math.max(0.5, Math.min(2, ratio))); // = fftSize / ratio (clamp del worklet)
-    const outputLength = audioBuffer.length + pitchDelaySamples;
+    // FIX phase vocoder: el worklet es STFT con ventana de 2048 muestras.
+    // Su latencia de análisis es exactamente 2048 muestras: los primeros
+    // `latency` samples del render son silencio y el contenido del audio
+    // aparece desplazado a partir de ahí. Recortamos ese prefijo y
+    // compensamos con un colchón al final para que no se pierda la cola.
+    const latencySamples = 2048 + 128; // fftSize del worklet + bloque de margen
+    const outputLength = audioBuffer.length + latencySamples;
 
   const offlineCtx = new OfflineAudioContext(
       audioBuffer.numberOfChannels,
@@ -490,5 +490,19 @@ export async function renderPitchShiftOffline(audioBuffer, semitones) {
   try { source.disconnect(); } catch (e) {}
   try { worklet.disconnect(); } catch (e) {}
 
-  return rendered;
+  return trimAudioBufferFront(rendered, latencySamples);
+}
+
+function trimAudioBufferFront(buffer, skip) {
+  const out = new AudioBuffer({
+    length: Math.max(1, buffer.length - skip),
+    numberOfChannels: buffer.numberOfChannels,
+    sampleRate: buffer.sampleRate
+  });
+  for (let c = 0; c < buffer.numberOfChannels; c++) {
+    const src = buffer.getChannelData(c);
+    const dst = out.getChannelData(c);
+    dst.set(src.subarray(skip));
+  }
+  return out;
 }
