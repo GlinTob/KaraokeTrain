@@ -274,7 +274,11 @@ function drawAvatarBlock(pTop, pBottom, parte, avatarBlockW, ctx) {
   const user = isP1 ? "P1" : "P2";
   const info = getAvatarForUser(user);
 
-  const nombre = info && info.avatar ? info.name : (isP1 ? "Wen-dolyne" : "To-bonito");
+  const nombre = info && info.userName
+    ? info.userName
+    : (info && info.avatar && info.avatar.name
+        ? info.avatar.name
+        : (isP1 ? "Wen-dolyne" : "To-bonito"));
   const emoji1 = info && info.emoji1 ? info.emoji1 : (isP1 ? "⚛️" : "🐱");
   const emoji2 = info && info.emoji2 ? info.emoji2 : (isP1 ? "🤖" : "🤔");
 
@@ -357,61 +361,6 @@ function drawAvatarBlock(pTop, pBottom, parte, avatarBlockW, ctx) {
   ctx.textBaseline = "alphabetic";
 }
 
-/*
-function drawAvatarBlock(pTop, pBottom, parte, avatarBlockW, ctx) {
-  if (!parte || parte === "DUO") return;
-  const isP1 = parte === "P1";
-  const user = isP1 ? "P1" : "P2";
-  const info = getAvatarForUser(user);
-  const nombre = info && info.avatar ? info.name : (isP1 ? "Wen-dolyne" : "To-bonito");
-  const avatarEmoji = info && info.avatar ? info.avatar.emoji : (isP1 ? "👩" : "🧔🏾");
-  const emoji1 = info && info.emoji1 ? info.emoji1 : (isP1 ? "⚛️" : "🐱");
-  const emoji2 = info && info.emoji2 ? info.emoji2 : (isP1 ? "🤖" : "🤔");
-
-  const cx = 5 + avatarBlockW / 2;
-  const blockTop = pTop + 10;
-  const avatarSize = 56;
-  const halfSize = 28;
-  const nameH = 22;
-  const gap = 6;
-
-  ctx.fillStyle = "white";
-  ctx.font = "bold 16px Arial";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "alphabetic";
-  ctx.fillText(nombre, cx, blockTop + nameH - 4);
-
-  const avTop = blockTop + nameH + gap;
-  ctx.font = `${avatarSize}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",Arial`;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(avatarEmoji, cx, avTop + avatarSize / 2);
-
-  const rowTop = avTop + avatarSize + gap;
-  const iconHalfFont = `${halfSize}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",Arial`;
-
-  ctx.font = iconHalfFont;
-  ctx.fillStyle = "white";
-  ctx.textBaseline = "middle";
-  ctx.textAlign = "center";
-
-  if (isP1) {
-    const sqX = cx - halfSize - gap / 2;
-    ctx.fillStyle = "#7c3aed";
-    ctx.fillRect(sqX, rowTop, halfSize, halfSize);
-    ctx.strokeStyle = "#a855f7";
-    ctx.lineWidth = 1;
-    ctx.strokeRect(sqX, rowTop, halfSize, halfSize);
-    ctx.fillText(emoji1, sqX + halfSize / 2, rowTop + halfSize / 2);
-    ctx.fillText(emoji2, cx + halfSize / 2 + gap / 2, rowTop + halfSize / 2);
-  } else {
-    ctx.fillText(emoji1, cx - halfSize / 2 - gap / 2, rowTop + halfSize / 2);
-    ctx.fillText(emoji2, cx + halfSize / 2 + gap / 2, rowTop + halfSize / 2);
-  }
-
-  ctx.textBaseline = "alphabetic";
-}
-*/
 function drawLyricsBar(canvas, ctx, currentTime) {
   if (!karaokeRecordingActive) return;
   if (!Array.isArray(textSegments) || !textSegments.length) return;
