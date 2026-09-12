@@ -7,6 +7,7 @@ import { getLibraryItemsByIdFromSupabase, getLibraryItemsByTypeFromSupabase, sav
 // el hilo principal con mezclas largas.
 import { getAudioController } from "./audio-controller.js";
 import { getSelectedMicId } from "./config.js";
+import { registerVocalNode } from "./vocal-settings.js";
 import { midiToNoteName } from "./afinador.js";
 
 let textSegments = [];
@@ -499,6 +500,7 @@ export async function startKaraokeRecording() {
       try {
         karaokePitchWorkletNode = new AudioWorkletNode(karaokePitchDetectionAudioCtx, "vocal-processor");
         source1.connect(karaokePitchWorkletNode);
+        registerVocalNode(karaokePitchWorkletNode);
       } catch (e) {
         console.warn("Vocal processor no aplicado en karaoke:", e);
         karaokePitchWorkletNode = null;
