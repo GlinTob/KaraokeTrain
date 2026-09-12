@@ -157,7 +157,7 @@
             <div class="studio-controls">
               <button id="loadSelectedTextBtn" type="button">Cargar letra seleccionada ↩️</button>
             </div>
-            <div id="selectedTextContainer" style="margin-top: 15px"></div>
+            <div id="selectedTextContainer" style="margin: 15px 0;"></div>
             <p id="selectedTextStatus">Estado: ningún texto seleccionado</p>
           </div>
           <div class="card">
@@ -284,7 +284,7 @@
             </div>
           
             <div class="studio-controls">
-              <button id="saveLibraryFileBtn" type="button" class="btn-neon" style="margin-top: 15px;">💾 Guardar en la nube</button>
+              <button id="saveLibraryFileBtn" type="button" class="btn-neon">💾 Guardar en la nube</button>
               <button type="button" id="clearUploadBtn" class="btn-neon btn-secondary" style="display: none;">✖ Limpiar selección</button>
             </div>
           
@@ -385,7 +385,7 @@
           </div>
 
           <!-- AVATAR -->
-          <div class="config-section">
+          <div class="card config-section">
             <h2>👤 Avatares / Personajes en Monitor</h2>
             <p class="section-desc">Cada usuario elige su avatar y sus emojis para el monitor de karaoke.</p>
 
@@ -400,16 +400,20 @@
               <div class="avatar-emoji-picker">
                 <label>✨ Emojis junto al avatar (Usuario 1)</label>
                 <div class="avatar-emoji-row">
-                  <span>Emoji 1:</span>
-                  <select id="avatarEmoji1P1"></select>
-                  <span>Emoji 2:</span>
-                  <select id="avatarEmoji2P1"></select>
+                  <div class="avatar-emoji-group">
+                    <span class="avatar-emoji-group-label">Emoji 1:</span>
+                    <div class="emoji-picker-row" id="avatarEmoji1P1"></div>
+                  </div>
+                  <div class="avatar-emoji-group">
+                    <span class="avatar-emoji-group-label">Emoji 2:</span>
+                    <div class="emoji-picker-row" id="avatarEmoji2P1"></div>
+                  </div>
                 </div>
               </div>
               <p class="avatar-selected-info" id="avatarSelectedInfoP1">Ningún avatar seleccionado (se usará avatar por defecto)</p>
               <div style="margin-top:8px;">
                 <label style="font-size:0.8em; color:var(--text-color);">Nombre:</label>
-                <input type="text" id="avatarNameP1" class="config-input" placeholder="Nombre del usuario" style="width:100%; padding:4px; border-radius:4px; border:1px solid var(--border-color); background:var(--bg-secondary); color:var(--text-color); margin-top:4px;">
+                <input type="text" id="avatarNameP1" class="config-input" placeholder="Escribe tu nombre" style="width:100%; padding:4px; border-radius:4px; border:1px solid var(--border-color); background:var(--bg-secondary); color:var(--text-color); margin-top:4px;">
               </div>
             </div>
 
@@ -419,23 +423,26 @@
               <div class="avatar-emoji-picker">
                 <label>✨ Emojis junto al avatar (Usuario 2)</label>
                 <div class="avatar-emoji-row">
-                  <span>Emoji 1:</span>
-                  <select id="avatarEmoji1P2"></select>
-                  <span>Emoji 2:</span>
-                  <select id="avatarEmoji2P2"></select>
+                  <div class="avatar-emoji-group">
+                    <span class="avatar-emoji-group-label">Emoji 1:</span>
+                    <div class="emoji-picker-row" id="avatarEmoji1P2"></div>
+                  </div>
+                  <div class="avatar-emoji-group">
+                    <span class="avatar-emoji-group-label">Emoji 2:</span>
+                    <div class="emoji-picker-row" id="avatarEmoji2P2"></div>
+                  </div>
                 </div>
               </div>
               <p class="avatar-selected-info" id="avatarSelectedInfoP2">Ningún avatar seleccionado (se usará avatar por defecto)</p>
               <div style="margin-top:8px;">
                 <label style="font-size:0.8em; color:var(--text-color);">Nombre:</label>
-                <input type="text" id="avatarNameP2" class="config-input" placeholder="Nombre del usuario" style="width:100%; padding:4px; border-radius:4px; border:1px solid var(--border-color); background:var(--bg-secondary); color:var(--text-color); margin-top:4px;">
+                <input type="text" id="avatarNameP2" class="config-input" placeholder="Escribe tu nombre" style="width:100%; padding:4px; border-radius:4px; border:1px solid var(--border-color); background:var(--bg-secondary); color:var(--text-color); margin-top:4px;">
               </div>
             </div>
           </div>
 
           <!-- MICROFONOS -->
-          <div class="card">
-          <div class="config-section">
+          <div class="card config-section">
               <h2>🎙️ Configuración de Micrófonos</h2>
 
              <!-- SELECTOR DE MODO -->
@@ -491,11 +498,9 @@
                 </div>
               </div>
           </div>
-          </div>
 
           <!-- DIFICULTADES -->
-          <div class="card">
-          <div class="config-section">
+          <div class="card config-section">
             <h2>🎮 Dificultades</h2>
             <div class="difficulty-grid">
               <div class="difficulty-card">
@@ -517,28 +522,22 @@
               </div>
             </div>
           </div>
-          </div>
 
           <!-- THEME SWITCHER -->
-          <div class="card">
-          <div class="config-section">
+          <div class="card config-section">
             <h2>🎨 Temas Visuales</h2>
             <p class="section-desc">Elige la estética de la app, monitores y karaoke</p>
             <div class="theme-grid" id="themeGrid"></div>
           </div>
-          </div>
 
           <!-- ESCENARIO KARAOKE -->
-          <div class="card">
-          <div class="config-section">
+          <div class="card config-section">
             <h2>🎭 Escenario de Karaoke</h2>
             <div class="theme-grid" id="karaokeThemeGrid"></div>
           </div>
-          </div>
 
           <!-- VOCAL PROCESSOR -->
-          <div class="card">
-          <div class="config-section vocal-processor-section">
+          <div class="card config-section vocal-processor-section">
             <div class="vocal-processor-header">
               <div class="vp-icon">🎚️</div>
               <div>
