@@ -325,7 +325,6 @@ export async function initSettings() {
 
   renderAppThemeGrid();
   applyAppTheme(localStorage.getItem("karaokeTrain_theme") || "oscuro");
-  loadSavedAvatar();
   inicializarEscenarioDesdeMemoria();
   initializeAvatarSelector();
   toggleMic2Visibility();
@@ -366,38 +365,49 @@ export function initializeAvatarSelector() {
       tabsContainer.appendChild(btn);
     });
 
-    initAvatarNameInput(user);
     populateEmojiPickers(user);
     renderAvatarGrid(user, "superheroes");
-    loadSavedAvatar(user);
-    renderAvatarSelectedInfo(user);
   });
 }
 
 function initializeAvatarUserTabs() {
-  const tabs = document.querySelectorAll(".avatar-user-tab");
-  tabs.forEach((tab) => {
-    tab.addEventListener("click", () => {
+  const defaultNames = { P1: "Usuario 1", P2: "Usuario 2" };
+
+  document.querySelectorAll(".avatar-user-tab").forEach((tab) => {
+    tab.addEventListener("click", (e) => {
+      const target = e.target && e.target.closest ? e.target.closest(".avatar-user-input") : null;
+      if (target) return;
       const user = tab.dataset.avatarUser || "P1";
       activeAvatarUser = user;
       const panel = $("avatarUserPanel" + user);
       document.querySelectorAll(".avatar-user-panel").forEach((p) => (p.style.display = "none"));
-      document.querySelectorAll(".avatar-user-tab").forEach((t) => t.classList.remove("active"));
+      document.querySelectorAll(".avatar-user-tab").forEach((t) => {
+        t.classList.remove("active");
+        t.setAttribute("aria-selected", "false");
+      });
       if (panel) panel.style.display = "block";
       tab.classList.add("active");
+      tab.setAttribute("aria-selected", "true");
     });
   });
-}
 
-function initAvatarNameInput(user) {
-  const keys = storageKeysForUser(user);
-  const input = $("avatarName" + user);
-  if (!input) return;
+  document.querySelectorAll(".avatar-user-input").forEach((input) => {
+    const user = input.dataset.user || "P1";
+    const keys = storageKeysForUser(user);
+    input.value = localStorage.getItem(keys.name) || defaultNames[user];
 
-  input.value = localStorage.getItem(keys.name) || "";
-  input.addEventListener("input", () => {
-    localStorage.setItem(keys.name, input.value);
-    notifyAvatarChange(user);
+    input.addEventListener("click", (e) => e.stopPropagation());
+    input.addEventListener("mousedown", (e) => e.stopPropagation());
+    input.addEventListener("keydown", (e) => e.stopPropagation());
+
+    input.addEventListener("input", () => {
+      localStorage.setItem(keys.name, input.value);
+      notifyAvatarChange(user);
+    });
+
+    input.addEventListener("blur", () => {
+      if (!input.value.trim()) input.value = defaultNames[user];
+    });
   });
 }
 
@@ -473,37 +483,7 @@ export function selectAvatar(user, character) {
     card.classList.toggle("selected", card.dataset.avatarId === character.id);
   });
 
-  renderAvatarSelectedInfo(user);
   notifyAvatarChange(user);
-}
-
-function renderAvatarSelectedInfo(user) {
-  const infoEl = $("avatarSelectedInfo" + user);
-  if (!infoEl) return;
-
-  const saved = loadAvatarFromStorage(user);
-  const label = user === "P2" ? "Usuario 2" : "Usuario 1";
-
-  if (!saved) {
-    infoEl.innerHTML = `${label}: ningún avatar seleccionado (se usará avatar por defecto)`;
-    infoEl.classList.remove("has-selection");
-    return;
-  }
-
-  infoEl.innerHTML = `
-    <div class="avatar-selected-title">${saved.name}</div>
-    <div class="avatar-selected-sub">${label}</div>
-  `;
-  infoEl.classList.add("has-selection");
-}
-
-export function loadSavedAvatar(user = "P1") {
-  const saved = loadAvatarFromStorage(user);
-  if (!saved) {
-    renderAvatarSelectedInfo(user);
-    return;
-  }
-  renderAvatarSelectedInfo(user);
 }
 
 function loadAvatarFromStorage(user) {
