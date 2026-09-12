@@ -1,4 +1,5 @@
 import { $ } from "./utils.js";
+import { initVocalProcessorUI } from "./vocal-settings.js";
 
 /**
  * MÓDULO CONFIGURACIÓN COMPLETO
@@ -327,6 +328,7 @@ export async function initSettings() {
   applyAppTheme(localStorage.getItem("karaokeTrain_theme") || "oscuro");
   inicializarEscenarioDesdeMemoria();
   initializeAvatarSelector();
+  initVocalProcessorUI();
   toggleMic2Visibility();
 }
 
