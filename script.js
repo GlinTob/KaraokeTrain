@@ -76,7 +76,7 @@ export async function showTab(tabId) {
       console.log("🎵 [Lazy Load] Módulo Afinador Vocal listo.");
     } else if (normalizedTabId === "cambiar-tono") {
       console.log("🎼 [Lazy Load] Módulo Cambiar Tono listo.");
-      const { initCambiarTono, loadPitchKaraokeOptions } = await import("./modules/cambiar-tono.js");
+      const { initCambiarTono, loadPitchKaraokeOptions } = await import("./modules/cambiar-tono.js?v=4");
       if (typeof initCambiarTono === "function") initCambiarTono();
       if (typeof loadPitchKaraokeOptions === "function") await loadPitchKaraokeOptions();
     } else if (normalizedTabId === "karaoke") {
@@ -304,23 +304,23 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // --- EVENTOS CAMBIAR TONO ---
   safeAdd("loadPitchKaraokeBtn", "click", async () => {
-    const { loadSelectedPitchKaraoke } = await import("./modules/cambiar-tono.js");
+    const { loadSelectedPitchKaraoke } = await import("./modules/cambiar-tono.js?v=4");
     if (typeof loadSelectedPitchKaraoke === "function") loadSelectedPitchKaraoke();
   });
   safeAdd("pitchPlayBtn", "click", async () => {
-    const { playPitchShifted } = await import("./modules/cambiar-tono.js");
+    const { playPitchShifted } = await import("./modules/cambiar-tono.js?v=4");
     if (typeof playPitchShifted === "function") playPitchShifted();
   });
   safeAdd("pitchStopBtn", "click", async () => {
-    const { stopPitchShifted } = await import("./modules/cambiar-tono.js");
+    const { stopPitchShifted } = await import("./modules/cambiar-tono.js?v=4");
     if (typeof stopPitchShifted === "function") stopPitchShifted();
   });
   safeAdd("pitchSaveBtn", "click", async () => {
-    const { savePitchShiftedToLibrary } = await import("./modules/cambiar-tono.js");
+    const { savePitchShiftedToLibrary } = await import("./modules/cambiar-tono.js?v=4");
     if (typeof savePitchShiftedToLibrary === "function") savePitchShiftedToLibrary();
   });
   safeAdd("pitchSendToKaraokeBtn", "click", async () => {
-    const { sendPitchShiftedToKaraokeMonitor } = await import("./modules/cambiar-tono.js");
+    const { sendPitchShiftedToKaraokeMonitor } = await import("./modules/cambiar-tono.js?v=4");
     if (typeof sendPitchShiftedToKaraokeMonitor === "function") sendPitchShiftedToKaraokeMonitor();
   });
 
