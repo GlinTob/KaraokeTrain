@@ -24,7 +24,10 @@ const EMOJI_OPTIONS = [
   "⚛️", "🐱", "🤔", "😺", "🐶", "🦊", "🐻", "🐼", "🐰",
   "🕷️", "🦇", "🦸", "👸", "🤖", "💚", "🛡️", "⭐", "🔥",
   "💎", "🎵", "🎤", "👑", "🧠", "🎩", "🎼", "🎨", "📜",
-  "🍄", "🦔", "⚔️", "👽", "🎈", "⚡", "🦍", "🌈", "🍀", "🔭"
+  "🍄", "🦔", "⚔️", "👽", "🎈", "⚡", "🦍", "🌈", "🍀", "🔭",
+  "🙈", "🙉", "🙊", "💋", "😨", "😱", "😵", "🥶", "🤡",
+  "🍭", "🥩", "🍉", "🍋", "🔮", "🪀", "🎁", "🎖️", "🐉",
+  "🎻", "🎺", "☎️", "⚖️", "🛁", "🧬", "💉", "🔬", "🧫"
 ];
 
 // ====================================================================
@@ -119,6 +122,7 @@ const APP_THEMES = [
   { id: "oscuro", name: "Oscuro" },
   { id: "claro", name: "Claro" },
   { id: "neon", name: "Neón" }
+  { id: "otono", name: "Otoño" }
 ];
 
 const KARAOKE_STAGES = [
@@ -440,21 +444,6 @@ export function selectAvatar(user, character) {
   renderAvatarSelectedInfo(user);
   notifyAvatarChange(user);
 }
-/*
-export function selectAvatar(user, character) {
-  if (!character || !character.id || !character.category) return;
-
-  const keys = storageKeysForUser(user);
-  localStorage.setItem(keys.avatar, JSON.stringify(character));
-
-  document.querySelectorAll('#avatarGrid' + user + ' .avatar-card').forEach((card) => {
-    card.classList.toggle("selected", card.dataset.avatarId === character.id);
-  });
-
-  renderAvatarSelectedInfo(user);
-  notifyAvatarChange(user);
-}
-*/
 
 function renderAvatarSelectedInfo(user) {
   const infoEl = $("avatarSelectedInfo" + user);
@@ -475,27 +464,6 @@ function renderAvatarSelectedInfo(user) {
   `;
   infoEl.classList.add("has-selection");
 }
-
-/*
-function renderAvatarSelectedInfo(user) {
-  const infoEl = $("avatarSelectedInfo" + user);
-  if (!infoEl) return;
-
-  const saved = loadAvatarFromStorage(user);
-  const label = user === "P2" ? "Usuario 2" : "Usuario 1";
-  if (!saved) {
-    infoEl.innerHTML = `${label}: ningún avatar seleccionado (se usará avatar por defecto)`;
-    infoEl.classList.remove("has-selection");
-    return;
-  }
-
-  infoEl.innerHTML = `
-    <div class="avatar-selected-title">${saved.emoji} ${saved.name}</div>
-    <div class="avatar-selected-sub">${label}</div>
-  `;
-  infoEl.classList.add("has-selection");
-}
-*/
 
 export function loadSavedAvatar(user = "P1") {
   const saved = loadAvatarFromStorage(user);
@@ -530,25 +498,6 @@ function loadAvatarFromStorage(user) {
     return null;
   }
 }
-
-/*
-function loadAvatarFromStorage(user) {
-  try {
-    const keys = storageKeysForUser(user);
-    const saved = localStorage.getItem(keys.avatar);
-    if (!saved) return null;
-    const parsed = JSON.parse(saved);
-    if (!parsed || !parsed.id || !parsed.category) return null;
-    for (const [, category] of Object.entries(AVATAR_CATEGORIES)) {
-      const char = category.characters.find((c) => c.id === parsed.id);
-      if (char) return char;
-    }
-    return null;
-  } catch (e) {
-    return null;
-  }
-}
-*/
 
 function notifyAvatarChange(user) {
   const avatar = loadAvatarFromStorage(user);
