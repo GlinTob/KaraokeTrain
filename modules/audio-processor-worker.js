@@ -79,7 +79,7 @@ class AudioProcessor {
     // FIX: umbral bajo para que el pitch responda al canto normal (no solo
     // gritando). A 0.0015 solo reaccionaba a voces muy fuertes. 0.008 sigue
     // descartando silencio puro/ruido de fondo pero admite voz suave.
-    if (!isFinite(rms) || rms < 0.008) return -1;
+    if (!isFinite(rms) || rms < 0.005) return -1;
     if (maxVal === 0) return -1;
 
     // Asegurar buffer temporal lo suficientemente grande
