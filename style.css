@@ -1287,6 +1287,74 @@ body[data-theme="neon"] {
   border: 1px solid rgba(56, 189, 248, 0.2);
 }
 
+[data-theme="otono"] {
+  --bg-main: #2b1a0e;
+  --bg-sidebar: #1a120b;
+  --bg-card: #3a2515;
+  --text-main: #f3e5c8;
+  --text-muted: #b0a08a;
+  --accent: #f0a868;
+  --accent-hover: #e07b39;
+  --danger: #d9614f;
+  --border: #c9b489;
+  --accent-secondary: #ffd54f;
+  --accent-secondary-hover: #ffc107;
+  --accent-secondary-border: rgba(255, 213, 79, 0.28);
+  --accent-secondary-shadow: rgba(255, 213, 79, 0.22);
+}
+
+/* Fuentes del tema: Arial (UI), Orbitron (títulos), JetBrains Mono (datos) */
+[data-theme="otono"] body,
+[data-theme="otono"] body * {
+  font-family: Arial, Helvetica, sans-serif !important;
+}
+
+[data-theme="otono"] h1,
+[data-theme="otono"] h2,
+[data-theme="otono"] h3,
+[data-theme="otono"] .sidebar h2,
+[data-theme="otono"] .sidebar button,
+[data-theme="otono"] .current-note,
+[data-theme="otono"] .theme-card-name,
+[data-theme="otono"] .theme-card-check {
+  font-family: 'Orbitron', Arial, sans-serif !important;
+}
+
+[data-theme="otono"] .cents-display,
+[data-theme="otono"] .guide-text,
+[data-theme="otono"] code,
+[data-theme="otono"] pre {
+  font-family: 'JetBrains Mono', 'Courier New', monospace !important;
+}
+
+[data-theme="otono"] body,
+body[data-theme="otono"] {
+  background: var(--bg-main);
+  color: var(--text-main);
+}
+
+[data-theme="otono"] .sidebar button {
+  background: linear-gradient(180deg, #6b4226 0%, #3a2515 100%);
+  border: 1px solid #c9b489;
+  color: #f3e5c8;
+  box-shadow: 0 4px 0 #1a120b, 0 6px 12px rgba(26, 18, 11, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="otono"] .sidebar button:hover {
+  background: linear-gradient(180deg, #f0a868 0%, #e07b39 100%);
+  color: #1a120b;
+  box-shadow: 0 6px 0 #1a120b, 0 10px 18px rgba(240, 168, 104, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+[data-theme="otono"] .sidebar button.active {
+  background: linear-gradient(180deg, #a8c686 0%, #6b8f4e 100%);
+  color: #1a120b;
+}
+
+[data-theme="otono"] .card {
+  border: 1px solid rgba(240, 168, 104, 0.25);
+}
+
 /* ==========================================
    SELECTOR DE TEMAS
 ========================================= */
@@ -1394,6 +1462,12 @@ body[data-theme="neon"] {
 .theme-preview.neon .pv-sidebar .pv-bar { background: #1e293b; }
 .theme-preview.neon .pv-content .pv-line { background: #334155; }
 .theme-preview.neon .pv-block { background: #06b6d4; }
+
+.theme-preview.otono .pv-sidebar { background: #3a2515; }
+.theme-preview.otono .pv-sidebar .pv-bar { background: #f0a868; }
+.theme-preview.otono .pv-content { background: #f3e5c8; }
+.theme-preview.otono .pv-content .pv-line { background: #c9b489; }
+.theme-preview.otono .pv-block { background: #a8c686; }
 
 .theme-preview.stage {
   height: 90px;
