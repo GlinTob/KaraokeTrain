@@ -125,27 +125,6 @@ export async function loadTrackOptionsInStudio() {
   }
 }
 
-/*
-export function cargarAudioEstudio(e) {
-  const file = e.target.files?.[0];
-  if (!file) return;
-
-  studioTrackFileName = file.name;
-  studioTrackBlob = file;
-  studioTrackId = null;
-
-  const player = $("player");
-  const status = $("studioStatus");
-
-  if (player) {
-    player.src = URL.createObjectURL(file);
-  }
-  if (status) {
-    status.textContent = `Estado: pista cargada (${file.name})`;
-  }
-}
-*/
-
 export async function loadSelectedTrackFromLibraryStudio() {
   const select = $("studioTrackSelect");
   const player = $("player");
