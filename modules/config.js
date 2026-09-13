@@ -58,6 +58,16 @@ const AVATAR_CATEGORIES = {
       { id: "thor", name: "Thor", img: "../assets/avatares/thor.png" },
       { id: "venom", name: "Venom", img: "../assets/avatares/venom.png" },
       { id: "wonder-woman", name: "Wonder Woman", img: "../assets/avatares/wonder-woman.png" },
+      { id: "antorcha-humana", name: "Antorcha Humana", img: "../assets/avatares/icons8-antorcha-humana-100.png" },
+      { id: "bestia", name: "Bestia", img: "../assets/avatares/icons8-bestia-100.png" },
+      { id: "fantastic-four", name: "Fantastic Four", img: "../assets/avatares/icons8-fantastic-four-100.png" },
+      { id: "gloton", name: "Glotón", img: "../assets/avatares/icons8-glotón-100.png" },
+      { id: "green-lantern", name: "Green Lantern", img: "../assets/avatares/icons8-green-lantern-100.png" },
+      { id: "grey", name: "Grey", img: "../assets/avatares/icons8-grey-100.png" },
+      { id: "magneto", name: "Magneto", img: "../assets/avatares/icons8-magneto-100.png" },
+      { id: "profesor-x", name: "Profesor X", img: "../assets/avatares/icons8-profesor-x-100.png" },
+      { id: "vengadores", name: "Vengadores", img: "../assets/avatares/icons8-vengadores-100.png" },
+      { id: "x-men", name: "X-Men", img: "../assets/avatares/icons8-x-men-100.png" },
     ]
   },
   personajes: {
@@ -99,6 +109,21 @@ const AVATAR_CATEGORIES = {
       { id: "stormtrooper", name: "Stormtrooper", img: "../assets/avatares/stormtrooper.png" },
       { id: "super-mario", name: "Super Mario", img: "../assets/avatares/super-mario.png" },
       { id: "walter", name: "Walter", img: "../assets/avatares/walter.png" },
+      { id: "bender", name: "Bender", img: "../assets/avatares/icons8-futurama-bender-100.png" },
+      { id: "c-3po", name: "C-3PO", img: "../assets/avatares/icons8-c-3po-100.png" },
+      { id: "cheburashka", name: "Cheburashka", img: "../assets/avatares/icons8-cheburashka-100.png" },
+      { id: "genio", name: "Genio", img: "../assets/avatares/icons8-genie-100.png" },
+      { id: "ice-king", name: "Ice King", img: "../assets/avatares/icons8-ice-king-100.png" },
+      { id: "knight-helmet", name: "Knight Helmet", img: "../assets/avatares/icons8-knight-helmet-100.png" },
+      { id: "martian", name: "Marciano", img: "../assets/avatares/icons8-martian-100.png" },
+      { id: "misterio", name: "Misterio", img: "../assets/avatares/icons8-misterio-100.png" },
+      { id: "mummy", name: "Momia", img: "../assets/avatares/icons8-mummy-100.png" },
+      { id: "navi", name: "Na'vi", img: "../assets/avatares/icons8-na'vi-avatar-100.png" },
+      { id: "ninja-turtle", name: "Ninja Turtle", img: "../assets/avatares/icons8-ninja-turtle-100.png" },
+      { id: "olive-oyl", name: "Olive Oyl", img: "../assets/avatares/icons8-olive-oyl-100.png" },
+      { id: "princess-bubblegum", name: "Princess Bubblegum", img: "../assets/avatares/icons8-princess-bubblegum-100.png" },
+      { id: "woody-woodpecker", name: "Woody Woodpecker", img: "../assets/avatares/icons8-woody-woodpecker-100.png" },
+      { id: "yoda", name: "Yoda", img: "../assets/avatares/icons8-yoda-100.png" },
     ]
   }
 };
