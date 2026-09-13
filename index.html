@@ -155,9 +155,9 @@
               <option value="">Selecciona un archivo</option>
             </select>
             <div class="studio-controls">
-              <button id="loadSelectedTextBtn" type="button" style="margin-top: 15px;">Cargar letra seleccionada ↩️</button>
+              <button id="loadSelectedTextBtn" type="button">Cargar letra seleccionada ↩️</button>
             </div>
-            <div id="selectedTextContainer" style="margin-top: 15px;"></div>
+            <div id="selectedTextContainer" style="margin: 15px 0;"></div>
             <p id="selectedTextStatus">Estado: ningún texto seleccionado</p>
           </div>
           <div class="card">
@@ -185,8 +185,8 @@
                   Usa la barra espaciadora para hacer TAP.
                 </p>
                 <div class="studio-controls" style="margin-bottom: 20px;">
-                                  <button id="startTapSyncBtn" type="button" style="background: #a35705; color: white;">▶️ Iniciar Sincronización</button>
-                                  <button id="cancelTapSyncBtn" type="button" style="background: #a35705; display: none;">❌ Cancelar</button>
+                                  <button id="startTapSyncBtn" type="button" style="background: #3b82f6; color: white;">▶️ Iniciar Sincronización</button>
+                                  <button id="cancelTapSyncBtn" type="button" style="background: #6b7280; display: none;">❌ Cancelar</button>
                                 </div>
 
                 <!-- Modo de sincronización -->
@@ -262,7 +262,7 @@
             <div class="settings-group">
               <label>Seleccionar archivo</label>
               <div class="file-input-row">
-                <button type="button" id="selectLibraryFileBtn" class="btn-neon" style="margin-top: 15px;">📂 Seleccionar archivo</button>
+                <button type="button" id="selectLibraryFileBtn" class="btn-neon">📂 Seleccionar archivo</button>
                 <span id="libraryFileChosenText" class="file-chosen-text">Ningún archivo seleccionado</span>
               </div>
               <input type="file" id="libraryFileInput" accept=".txt" multiple hidden>
@@ -284,7 +284,7 @@
             </div>
           
             <div class="studio-controls">
-              <button id="saveLibraryFileBtn" type="button" class="btn-neon" style="margin-top: 15px;">💾 Guardar en la nube</button>
+              <button id="saveLibraryFileBtn" type="button" class="btn-neon">💾 Guardar en la nube</button>
               <button type="button" id="clearUploadBtn" class="btn-neon btn-secondary" style="display: none;">✖ Limpiar selección</button>
             </div>
           
@@ -707,6 +707,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
     <script type="module" src="supabase-config.js?v=3"></script>
     <script type="module" src="modules/worklets.js?v=3"></script>
-    <script src="script.js?v=4" type="module"></script>
+    <script src="script.js?v=5" type="module"></script>
   </body>
 </html>
