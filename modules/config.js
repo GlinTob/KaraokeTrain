@@ -58,7 +58,7 @@ const AVATAR_CATEGORIES = {
       { id: "thor", name: "Thor", img: "../assets/avatares/thor.png" },
       { id: "venom", name: "Venom", img: "../assets/avatares/venom.png" },
       { id: "wonder-woman", name: "Wonder Woman", img: "../assets/avatares/wonder-woman.png" },
-{ id: "human-torch", name: "Human Torch", img: "../assets/avatares/human-torch.png" },
+      { id: "human-torch", name: "Human Torch", img: "../assets/avatares/human-torch.png" },
       { id: "beast", name: "Beast", img: "../assets/avatares/beast.png" },
       { id: "fantastic-four", name: "Fantastic Four", img: "../assets/avatares/fantastic-four.png" },
       { id: "wolverine", name: "Wolverine", img: "../assets/avatares/wolverine.png" },
