@@ -5,11 +5,15 @@
 //   1. Análisis STFT por frames (N=2048, hop Ha=512), ventana Hann simétrica.
 //   2. Fase → frecuencia instantánea por bin (unwrap + principal value).
 //   3. TIME-STRETCH por factor R (el pitch NO cambia aquí): la fase de
-//      síntesis se integra con el hop de síntesis Hs = Ha*R, y cada frame se
-//      escribe al OLA espaciado Hs (duración ×R, tono constante).
+//      síntesis se integra con el hop de síntesis Hs = Ha*R acoplado a la
+//      posición entera de escritura (phsinc), y cada frame se escribe al OLA
+//      espaciado Hs (duración ×R, tono constante).
 //   4. RESAMPLE del resultado: se lee el buffer estirado avanzando R muestras
 //      por muestra de salida (interpolación lineal) → tono ×R, duración 1:1.
 // La combinación (3)+(4) da exactamente duración preservada y tono ×R.
+// Coherencia de fase: PHASE-LOCKING a picos espectrales (Oli Larkin) — cada
+// bin hereda la fase acumulada de su pico cercano, preservando la forma de
+// onda entre parciales (evita phasiness/chorus en música real).
 //
 // Cero allocations en el path de audio real.
 
@@ -108,7 +112,7 @@ class PitchShifterProcessor extends AudioWorkletProcessor {
     this.ringT = [];
     this.prevPhi = [];
     this.peakAcc = [];
-    this.peakIdx = [];  
+    this.peakIdx = [];
     this.wT = [];
     this.rPos = [];
     this.lastW = [];
@@ -152,40 +156,69 @@ class PitchShifterProcessor extends AudioWorkletProcessor {
     this.fft.transform(re, im, -1);
 
     const prevPhi = this.prevPhi[ch];
-    const outPhase = this.outPhase[ch];
-    const prevMag = this.prevMag[ch];
+    const peakAcc = this.peakAcc[ch];
+    const peakIdx = this.peakIdx[ch];
+    const magTmp = this.magTmp;
+    const phaseTmp = this.phaseTmp;
+
+    // Posición de escritura entera + avance de fase acoplado (phsinc)
+    const writeStart = Math.round(this.wT[ch]);
+    const phsinc = writeStart - this.lastW[ch];
+    this.lastW[ch] = writeStart;
+    this.wT[ch] = writeStart + Hs;
 
     const nyq = N >> 1;
     const twoPi = 2 * Math.PI;
 
     for (let k = 1; k <= nyq; k++) {
-      const mag = Math.hypot(re[k], im[k]);
-      const rawPhase = Math.atan2(im[k], re[k]);
-      const omega = (twoPi * k) / N;
+      magTmp[k] = Math.hypot(re[k], im[k]);
+      phaseTmp[k] = Math.atan2(im[k], re[k]);
+    }
 
-      let delta = rawPhase - prevPhi[k];
+    // Picos espectrales y asignación de bins (phase-locking, Oli Larkin)
+    let pmax = 0;
+    for (let k = 3; k < nyq - 3; k++) if (magTmp[k] > pmax) pmax = magTmp[k];
+    const peakThr = pmax * 0.0005;
+    for (let k = 1; k <= nyq; k++) {
+      peakIdx[k] = k;
+      if (k >= PEAK_WIN && k <= nyq - PEAK_WIN && magTmp[k] > pmax * 0.05) {
+        let p = k;
+        let bv = magTmp[k];
+        for (let j = k - PEAK_WIN; j <= k + PEAK_WIN; j++) {
+          if (magTmp[j] > bv) { bv = magTmp[j]; p = j; }
+        }
+        peakIdx[k] = p;
+      }
+    }
+
+    // Avanza la fase acumulada de cada pico con su frecuencia instantánea
+    for (let k = 1; k <= nyq; k++) {
+      if (magTmp[k] <= magTmp[k - 1] || magTmp[k] < magTmp[k + 1]) continue;
+      if (k >= nyq - PEAK_WIN) continue;
+      if (magTmp[k] < pmax * 0.05) continue;
+      const omega = (twoPi * k) / N;
+      let delta = phaseTmp[k] - prevPhi[k];
       delta -= twoPi * Math.round(delta / twoPi);
       const instFreq = omega + delta / HA;
+      if (instFreq >= Math.PI * 0.98) continue;
+      peakAcc[k] += instFreq * phsinc;
+    }
 
-      prevPhi[k] = rawPhase;
-      prevMag[k] = mag;
-
-      if (instFreq >= Math.PI * 0.98) {
+    // Síntesis: fase del pico + fase relativa (preserva la forma de onda)
+    for (let k = 1; k <= nyq; k++) {
+      prevPhi[k] = phaseTmp[k];
+      if (magTmp[k] < peakThr) {
         re[k] = 0; im[k] = 0;
         re[N - k] = 0; im[N - k] = 0;
         continue;
       }
-
-      // Time-stretch: integra la fase con el hop de síntesis Hs (tono intacto).
-      outPhase[k] += instFreq * Hs;
-      const magOut = prevMag[k] * 0.35 + mag * 0.65;
-      const cp = Math.cos(outPhase[k]);
-      const sp = Math.sin(outPhase[k]);
-
-      re[k] = magOut * cp;
-      im[k] = magOut * sp;
-      re[N - k] = magOut * cp;
-      im[N - k] = -magOut * sp;
+      const pk = peakIdx[k];
+      const sp = peakAcc[pk] + (phaseTmp[k] - phaseTmp[pk]);
+      const cp = Math.cos(sp);
+      const sn = Math.sin(sp);
+      const m = magTmp[k];
+      re[k] = m * cp; im[k] = m * sn;
+      re[N - k] = m * cp; im[N - k] = -m * sn;
     }
 
     re[0] = Math.hypot(re[0], im[0]);
@@ -197,14 +230,11 @@ class PitchShifterProcessor extends AudioWorkletProcessor {
     for (let i = 0; i < N; i++) re[i] /= N;
 
     // Overlap-add en el buffer estirado (españado Hs = HA*ratio)
-    // Escala ∝ ratio: compensa la reducción de solape OLA cuando Hs crece.
-    const olaScale = 1.33 * ratio;
-    const writeStart = Math.round(this.wT[ch]);
+    // Sin escala fija: la normalización se hace por cobertura en la lectura.
     const tRing = this.ringT[ch];
     for (let i = 0; i < N; i++) {
-      tRing[(writeStart + i) % RING_T] += re[i] * this.hann[i] * olaScale;
+      tRing[(writeStart + i) % RING_T] += re[i] * this.hann[i];
     }
-    this.wT[ch] = writeStart + Hs;
   }
 
   process(inputs, outputs, parameters) {
@@ -247,18 +277,30 @@ class PitchShifterProcessor extends AudioWorkletProcessor {
     }
 
     // 3. Resample: leer el buffer estirado avanzando `ratio` por muestra
+    //    Normalización por cobertura OLA: divide por Σ w⁴ sobre los frames
+    //    que cubren cada punto (frames phase-locked suman coherentemente).
     for (let c = 0; c < numCh; c++) {
       const dst = output[c];
       const tRing = this.ringT[c];
       const avail = this.wT[c] - this.rPos[c];
       const readable = Math.min(block, Math.floor(avail));
+      const HsC = this.HA * ratio;
+      const piOverN = Math.PI / (this.N - 1);
       for (let i = 0; i < readable; i++) {
         const pos = this.rPos[c] + i * ratio;
         const base = Math.floor(pos);
         const frac = pos - base;
         const i0 = base % RING_T;
         const i1 = (i0 + 1) % RING_T;
-        dst[i] = tRing[i0] * (1 - frac) + tRing[i1] * frac;
+        const raw = tRing[i0] * (1 - frac) + tRing[i1] * frac;
+        let cov = 0;
+        const jLast = Math.floor((pos + (this.N >> 1)) / HsC);
+        for (let j = Math.max(0, Math.ceil((pos - (this.N >> 1)) / HsC)); j <= jLast; j++) {
+          const xi = pos - j * HsC;
+          const wv = Math.sin(piOverN * (xi + (this.N >> 1)));
+          cov += wv * wv;
+        }
+        dst[i] = raw / Math.max(0.2, cov);
       }
       for (let i = readable; i < block; i++) dst[i] = 0;
       this.rPos[c] += readable * ratio;
