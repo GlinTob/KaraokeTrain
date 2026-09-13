@@ -6,7 +6,7 @@ import { getLibraryItemsByIdFromSupabase, getLibraryItemsByTypeFromSupabase, sav
 // El encode WAV ahora corre en el worker (encodeWavToBlob) para no bloquear
 // el hilo principal con mezclas largas.
 import { getAudioController } from "./audio-controller.js";
-import { getSelectedMicId } from "./config.js";
+import { getSelectedMicId } from "./config.js?v=4";
 import { registerVocalNode } from "./vocal-settings.js";
 import { midiToNoteName } from "./afinador.js";
 
