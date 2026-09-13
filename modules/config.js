@@ -113,7 +113,6 @@ const AVATAR_CATEGORIES = {
       { id: "bender", name: "Bender", img: "../assets/avatares/bender.png" },
       { id: "c-3po", name: "C-3PO", img: "../assets/avatares/c-3po.png" },
       { id: "cheburashka", name: "Cheburashka", img: "../assets/avatares/cheburashka.png" },
-      { id: "genie-2", name: "Genie", img: "../assets/avatares/genie-2.png" },
       { id: "ice-king", name: "Ice King", img: "../assets/avatares/ice-king.png" },
       { id: "knight-helmet", name: "Knight Helmet", img: "../assets/avatares/knight-helmet.png" },
       { id: "martian", name: "Martian", img: "../assets/avatares/martian.png" },
