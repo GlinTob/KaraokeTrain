@@ -17,6 +17,7 @@ const FFT_SIZE = 2048;
 const ANALYSIS_HOP = 512;
 const RING_IN = FFT_SIZE + 512;
 const RING_T = FFT_SIZE * 4;
+const PEAK_WIN = 6;
 
 function makeHann(n) {
   const w = new Float32Array(n);
@@ -106,10 +107,13 @@ class PitchShifterProcessor extends AudioWorkletProcessor {
     this.inRing = [];
     this.ringT = [];
     this.prevPhi = [];
-    this.outPhase = [];
-    this.prevMag = [];
+    this.peakAcc = [];
+    this.peakIdx = [];  
     this.wT = [];
     this.rPos = [];
+    this.lastW = [];
+    this.magTmp = new Float32Array(FFT_SIZE);
+    this.phaseTmp = new Float32Array(FFT_SIZE);
 
     this.headIn = 0;
     this.frameStart = 0;
@@ -121,10 +125,11 @@ class PitchShifterProcessor extends AudioWorkletProcessor {
       this.inRing[c] = new Float32Array(RING_IN);
       this.ringT[c] = new Float32Array(RING_T);
       this.prevPhi[c] = new Float32Array(this.N);
-      this.outPhase[c] = new Float32Array(this.N);
-      this.prevMag[c] = new Float32Array(this.N);
+      this.peakAcc[c] = new Float64Array(this.N);
+      this.peakIdx[c] = new Int16Array(this.N);
       this.wT[c] = 0;
       this.rPos[c] = 0;
+      this.lastW[c] = 0;
     }
   }
 
