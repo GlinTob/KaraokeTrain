@@ -58,7 +58,7 @@ const AVATAR_CATEGORIES = {
       { id: "thor", name: "Thor", img: "../assets/avatares/thor.png" },
       { id: "venom", name: "Venom", img: "../assets/avatares/venom.png" },
       { id: "wonder-woman", name: "Wonder Woman", img: "../assets/avatares/wonder-woman.png" },
-{ id: "human-torch", name: "Human Torch", img: "../assets/avatares/human-torch.png" },
+      { id: "human-torch", name: "Human Torch", img: "../assets/avatares/human-torch.png" },
       { id: "beast", name: "Beast", img: "../assets/avatares/beast.png" },
       { id: "fantastic-four", name: "Fantastic Four", img: "../assets/avatares/fantastic-four.png" },
       { id: "wolverine", name: "Wolverine", img: "../assets/avatares/wolverine.png" },
@@ -68,7 +68,7 @@ const AVATAR_CATEGORIES = {
       { id: "mysterio", name: "Mysterio", img: "../assets/avatares/mysterio.png" },
       { id: "professor-x", name: "Professor X", img: "../assets/avatares/professor-x.png" },
       { id: "avengers", name: "Avengers", img: "../assets/avatares/avengers.png" },
-      { id: "x-men", name: "X-Men", img: "../assets/avatares/x-men.png" },
+      { id: "x-men", name: "X-Men", img: "../assets/avatares/x-men.png" }
     ]
   },
   personajes: {
@@ -123,7 +123,7 @@ const AVATAR_CATEGORIES = {
       { id: "olive-oyl", name: "Olive Oyl", img: "../assets/avatares/olive-oyl.png" },
       { id: "princess-bubblegum", name: "Princess Bubblegum", img: "../assets/avatares/princess-bubblegum.png" },
       { id: "woody-woodpecker", name: "Woody Woodpecker", img: "../assets/avatares/woody-woodpecker.png" },
-      { id: "yoda", name: "Yoda", img: "../assets/avatares/yoda.png" },
+      { id: "yoda", name: "Yoda", img: "../assets/avatares/yoda.png" }
     ]
   }
 };
