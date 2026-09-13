@@ -57,12 +57,12 @@ export async function showTab(tabId) {
   try {
     if (normalizedTabId === "config") {
       console.log("⚙️ [Lazy Load] Cargando configuraciones de hardware...");
-      const { initSettings, loadAvailableMics } = await import("./modules/config.js?v=3");
+      const { initSettings, loadAvailableMics } = await import("./modules/config.js?v=4");
       if (typeof initSettings === "function") initSettings();
       if (typeof loadAvailableMics === "function") await loadAvailableMics();
     } else if (normalizedTabId === "biblioteca") {
       console.log("📁 [Lazy Load] Cargando visor de Base de Datos...");
-      const { initBiblioteca, renderLibrary } = await import("./modules/biblioteca.js");
+      const { initBiblioteca, renderLibrary } = await import("./modules/biblioteca.js?v=3");
       if (typeof initBiblioteca === "function") {
         initBiblioteca();
       }
@@ -76,13 +76,13 @@ export async function showTab(tabId) {
       console.log("🎵 [Lazy Load] Módulo Afinador Vocal listo.");
     } else if (normalizedTabId === "cambiar-tono") {
       console.log("🎼 [Lazy Load] Módulo Cambiar Tono listo.");
-      const { initCambiarTono, loadPitchKaraokeOptions } = await import("./modules/cambiar-tono.js?v=4");
+      const { initCambiarTono, loadPitchKaraokeOptions } = await import("./modules/cambiar-tono.js?v=5");
       if (typeof initCambiarTono === "function") initCambiarTono();
       if (typeof loadPitchKaraokeOptions === "function") await loadPitchKaraokeOptions();
     } else if (normalizedTabId === "karaoke") {
       console.log("🎤 [Lazy Load] Inicializando Canvas e Históricos de Canto...");
-      const { loadTrackOptionsInKaraoke, loadKaraokeSong } = await import("./modules/karaoke.js");
-      const { inicializarEscenarioDesdeMemoria } = await import("./modules/config.js?v=3");
+      const { loadTrackOptionsInKaraoke, loadKaraokeSong } = await import("./modules/karaoke.js?v=2");
+      const { inicializarEscenarioDesdeMemoria } = await import("./modules/config.js?v=4");
 
       if (typeof inicializarEscenarioDesdeMemoria === "function") inicializarEscenarioDesdeMemoria();
       if (typeof loadTrackOptionsInKaraoke === "function") await loadTrackOptionsInKaraoke();
@@ -109,7 +109,7 @@ export async function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2 
 
   // Cachear la referencia al renderizador para evitar un import dinámico por cada repintado
   if (!_karaokeRenderPincel) {
-    const { drawKaraokeMonitor: renderPincel } = await import('./modules/karaoke.js');
+    const { drawKaraokeMonitor: renderPincel } = await import('./modules/karaoke.js?v=2');
     _karaokeRenderPincel = renderPincel;
   }
   if (typeof _karaokeRenderPincel === "function") {
@@ -131,7 +131,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     for (let i = 0; i < retries; i++) {
       if (window.supabase) {
         try {
-          const { initSupabase } = await import("./modules/biblioteca.js");
+          const { initSupabase } = await import("./modules/biblioteca.js?v=3");
           if (typeof initSupabase === "function") {
             await initSupabase();
             console.log("✅ Supabase inicializado correctamente.");
@@ -280,7 +280,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // --- EVENTOS BIBLIOTECA ---
   safeAdd("saveLibraryFileBtn", "click", async () => {
-    const { saveManualFileToLibrary } = await import("./modules/biblioteca.js");
+    const { saveManualFileToLibrary } = await import("./modules/biblioteca.js?v=3");
     if (typeof saveManualFileToLibrary === "function") saveManualFileToLibrary();
   });
   safeAdd("libraryFileInput", "change", (e) => {
@@ -304,78 +304,78 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // --- EVENTOS CAMBIAR TONO ---
   safeAdd("loadPitchKaraokeBtn", "click", async () => {
-    const { loadSelectedPitchKaraoke } = await import("./modules/cambiar-tono.js?v=4");
+    const { loadSelectedPitchKaraoke } = await import("./modules/cambiar-tono.js?v=5");
     if (typeof loadSelectedPitchKaraoke === "function") loadSelectedPitchKaraoke();
   });
   safeAdd("pitchPlayBtn", "click", async () => {
-    const { playPitchShifted } = await import("./modules/cambiar-tono.js?v=4");
+    const { playPitchShifted } = await import("./modules/cambiar-tono.js?v=5");
     if (typeof playPitchShifted === "function") playPitchShifted();
   });
   safeAdd("pitchStopBtn", "click", async () => {
-    const { stopPitchShifted } = await import("./modules/cambiar-tono.js?v=4");
+    const { stopPitchShifted } = await import("./modules/cambiar-tono.js?v=5");
     if (typeof stopPitchShifted === "function") stopPitchShifted();
   });
   safeAdd("pitchSaveBtn", "click", async () => {
-    const { savePitchShiftedToLibrary } = await import("./modules/cambiar-tono.js?v=4");
+    const { savePitchShiftedToLibrary } = await import("./modules/cambiar-tono.js?v=5");
     if (typeof savePitchShiftedToLibrary === "function") savePitchShiftedToLibrary();
   });
   safeAdd("pitchSendToKaraokeBtn", "click", async () => {
-    const { sendPitchShiftedToKaraokeMonitor } = await import("./modules/cambiar-tono.js?v=4");
+    const { sendPitchShiftedToKaraokeMonitor } = await import("./modules/cambiar-tono.js?v=5");
     if (typeof sendPitchShiftedToKaraokeMonitor === "function") sendPitchShiftedToKaraokeMonitor();
   });
 
   // --- EVENTOS KARAOKE ---
   safeAdd("karaokeTrackSelect", "change", async () => {
-    const { loadKaraokeSong } = await import("./modules/karaoke.js");
+    const { loadKaraokeSong } = await import("./modules/karaoke.js?v=2");
     const id = $("karaokeTrackSelect")?.value;
     if (id && typeof loadKaraokeSong === "function") loadKaraokeSong(id);
   });
   safeAdd("karaokeDuoSplitToggleBtn", "click", async () => {
-    const { toggleKaraokeDuoSplitMode } = await import("./modules/karaoke.js");
+    const { toggleKaraokeDuoSplitMode } = await import("./modules/karaoke.js?v=2");
     if (typeof toggleKaraokeDuoSplitMode === "function") toggleKaraokeDuoSplitMode();
   });
   safeAdd("karaokeStartBtn", "click", async () => {
-    const { startKaraokeRecording } = await import("./modules/karaoke.js");
+    const { startKaraokeRecording } = await import("./modules/karaoke.js?v=2");
     if (typeof startKaraokeRecording === "function") startKaraokeRecording();
   });
   safeAdd("karaokeStopBtn", "click", async () => {
-    const { stopKaraokeRecording } = await import("./modules/karaoke.js");
+    const { stopKaraokeRecording } = await import("./modules/karaoke.js?v=2");
     if (typeof stopKaraokeRecording === "function") stopKaraokeRecording();
   });
   safeAdd("karaokeRestartBtn", "click", async () => {
-    const { restartKaraokeRecording } = await import("./modules/karaoke.js");
+    const { restartKaraokeRecording } = await import("./modules/karaoke.js?v=2");
     if (typeof restartKaraokeRecording === "function") restartKaraokeRecording();
   });
   safeAdd("karaokeMixBtn", "click", async () => {
-    const { mixKaraoke } = await import("./modules/karaoke.js");
+    const { mixKaraoke } = await import("./modules/karaoke.js?v=2");
     if (typeof mixKaraoke === "function") mixKaraoke();
   });
 
   // --- EVENTOS CONFIGURACIÓN HARDWARE MICS ---
   safeAdd("refreshMicsBtn", "click", async () => {
-    const { loadAvailableMics } = await import("./modules/config.js?v=3");
+    const { loadAvailableMics } = await import("./modules/config.js?v=4");
     if (typeof loadAvailableMics === "function") loadAvailableMics();
   });
   safeAdd("testMic1Btn", "click", async () => {
-    const { testMicrophone } = await import("./modules/config.js?v=3");
+    const { testMicrophone } = await import("./modules/config.js?v=4");
     if (typeof testMicrophone === "function") testMicrophone(1);
   });
   safeAdd("testMic2Btn", "click", async () => {
-    const { testMicrophone } = await import("./modules/config.js?v=3");
+    const { testMicrophone } = await import("./modules/config.js?v=4");
     if (typeof testMicrophone === "function") testMicrophone(2);
   });
   safeAdd("stopMic1TestBtn", "click", async () => {
-    const { stopMicTest } = await import("./modules/config.js?v=3");
+    const { stopMicTest } = await import("./modules/config.js?v=4");
     if (typeof stopMicTest === "function") stopMicTest();
   });
   safeAdd("stopMic2TestBtn", "click", async () => {
-    const { stopMicTest } = await import("./modules/config.js?v=3");
+    const { stopMicTest } = await import("./modules/config.js?v=4");
     if (typeof stopMicTest === "function") stopMicTest();
   });
 
   // Carga inicial diferida
   try {
-    const { initSettings, loadAvailableMics, toggleMic2Visibility } = await import("./modules/config.js?v=3");
+    const { initSettings, loadAvailableMics, toggleMic2Visibility } = await import("./modules/config.js?v=4");
     if (typeof initSettings === "function") initSettings();
     if (typeof loadAvailableMics === "function") await loadAvailableMics();
     if (typeof toggleMic2Visibility === "function") toggleMic2Visibility();
