@@ -3,11 +3,11 @@
 ========================================== */
 
 :root {
-  --bg-main: #361907;
-  --bg-sidebar: #092f4a;
-  --bg-card: #54420d;
+  --bg-main: #1a3b5d;
+  --bg-sidebar: #2ac4bf;
+  --bg-card: #f0a66c;
 
-  --text-main: #ffffff;
+  --text-main: #ffe7c6;
   --text-muted: #94a3b8;
 
   --accent: #824448;
