@@ -7,13 +7,13 @@
 //   3. TIME-STRETCH por factor R (el pitch NO cambia aquí): la fase de
 //      síntesis se integra con el hop de síntesis Hs = Ha*R acoplado a la
 //      posición entera de escritura (phsinc), y cada frame se escribe al OLA
-//      espaciado Hs (duración ×R, tono constante).
+//      espaciado Hs (duración ×R, tono constante) con escala 1.33·R.
 //   4. RESAMPLE del resultado: se lee el buffer estirado avanzando R muestras
 //      por muestra de salida (interpolación lineal) → tono ×R, duración 1:1.
 // La combinación (3)+(4) da exactamente duración preservada y tono ×R.
-// Coherencia de fase: PHASE-LOCKING a picos espectrales (Oli Larkin) — cada
-// bin hereda la fase acumulada de su pico cercano, preservando la forma de
-// onda entre parciales (evita phasiness/chorus en música real).
+// Coherencia de fase por bin (sin phase-locking): la frecuencia instantánea
+// se acopla a la posición entera de escritura (phsinc) y se acumula en un
+// registro Float64 para evitar pérdida de precisión (sonido tembloroso).
 //
 // Cero allocations en el path de audio real.
 
@@ -21,7 +21,6 @@ const FFT_SIZE = 2048;
 const ANALYSIS_HOP = 512;
 const RING_IN = FFT_SIZE + 512;
 const RING_T = FFT_SIZE * 4;
-const PEAK_WIN = 6;
 
 function makeHann(n) {
   const w = new Float32Array(n);
@@ -111,8 +110,9 @@ class PitchShifterProcessor extends AudioWorkletProcessor {
     this.inRing = [];
     this.ringT = [];
     this.prevPhi = [];
-    this.peakAcc = [];
-    this.peakIdx = [];
+    this.outPhase = [];
+    this.prevMag = [];
+    this.instSm = [];
     this.wT = [];
     this.rPos = [];
     this.lastW = [];
@@ -129,8 +129,9 @@ class PitchShifterProcessor extends AudioWorkletProcessor {
       this.inRing[c] = new Float32Array(RING_IN);
       this.ringT[c] = new Float32Array(RING_T);
       this.prevPhi[c] = new Float32Array(this.N);
-      this.peakAcc[c] = new Float64Array(this.N);
-      this.peakIdx[c] = new Int16Array(this.N);
+      this.outPhase[c] = new Float64Array(this.N);
+      this.prevMag[c] = new Float32Array(this.N);
+      this.instSm[c] = new Float32Array(this.N);
       this.wT[c] = 0;
       this.rPos[c] = 0;
       this.lastW[c] = 0;
@@ -156,8 +157,9 @@ class PitchShifterProcessor extends AudioWorkletProcessor {
     this.fft.transform(re, im, -1);
 
     const prevPhi = this.prevPhi[ch];
-    const peakAcc = this.peakAcc[ch];
-    const peakIdx = this.peakIdx[ch];
+    const outPhase = this.outPhase[ch];
+    const prevMag = this.prevMag[ch];
+    const instSm = this.instSm[ch];
     const magTmp = this.magTmp;
     const phaseTmp = this.phaseTmp;
 
@@ -175,48 +177,29 @@ class PitchShifterProcessor extends AudioWorkletProcessor {
       phaseTmp[k] = Math.atan2(im[k], re[k]);
     }
 
-    // Picos espectrales y asignación de bins (phase-locking, Oli Larkin)
-    let pmax = 0;
-    for (let k = 3; k < nyq - 3; k++) if (magTmp[k] > pmax) pmax = magTmp[k];
-    const peakThr = pmax * 0.0005;
+    // Síntesis por bin: frecuencia instantánea → avance de fase acoplado
+    // a la posición de escritura, acumulada en Float64 (evita el temblor).
     for (let k = 1; k <= nyq; k++) {
-      peakIdx[k] = k;
-      if (k >= PEAK_WIN && k <= nyq - PEAK_WIN && magTmp[k] > pmax * 0.05) {
-        let p = k;
-        let bv = magTmp[k];
-        for (let j = k - PEAK_WIN; j <= k + PEAK_WIN; j++) {
-          if (magTmp[j] > bv) { bv = magTmp[j]; p = j; }
-        }
-        peakIdx[k] = p;
-      }
-    }
-
-    // Avanza la fase acumulada de cada pico con su frecuencia instantánea
-    for (let k = 1; k <= nyq; k++) {
-      if (magTmp[k] <= magTmp[k - 1] || magTmp[k] < magTmp[k + 1]) continue;
-      if (k >= nyq - PEAK_WIN) continue;
-      if (magTmp[k] < pmax * 0.05) continue;
       const omega = (twoPi * k) / N;
       let delta = phaseTmp[k] - prevPhi[k];
       delta -= twoPi * Math.round(delta / twoPi);
       const instFreq = omega + delta / HA;
-      if (instFreq >= Math.PI * 0.98) continue;
-      peakAcc[k] += instFreq * phsinc;
-    }
-
-    // Síntesis: fase del pico + fase relativa (preserva la forma de onda)
-    for (let k = 1; k <= nyq; k++) {
       prevPhi[k] = phaseTmp[k];
-      if (magTmp[k] < peakThr) {
+      if (instFreq < 0 || instFreq >= Math.PI * 0.98) {
         re[k] = 0; im[k] = 0;
         re[N - k] = 0; im[N - k] = 0;
         continue;
       }
-      const pk = peakIdx[k];
-      const sp = peakAcc[pk] + (phaseTmp[k] - phaseTmp[pk]);
+      // Suavizado de magnitud bin a bin: leer el previo ANTES de actualizar
+      const oldM = prevMag[k];
+      const instF = instSm[k] + 0.5 * (instFreq - instSm[k]);
+      instSm[k] = instF;
+      outPhase[k] += instF * phsinc;
+      const m = oldM + 0.5 * (magTmp[k] - oldM);
+      prevMag[k] = magTmp[k];
+      const sp = outPhase[k];
       const cp = Math.cos(sp);
       const sn = Math.sin(sp);
-      const m = magTmp[k];
       re[k] = m * cp; im[k] = m * sn;
       re[N - k] = m * cp; im[N - k] = -m * sn;
     }
@@ -229,11 +212,12 @@ class PitchShifterProcessor extends AudioWorkletProcessor {
     this.fft.transform(re, im, +1);
     for (let i = 0; i < N; i++) re[i] /= N;
 
-    // Overlap-add en el buffer estirado (españado Hs = HA*ratio)
-    // Sin escala fija: la normalización se hace por cobertura en la lectura.
+    // Overlap-add en el buffer estirado (espaciado Hs = HA*ratio)
+    // OlaScale calibrado sobre la normalización por cobertura de la lectura.
     const tRing = this.ringT[ch];
+    const olaScale = 2.56;
     for (let i = 0; i < N; i++) {
-      tRing[(writeStart + i) % RING_T] += re[i] * this.hann[i];
+      tRing[(writeStart + i) % RING_T] += re[i] * this.hann[i] * olaScale;
     }
   }
 
@@ -270,6 +254,30 @@ class PitchShifterProcessor extends AudioWorkletProcessor {
     const headIn = this.headIn + block;
     this.headIn = headIn;
 
+    // 1b. Rebase deslizante: evita que el OLA se corrompa al dar la vuelta
+    //     al anillo (frames de épocas distintas caerían en los mismos índices).
+    //     Copia la región activa hacia abajo y resetea topes (posiciones relativas).
+    {
+      const margin = this.N + 512 + 1024;
+      for (let c = 0; c < numCh; c++) {
+        if (this.wT[c] >= RING_T - margin) {
+          const shift = Math.floor(RING_T / 2);
+          if (this.rPos[c] >= shift) {
+            this.ringT[c].copyWithin(0, shift, RING_T);
+            this.ringT[c].fill(0, RING_T - shift);
+            this.wT[c] -= shift;
+            this.rPos[c] -= shift;
+            this.lastW[c] -= shift;
+          } else {
+            this.ringT[c].fill(0);
+            this.rPos[c] = this.wT[c];
+            this.wT[c] = 0;
+            this.lastW[c] = 0;
+          }
+        }
+      }
+    }
+
     // 2. Procesar frames completos
     while (this.frameStart + this.N <= headIn) {
       for (let c = 0; c < numCh; c++) this._processFrame(c, ratio);
@@ -277,15 +285,11 @@ class PitchShifterProcessor extends AudioWorkletProcessor {
     }
 
     // 3. Resample: leer el buffer estirado avanzando `ratio` por muestra
-    //    Normalización por cobertura OLA: divide por Σ w⁴ sobre los frames
-    //    que cubren cada punto (frames phase-locked suman coherentemente).
     for (let c = 0; c < numCh; c++) {
       const dst = output[c];
       const tRing = this.ringT[c];
       const avail = this.wT[c] - this.rPos[c];
       const readable = Math.min(block, Math.floor(avail));
-      const HsC = this.HA * ratio;
-      const piOverN = Math.PI / (this.N - 1);
       for (let i = 0; i < readable; i++) {
         const pos = this.rPos[c] + i * ratio;
         const base = Math.floor(pos);
@@ -293,11 +297,18 @@ class PitchShifterProcessor extends AudioWorkletProcessor {
         const i0 = base % RING_T;
         const i1 = (i0 + 1) % RING_T;
         const raw = tRing[i0] * (1 - frac) + tRing[i1] * frac;
+        // Normalización por cobertura OLA con posiciones enteras reales round(k·Hs)
         let cov = 0;
-        const jLast = Math.floor((pos + (this.N >> 1)) / HsC);
-        for (let j = Math.max(0, Math.ceil((pos - (this.N >> 1)) / HsC)); j <= jLast; j++) {
-          const xi = pos - j * HsC;
-          const wv = Math.sin(piOverN * (xi + (this.N >> 1)));
+        const Ns = this.N;
+        const HsC = this.HA * ratio;
+        const piOverN = Math.PI / (Ns - 1);
+        const j0 = Math.floor((pos - (Ns >> 1)) / HsC - 1);
+        const j1 = Math.ceil((pos + (Ns >> 1)) / HsC + 1);
+        for (let j = j0; j <= j1; j++) {
+          const pj = Math.round(j * HsC);
+          const xi = pos - pj;
+          if (Math.abs(xi) > (Ns >> 1)) continue;
+          const wv = Math.sin(piOverN * (xi + (Ns >> 1)));
           cov += wv * wv;
         }
         dst[i] = raw / Math.max(0.2, cov);
