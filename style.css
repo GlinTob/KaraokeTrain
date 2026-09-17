@@ -330,7 +330,7 @@ body {
 }
 
 .sidebar {
-  width: 280px;
+  width: 300px;
   background: var(--bg-sidebar);
   padding: 20px;
   display: flex;
