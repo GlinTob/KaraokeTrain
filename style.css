@@ -348,7 +348,7 @@ body {
 .sidebar button {
   background: linear-gradient(180deg, #334155 0%, #1e293b 100%);
   border: 2px solid #36040f;
-  color: black;
+  color: white;
   padding: 14px 16px;
   text-align: center;
   cursor: pointer;
