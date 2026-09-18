@@ -59,6 +59,8 @@ export function toggleKaraokeDuoSplitMode() {
   pitchHistoryP2 = [];
   karaokePitchP1 = -1;
   karaokePitchP2 = -1;
+  pitchTrackerP1.reset();
+  pitchTrackerP2.reset();
 
   drawKaraokeMonitor(0, -1, -1);
 
@@ -514,7 +516,7 @@ export async function startKaraokeRecording() {
     // detectPitch. Aplicamos una ganancia fija SOLO en la ruta de análisis;
     // la grabación sigue usando el micrófono en crudo.
     const pitchInputGain = karaokePitchDetectionAudioCtx.createGain();
-    pitchInputGain.gain.value = 4;
+    pitchInputGain.gain.value = 6;
     source1.connect(pitchInputGain);
     pitchInputGain.connect(karaokePitchDetectionAnalyser);
 
@@ -523,7 +525,7 @@ export async function startKaraokeRecording() {
       karaokeSplitAnalyser2 = karaokePitchDetectionAudioCtx.createAnalyser();
       karaokeSplitAnalyser2.fftSize = 2048;
       const pitchInputGain2 = karaokePitchDetectionAudioCtx.createGain();
-      pitchInputGain2.gain.value = 4;
+      pitchInputGain2.gain.value = 6;
       source2.connect(pitchInputGain2);
       pitchInputGain2.connect(karaokeSplitAnalyser2);
     }
@@ -545,7 +547,50 @@ export async function startKaraokeRecording() {
             voicePlayer.controls = true;
           }
         }
-        window.karaokeMediaRecorder = null;
+window.karaokeMediaRecorder = null;
+
+// Rastreador de pitch para el monitor: suaviza el temblor (mediana de 5) y
+// retiene la última nota ~260ms ante cortes breves del micrófono (consonantes,
+// silencios) para que el punto no caiga al suelo. Las sub-octavas las corrige
+// el detector en origen (audio-processor-worker.js), no aquí: un "lock" de
+// octava a nivel de monitor se reforzaba hacia la octava equivocada cuando el
+// arranque caía en sub-octava.
+function createPitchTracker() {
+  const history = [];
+  const MAX_HISTORY = 5;
+  const HOLD_MS = 260;
+  let lastGood = -1;
+  let lastGoodTime = 0;
+
+  function median(arr) {
+    const s = [...arr].sort((a, b) => a - b);
+    const m = s.length >> 1;
+    return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+  }
+
+  return {
+    advance(raw, now) {
+      const t = now || performance.now();
+      if (raw > 0) {
+        history.push(raw);
+        if (history.length > MAX_HISTORY) history.shift();
+        lastGood = median(history);
+        lastGoodTime = t;
+        return lastGood;
+      }
+      if (lastGood > 0 && t - lastGoodTime < HOLD_MS) return lastGood;
+      return -1;
+    },
+    reset() {
+      history.length = 0;
+      lastGood = -1;
+      lastGoodTime = 0;
+    }
+  };
+}
+
+const pitchTrackerP1 = createPitchTracker();
+const pitchTrackerP2 = createPitchTracker();
       };
       karaokeMediaRecorder.start();
     } catch (e) {
@@ -635,8 +680,8 @@ async function loop() {
       }
     }
 
-    karaokePitchP1 = pitch > 0 ? pitch : -1;
-    karaokePitchP2 = pitch2 > 0 ? pitch2 : -1;
+    karaokePitchP1 = pitchTrackerP1.advance(pitch);
+    karaokePitchP2 = karaokeDuoSplitMode ? pitchTrackerP2.advance(pitch2) : -1;
 
     if (karaokeDuoSplitMode) updateDuoLevels();
     else setBarWidth("karaokeMic1Level", karaokePitchDetectionAnalyser);
@@ -805,6 +850,8 @@ export function setKaraokeData(lyrics, name, fileUrl) {
   pitchHistoryP2 = [];
   karaokePitchP1 = -1;
   karaokePitchP2 = -1;
+  pitchTrackerP1.reset();
+  pitchTrackerP2.reset();
 
   cargarLetrasEnMonitor();
 
@@ -1394,6 +1441,8 @@ function limpiarVariablesMonitor() {
   karaokePitchP1 = -1;
   karaokePitchP2 = -1;
   karaokeLoadedLyrics = [];
+  pitchTrackerP1.reset();
+  pitchTrackerP2.reset();
 }
 
 window.syncKaraokeMonitor = syncKaraokeMonitor;
