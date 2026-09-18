@@ -9,6 +9,7 @@ class AudioProcessor {
   constructor() {
     // Buffer temporal reutilizable para detectPitch (evita GC pressure)
     this._tempClipped = new Float32Array(4096);
+    this._tempCorr = new Float32Array(0);
   }
 
     /**
@@ -106,14 +107,20 @@ class AudioProcessor {
 
     const minOffset = Math.floor(sampleRate / 1000); // 1000 Hz
     const maxOffset = Math.ceil(sampleRate / 60);    // 60 Hz
+    const maxOff = Math.min(maxOffset, bufferSize / 2);
 
-    for (let offset = minOffset; offset < Math.min(maxOffset, bufferSize / 2); offset++) {
+    // Calcular la correlación de TODOS los offsets de una vez (y reutilizar
+    // el buffer) para poder elegir el pico fundamental de forma informada.
+    if (this._tempCorr.length < maxOff + 1) this._tempCorr = new Float32Array(maxOff + 1);
+    const corrArr = this._tempCorr;
+    for (let offset = minOffset; offset < maxOff; offset++) {
       let correlation = 0;
 
       for (let i = 0; i < bufferSize - offset; i++) {
         correlation += clippedBuffer[i] * clippedBuffer[i + offset];
       }
 
+      corrArr[offset] = correlation;
       if (correlation > bestCorrelation) {
         bestCorrelation = correlation;
         bestOffset = offset;
@@ -121,6 +128,20 @@ class AudioProcessor {
     }
 
     if (bestOffset === -1 || bestCorrelation <= 0) return -1;
+
+    let chosenOffset = bestOffset;
+    for (let offset = minOffset; offset < bestOffset; offset++) {
+      const c = corrArr[offset];
+      if (c < bestCorrelation * 0.9) continue;
+      const cPrev = offset > minOffset ? corrArr[offset - 1] : 0;
+      const cNext = offset + 1 < maxOff ? corrArr[offset + 1] : c;
+      if (c >= cPrev && c >= cNext) {
+        chosenOffset = offset;
+        break;
+      }
+    }
+    bestOffset = chosenOffset;
+    bestCorrelation = corrArr[chosenOffset];
 
     let finalOffset = bestOffset;
     if (bestOffset > 1 && bestOffset < bufferSize - 1) {
