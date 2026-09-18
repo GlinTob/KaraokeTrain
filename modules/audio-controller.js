@@ -2,7 +2,7 @@
 // PROCESADOR ACÚSTICO COMPARTIDO Y ENCODER WAV PCM
 
 export class AudioProcessorController {
-  constructor(workerPath = new URL("./audio-processor-worker.js", import.meta.url)) {
+  constructor(workerPath = new URL("./audio-processor-worker.js?v=1", import.meta.url)) {
     this.pendingRequests = new Map();
     this.requestId = 0;
     this.isTerminated = false;
