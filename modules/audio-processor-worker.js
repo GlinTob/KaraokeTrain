@@ -80,7 +80,7 @@ class AudioProcessor {
     // FIX: umbral bajo para que el pitch responda al canto normal (no solo
     // gritando). A 0.0015 solo reaccionaba a voces muy fuertes. 0.008 sigue
     // descartando silencio puro/ruido de fondo pero admite voz suave.
-    if (!isFinite(rms) || rms < 0.005) return -1;
+    if (!isFinite(rms) || rms < 0.008) return -1;
     if (maxVal === 0) return -1;
 
     // Asegurar buffer temporal lo suficientemente grande
@@ -115,11 +115,9 @@ class AudioProcessor {
     const corrArr = this._tempCorr;
     for (let offset = minOffset; offset < maxOff; offset++) {
       let correlation = 0;
-
       for (let i = 0; i < bufferSize - offset; i++) {
         correlation += clippedBuffer[i] * clippedBuffer[i + offset];
       }
-
       corrArr[offset] = correlation;
       if (correlation > bestCorrelation) {
         bestCorrelation = correlation;
@@ -129,6 +127,11 @@ class AudioProcessor {
 
     if (bestOffset === -1 || bestCorrelation <= 0) return -1;
 
+    // FIX sub-octava: el pico del fundamental suele ser MÁS DÉBIL que el de
+    // sus armónicos, así que el offset ganador tiende a 2x/3x el periodo real
+    // (el punto cae una octava o más "hacia el suelo"). Preferimos el offset
+    // más temprano cuya correlación sea >= 90% de la máxima, si además forma
+    // un pico local. Si no hay candidato temprano fuerte, se conserva el mejor.
     let chosenOffset = bestOffset;
     for (let offset = minOffset; offset < bestOffset; offset++) {
       const c = corrArr[offset];
@@ -140,8 +143,24 @@ class AudioProcessor {
         break;
       }
     }
+    const chosenCorr = corrArr[chosenOffset];
+
+    // FIX #17: OCTAVA ALTA EXIGENTE. El piso de ruido de un mic USB (espectro
+    // 1/f "rosa") produce una autocorrelación que decae monótonamente; su
+    // pico cae casi siempre en el PRIMER lag (f ~ 1000 Hz, "B5") de forma
+    // CONSTANTE de frame a frame — insostenible de filtrar solo en la app.
+    // Un tono/voz real (>630 Hz) vuelve a correlar fuerte en sus múltiplos
+    // (2x, 3x); el ruido rosa no (mide ~0.75/0.60 vs 0.90+ del tono real).
+    // Se exige esa evidencia SOLO en esta octava alta; el resto del rango
+    // (donde el ruido no correlaciona y la voz de karaoke vive) no se toca.
+    if (chosenOffset < sampleRate / 630) {
+      const secondOk = chosenOffset * 2 < maxOff ? corrArr[chosenOffset * 2] >= chosenCorr * 0.85 : false;
+      const thirdOk = chosenOffset * 3 < maxOff ? corrArr[chosenOffset * 3] >= chosenCorr * 0.7 : false;
+      if (!secondOk || !thirdOk) return -1;
+    }
+
     bestOffset = chosenOffset;
-    bestCorrelation = corrArr[chosenOffset];
+    bestCorrelation = chosenCorr;
 
     let finalOffset = bestOffset;
     if (bestOffset > 1 && bestOffset < bufferSize - 1) {
