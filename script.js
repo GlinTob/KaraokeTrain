@@ -208,7 +208,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // --- EVENTOS AFINADOR ---
   safeAdd("recordBtn", "click", async () => {
-    const { toggleRecording } = await import("./modules/afinador.js");
+    const { toggleRecording } = await import("./modules/afinador.js?v=1");
     if (typeof toggleRecording === "function") toggleRecording();
   });
 
