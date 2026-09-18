@@ -677,7 +677,7 @@ export async function enviarAlMonitorKaraoke(karaokeItem) {
         track.dataset.karaokeId = String(karaokeItem.id);
         track.load();
     
-        const { setKaraokeData } = await import("./karaoke.js?v=3");
+        const { setKaraokeData } = await import("./karaoke.js?v=4");
         setKaraokeData(
             karaokeItem.transcription || [],
             karaokeItem.name,
