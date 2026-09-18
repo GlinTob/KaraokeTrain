@@ -42,6 +42,49 @@ let avatarImageCache = { P1: null, P2: null };
 
 window.karaokeMediaRecorder = null;
 
+// Rastreador de pitch para el monitor: suaviza el temblor (mediana de 5) y
+// retiene la última nota ~260ms ante cortes breves del micrófono (consonantes,
+// silencios) para que el punto no caiga al suelo. Las sub-octavas las corrige
+// el detector en origen (audio-processor-worker.js), no aquí: un "lock" de
+// octava a nivel de monitor se reforzaba hacia la octava equivocada cuando el
+// arranque caía en sub-octava.
+function createPitchTracker() {
+  const history = [];
+  const MAX_HISTORY = 5;
+  const HOLD_MS = 260;
+  let lastGood = -1;
+  let lastGoodTime = 0;
+
+  function median(arr) {
+    const s = [...arr].sort((a, b) => a - b);
+    const m = s.length >> 1;
+    return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+  }
+
+  return {
+    advance(raw, now) {
+      const t = now || performance.now();
+      if (raw > 0) {
+        history.push(raw);
+        if (history.length > MAX_HISTORY) history.shift();
+        lastGood = median(history);
+        lastGoodTime = t;
+        return lastGood;
+      }
+      if (lastGood > 0 && t - lastGoodTime < HOLD_MS) return lastGood;
+      return -1;
+    },
+    reset() {
+      history.length = 0;
+      lastGood = -1;
+      lastGoodTime = 0;
+    }
+  };
+}
+
+const pitchTrackerP1 = createPitchTracker();
+const pitchTrackerP2 = createPitchTracker();
+
 export function toggleKaraokeDuoSplitMode() {
   karaokeDuoSplitMode = !karaokeDuoSplitMode;
   const btn = $("karaokeDuoSplitToggleBtn");
@@ -547,50 +590,7 @@ export async function startKaraokeRecording() {
             voicePlayer.controls = true;
           }
         }
-window.karaokeMediaRecorder = null;
-
-// Rastreador de pitch para el monitor: suaviza el temblor (mediana de 5) y
-// retiene la última nota ~260ms ante cortes breves del micrófono (consonantes,
-// silencios) para que el punto no caiga al suelo. Las sub-octavas las corrige
-// el detector en origen (audio-processor-worker.js), no aquí: un "lock" de
-// octava a nivel de monitor se reforzaba hacia la octava equivocada cuando el
-// arranque caía en sub-octava.
-function createPitchTracker() {
-  const history = [];
-  const MAX_HISTORY = 5;
-  const HOLD_MS = 260;
-  let lastGood = -1;
-  let lastGoodTime = 0;
-
-  function median(arr) {
-    const s = [...arr].sort((a, b) => a - b);
-    const m = s.length >> 1;
-    return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
-  }
-
-  return {
-    advance(raw, now) {
-      const t = now || performance.now();
-      if (raw > 0) {
-        history.push(raw);
-        if (history.length > MAX_HISTORY) history.shift();
-        lastGood = median(history);
-        lastGoodTime = t;
-        return lastGood;
-      }
-      if (lastGood > 0 && t - lastGoodTime < HOLD_MS) return lastGood;
-      return -1;
-    },
-    reset() {
-      history.length = 0;
-      lastGood = -1;
-      lastGoodTime = 0;
-    }
-  };
-}
-
-const pitchTrackerP1 = createPitchTracker();
-const pitchTrackerP2 = createPitchTracker();
+        window.karaokeMediaRecorder = null;
       };
       karaokeMediaRecorder.start();
     } catch (e) {
