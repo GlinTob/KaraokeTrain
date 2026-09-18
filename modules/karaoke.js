@@ -8,7 +8,7 @@ import { getLibraryItemsByIdFromSupabase, getLibraryItemsByTypeFromSupabase, sav
 import { getAudioController } from "./audio-controller.js";
 import { getSelectedMicId } from "./config.js?v=6";
 import { registerVocalNode } from "./vocal-settings.js";
-import { midiToNoteName } from "./afinador.js";
+import { midiToNoteName } from "./afinador.js?v=1";
 
 let textSegments = [];
 let baseTextSegments = [];
