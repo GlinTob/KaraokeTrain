@@ -20,6 +20,24 @@ let recordingSession = 0;
 // invocara el afinador dos veces (defensivo). El módulo solo mantiene la
 // referencia de cleanup.
 
+// FIX #17: puerta de sostenimiento. El detector es "crudo": con ruido
+// ambiente puede devolver un pitch falso en frames sueltos. No mostramos
+// nada hasta tener N frames dentro de ±6% del PRIMER valor del run (la voz
+// se queda cerca del ancla; el ruido se aleja y reinicia). Además, una nota
+// confirmada sobrevive a vacíos cortos (respiro) pero se oculta en cuanto un
+// frame entra con un pitch distinto (no mostrar la nota obsoleta).
+const PITCH_SUSTAIN = {
+  requiredHits: 5,  // frames del mismo run (ancla) para CONFIRMAR la nota
+  maxHoldMisses: 4, // vacíos permitidos (≈ 100-200 ms) antes de limpiar
+  tolerance: 0.06   // ±6 % (~1 semitono) vs. el ancla del run
+};
+
+let sustain = { anchor: -1, hits: 0, misses: 0, confirmedFreq: -1 };
+
+function resetSustain() {
+  sustain = { anchor: -1, hits: 0, misses: 0, confirmedFreq: -1 };
+}
+
 // ==========================================================
 // UTILIDADES MUSICALES
 // ==========================================================
@@ -639,6 +657,7 @@ function resetAfinadorUI() {
 
 async function startAfinador() {
   const session = recordingSession;
+  resetSustain();
 
   // FIX #12: buffer local por sesión (8KB en Float32Array, 2048 muestras).
   // Antes era un módulo-global, lo que en teoría permitiría colisiones si
@@ -717,6 +736,7 @@ async function startAfinador() {
 }
 
 function stopAfinador() {
+  resetSustain();
   if (pitchLoopTimeout) {
     clearTimeout(pitchLoopTimeout);
     pitchLoopTimeout = null;
@@ -776,15 +796,46 @@ async function runPitchDetectionLoop(pitchBuffer) {
     const centsDisplay = $('centsDisplay');
     const guideText = $('guideText');
 
+    // FIX #17: decidir qué pitch mostramos con la puerta de sostenimiento.
+    let displayFreq = -1;
+
     if (typeof result === 'number' && result > 0) {
+      sustain.misses = 0;
+      if (sustain.anchor === -1) {
+        sustain.anchor = result;
+        sustain.hits = 1;
+      } else if (Math.abs(result - sustain.anchor) / sustain.anchor <= PITCH_SUSTAIN.tolerance) {
+        sustain.hits = Math.min(sustain.hits + 1, 10);
+      } else {
+        sustain.anchor = result;
+        sustain.hits = 1;
+      }
+      if (sustain.hits >= PITCH_SUSTAIN.requiredHits) {
+        sustain.confirmedFreq = result;
+        displayFreq = result;
+      }
+    } else {
+      // Sin pitch: solo se limpia tras varios vacíos (respiro entre frases).
+      // La nota se oculta si un frame ya trajo un pitch distinto (hits<REQ).
+      sustain.misses++;
+      if (sustain.misses >= PITCH_SUSTAIN.maxHoldMisses) {
+        sustain.anchor = -1;
+        sustain.hits = 0;
+        sustain.confirmedFreq = -1;
+      } else if (sustain.confirmedFreq !== -1 && sustain.hits >= PITCH_SUSTAIN.requiredHits) {
+        displayFreq = sustain.confirmedFreq; // mantener la nota confirmada
+      }
+    }
+
+    if (displayFreq > 0) {
       if (afinadorVisual) {
-        afinadorVisual.setPitch(result);
+        afinadorVisual.setPitch(displayFreq);
       }
 
-      const detectedNote = frequencyToNoteName(result);
+      const detectedNote = frequencyToNoteName(displayFreq);
       const targetNoteName = $('targetNote')?.value || 'E2';
       const targetFreq = noteToFrequency(targetNoteName);
-      const cents = frequencyToCentsOff(result, targetFreq);
+      const cents = frequencyToCentsOff(displayFreq, targetFreq);
 
       if (noteDisplay) {
         noteDisplay.textContent = detectedNote;
