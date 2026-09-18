@@ -1,6 +1,6 @@
 import { $ } from "./utils.js";
 import { getLibraryItemsByTypeFromSupabase, getLibraryItemsByIdFromSupabase, renderLibrary } from "./biblioteca.js";
-import { loadKaraokeSong } from "./karaoke.js?v=2";
+import { loadKaraokeSong } from "./karaoke.js?v=3";
 import { loadPitchShifterProcessor } from "./worklets.js";
 
 /**
