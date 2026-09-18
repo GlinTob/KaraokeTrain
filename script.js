@@ -119,7 +119,7 @@ export async function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2 
 
 function iniciarAplicacion() {
   console.log("🏁 [karaokeTrain] El núcleo del sistema ha arrancado exitosamente.");
-  showTab("afinador");
+  showTab("config");
 }
 
 // ============================================
