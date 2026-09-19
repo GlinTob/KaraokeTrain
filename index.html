@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Orbitron:wght@400;500;600;700;800;900&family=Rajdhani:wght@400;500;600;700&family=Exo+2:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=5">
+  <link rel="stylesheet" href="style.css?v=6">
   <script>
     (function() {
       window.VITE_SUPABASE_URL = "https://qfvhwbmgeunvgjwmlxjd.supabase.co";
@@ -119,10 +119,10 @@
         
         <!-- ESTUDIO -->
         <section id="estudio" class="tab">
-          <h1>ESTUDIO: Crear un Karaoke</h1>
+          <h1>ESTUDIO: Mezcla y sincroniza archivos para crear un Karaoke</h1>
           
           <div class="card">
-            <h3>PISTA</h3>
+            <h3>PISTA: Exporta desde Biblioteca</h3>
             <select id="studioTrackSelect">
               <option value="">Selecciona un archivo</option>
             </select>
@@ -136,7 +136,7 @@
           </div>
           
           <div class="card">
-            <h3>VOZ</h3>
+            <h3>VOZ: Exporta desde Biblioteca</h3>
             
             <select id="voiceLibrarySelect">
               <option value="">Selecciona un archivo</option>
@@ -149,20 +149,20 @@
           </div>
 
           <div class="card">
-            <h3>LETRA</h3>
+            <h3>LETRA: Exporta desde biblioteca</h3>
             
             <select id="textLibrarySelect">
               <option value="">Selecciona un archivo</option>
             </select>
             <div class="studio-controls">
-              <button id="loadSelectedTextBtn" type="button" style="margin-top: 15px">Cargar letra ↩️</button>
+              <button id="loadSelectedTextBtn" type="button">Cargar letra seleccionada ↩️</button>
             </div>
-            <div id="selectedTextContainer" style="margin: 15px"></div>
+            <div id="selectedTextContainer" style="margin: 15px 0;"></div>
             <p id="selectedTextStatus">Estado: ningún texto seleccionado</p>
           </div>
           <div class="card">
-            <h3>EDITOR</h3>
-            <textarea id="lyricsText" rows="7" placeholder="Edita la letra de la canción..."></textarea>
+            <h3>EDITOR: Corrije la letra</h3>
+            <textarea id="lyricsText" rows="7" placeholder="Pega la letra de la canción..."></textarea>
             <div class="studio-controls">
               <button id="applyCorrectedLyricsBtn" type="button" style="margin-top: 15px">Aplicar cambios 📝</button>
             </div>
@@ -284,7 +284,7 @@
             </div>
           
             <div class="studio-controls">
-              <button id="saveLibraryFileBtn" type="button" class="btn-neon" style="margin-top: 15px">💾 Guardar en la nube</button>
+              <button id="saveLibraryFileBtn" type="button" class="btn-neon">💾 Guardar en la nube</button>
               <button type="button" id="clearUploadBtn" class="btn-neon btn-secondary" style="display: none;">✖ Limpiar selección</button>
             </div>
           
@@ -531,94 +531,6 @@
             <h2>🎭 Escenario de Karaoke</h2>
             <div class="theme-grid" id="karaokeThemeGrid"></div>
           </div>
-
-          <!-- VOCAL PROCESSOR -->
-          <div class="card config-section vocal-processor-section">
-            <div class="vocal-processor-header">
-              <div>
-                <h2>🎚️ Procesador Vocal Integrado</h2>
-                <p class="section-desc"> Aplica al mezclar tu voz con la pista.</p>
-              </div>
-            </div>
-
-            <div class="vp-toggle">
-              <label class="vp-toggle-label">
-                <input type="checkbox" id="vocalProcessorEnabled">
-                <span class="vp-toggle-slider"></span>
-                <span class="vp-toggle-text">
-                  <strong>Activar Procesador Vocal Inteligente:</strong>
-                  <span class="vp-desc"> Limpieza, nivelación y compresión automática al mezclar voz + pista</span>
-                </span>
-              </label>
-            </div>
-
-            <div id="vocalProcessorSettings" style="display: none;">
-              <div class="vp-preset-group">
-                <label for="vocalPreset">🎛️ Preset de Procesamiento</label>
-                <select id="vocalPreset" class="config-select" style="margin-top: 15px">
-                  <option value="auto">🤖 Automático (Recomendado)</option>
-                  <option value="warm">🔥 Cálido (Voces graves)</option>
-                  <option value="bright">✨ Brillante (Voces agudas)</option>
-                  <option value="presence">🎤 Presencia (Cortar mezcla)</option>
-                  <option value="clean">🧹 Limpieza (Reducir ruido/respiraciones)</option>
-                  <option value="custom">⚙️ Personalizado</option>
-                </select>
-              </div>
-            </div>
-
-              <div id="vocalCustomEq" style="display: none;">
-                <h4>🎛️ Ecualizador Personalizado</h4>
-                <div class="eq-row">
-                  <label for="eqLow">🔊 Graves (100Hz): <span id="eqLowVal">-2</span> dB</label>
-                  <input type="range" id="eqLow" min="-12" max="12" value="-2" step="1">
-                </div>
-                <div class="eq-row">
-                  <label for="eqMid">🎤 Medios-Presencia (3kHz): <span id="eqMidVal">5</span> dB</label>
-                  <input type="range" id="eqMid" min="-12" max="12" value="5" step="1">
-                </div>
-                <div class="eq-row">
-                  <label for="eqHigh">✨ Agudos-Aire (8kHz): <span id="eqHighVal">4</span> dB</label>
-                  <input type="range" id="eqHigh" min="-12" max="12" value="4" step="1">
-                </div>
-              </div>
-
-              <h4>🔧 Procesamiento Dinámico</h4>
-              <div class="vp-controls-grid">
-                <div class="vp-control">
-                  <label for="noiseGateThresh">🔇 Noise Gate: <span id="noiseGateThreshVal">-40</span> dB</label>
-                  <input type="range" id="noiseGateThresh" min="-60" max="0" value="-40" step="1">
-                </div>
-                <div class="vp-control">
-                  <label for="hpFreq">🎚️ High-Pass Filter: <span id="hpFreqVal">120</span> Hz</label>
-                  <input type="range" id="hpFreq" min="20" max="300" value="120" step="10">
-                </div>
-                <div class="vp-control">
-                  <label for="compThresh">📉 Compresor Threshold: <span id="compThreshVal">-18</span> dB</label>
-                  <input type="range" id="compThresh" min="-40" max="0" value="-18" step="1">
-                </div>
-                <div class="vp-control">
-                  <label for="compRatio">📈 Compresor Ratio: <span id="compRatioVal">3:1</span></label>
-                  <input type="range" id="compRatio" min="1" max="10" value="3" step="1">
-                </div>
-                <div class="vp-control">
-                  <label for="outputGain">🔊 Gain Salida: <span id="outputGainVal">3</span> dB</label>
-                  <input type="range" id="outputGain" min="-24" max="24" value="3" step="1">
-                </div>
-                <div class="vp-control">
-                  <label for="compAttack">⚡ Attack: <span id="compAttackVal">10</span> ms</label>
-                  <input type="range" id="compAttack" min="1" max="100" value="10" step="1">
-                </div>
-                <div class="vp-control">
-                  <label for="compRelease">🕐 Release: <span id="compReleaseVal">100</span> ms</label>
-                  <input type="range" id="compRelease" min="10" max="1000" value="100" step="10">
-                </div>
-              </div>
-
-              <div class="vp-actions">
-                <button type="button" id="testVocalProcessorBtn" class="btn-neon" style="margin-top: 15px">🔊 Probar Procesador (5 seg)</button>
-                <button type="button" id="resetVocalProcessorBtn" class="btn-neon btn-secondary">↩️ Resetear Valores</button>
-              </div>
-            </div>
         </section>
 
         <!-- CAMBIAR TONO -->
@@ -704,7 +616,9 @@
         <script src="cloudflare-storage.js?v=3" type="module"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
     <script type="module" src="supabase-config.js?v=3"></script>
-    <script type="module" src="modules/worklets.js?v=3"></script>
-    <script src="script.js?v=11" type="module"></script>
+    <script type="module" src="modules/worklets.js?v=4"></script>
+    <script src="script.js?v=13" type="module"></script>
   </body>
 </html>
+
+
