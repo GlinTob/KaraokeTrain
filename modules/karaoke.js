@@ -51,18 +51,19 @@ window.karaokeMediaRecorder = null;
 // retiene la última nota hasta 1s ante cortes del micrófono (consonantes,
 // silencios, respiraciones) para que el punto no caiga al suelo.
 //
-// Guarda de estabilidad: si una nueva lectura difere >15% del lastGood
-// (ruido de fondo / breath que produce 60-80 Hz), se requieren 3 lecturas
-// consecutivas iguales antes de aceptar el cambio. Esto evita que 1-2 frames
-// basura jalen la mediana hacia abajo durante silencios.
+// Guarda anti-ruido: si una nueva lectura difiere >20% del lastGood
+// (típico de ruido/breath 60-80 Hz), se acumulan lecturas consistentes
+// (±8% entre sí, tolerancia a flotantes) antes de aceptar el cambio.
+// Cambios de nota reales (±1-2 semitonos ~6-12%) pasan sin bloqueo.
 function createPitchTracker() {
   const history = [];
   const MAX_HISTORY = 5;
   const HOLD_MS = 1000;
   const MIN_FREQ = 82;
   const MAX_FREQ = 800;
-  const JUMP_TOLERANCE = 0.15;
-  const JUMP_REQUIRED = 3;
+  const JUMP_TOLERANCE = 0.20;
+  const JUMP_CANDIDATE_WINDOW = 0.08;
+  const JUMP_REQUIRED = 2;
   let lastGood = -1;
   let lastGoodTime = 0;
   let jumpCandidate = -1;
@@ -79,7 +80,7 @@ function createPitchTracker() {
       const t = now || performance.now();
       if (raw > MIN_FREQ && raw < MAX_FREQ) {
         if (lastGood > 0 && Math.abs(raw - lastGood) / lastGood > JUMP_TOLERANCE) {
-          if (raw === jumpCandidate) {
+          if (jumpCandidate > 0 && Math.abs(raw - jumpCandidate) / jumpCandidate < JUMP_CANDIDATE_WINDOW) {
             jumpCount++;
           } else {
             jumpCandidate = raw;
