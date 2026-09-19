@@ -1,7 +1,7 @@
 import { $ } from "./utils.js";
 import { getLibraryItemsByTypeFromSupabase, getLibraryItemsByIdFromSupabase, renderLibrary } from "./biblioteca.js?v=4";
 import { loadKaraokeSong } from "./karaoke.js?v=7";
-import { loadPitchShifterProcessor } from "./worklets.js";
+import { loadPitchShifterProcessor } from "./worklets.js?v=4";
 
 /**
  * MÓDULO CAMBIAR TONO — Modulador de frecuencia por semitonos en archivos de audio decodificados
