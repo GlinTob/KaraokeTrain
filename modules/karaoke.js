@@ -54,6 +54,7 @@ function createPitchTracker() {
   const HOLD_MS = 260;
   let lastGood = -1;
   let lastGoodTime = 0;
+  let downCandidate = null;
 
   function median(arr) {
     const s = [...arr].sort((a, b) => a - b);
@@ -67,10 +68,29 @@ function createPitchTracker() {
       if (raw > 0) {
         history.push(raw);
         if (history.length > MAX_HISTORY) history.shift();
-        lastGood = median(history);
+        const m = median(history);
+        // FIX picada: una caída brusca (> 1 octava) frente a la última nota
+        // fiable suele ser ruido grave/ambiente que el detector confunde con
+        // voz. Se exige que el descenso se confirme en un SEGUNDO frame antes
+        // de aceptarlo; mientras tanto el punto se mantiene en la nota previa
+        // y no se va al suelo con el más mínimo silencio.
+        if (lastGood > 0 && m < lastGood * 0.55) {
+          const confirmedDown = downCandidate !== null &&
+            Math.abs(m - downCandidate) < lastGood * 0.15;
+          if (confirmedDown) {
+            downCandidate = null;
+          } else {
+            downCandidate = m;
+            return lastGood;
+          }
+        } else {
+          downCandidate = null;
+        }
+        lastGood = m;
         lastGoodTime = t;
-        return lastGood;
+        return m;
       }
+      downCandidate = null;
       if (lastGood > 0 && t - lastGoodTime < HOLD_MS) return lastGood;
       return -1;
     },
@@ -78,6 +98,7 @@ function createPitchTracker() {
       history.length = 0;
       lastGood = -1;
       lastGoodTime = 0;
+      downCandidate = null;
     }
   };
 }
