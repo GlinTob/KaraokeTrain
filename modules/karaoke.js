@@ -6,6 +6,7 @@ import { getLibraryItemsByIdFromSupabase, getLibraryItemsByTypeFromSupabase, sav
 // El encode WAV ahora corre en el worker (encodeWavToBlob) para no bloquear
 // el hilo principal con mezclas largas.
 import { getAudioController } from "./audio-controller.js";
+import { loadVocalGateProcessor, createVocalGateNode } from "./worklets.js?v=5";
 import { getSelectedMicId } from "./config.js?v=7";
 import { midiToNoteName } from "./afinador.js?v=1";
 
@@ -1399,6 +1400,11 @@ export async function mixKaraoke() {
       sampleRate
     );
 
+    // Limpieza automática de la voz: paso-alto (retumbos / ruido grave de
+    // ambiente) + noise gate/expansor (ruido de fondo y respiraciones).
+    // Todo interno, sin controles para el usuario.
+    await loadVocalGateProcessor(offlineCtx);
+
     // Balance de la pista: compresor suave para uniformar el volumen base
     const trackCompressor = offlineCtx.createDynamicsCompressor();
     trackCompressor.threshold.value = -14;
@@ -1426,12 +1432,22 @@ export async function mixKaraoke() {
     voiceCompressor.attack.value = 0.003;
     voiceCompressor.release.value = 0.25;
 
+    // Cadena de la voz: pasa-alto -> gate/limpieza -> compresor -> nivel.
+    const voiceHighpass = offlineCtx.createBiquadFilter();
+    voiceHighpass.type = "highpass";
+    voiceHighpass.frequency.value = 90;
+    voiceHighpass.Q.value = 0.5;
+
+    const voiceGate = createVocalGateNode(offlineCtx, renderChannels);
+
     const voiceGain = offlineCtx.createGain();
-    // FIX #20: la voz queda un poco por encima de la pista (55% vs 45%).
+    // Fix #20: la voz queda un poco por encima de la pista (55% vs 45%).
     voiceGain.gain.value = 0.55;
     const voiceSource = offlineCtx.createBufferSource();
     voiceSource.buffer = voiceBuffer;
-    voiceSource.connect(voiceCompressor);
+    voiceSource.connect(voiceHighpass);
+    voiceHighpass.connect(voiceGate);
+    voiceGate.connect(voiceCompressor);
     voiceCompressor.connect(voiceGain);
     voiceGain.connect(offlineCtx.destination);
 
