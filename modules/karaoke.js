@@ -50,9 +50,15 @@ window.karaokeMediaRecorder = null;
 function createPitchTracker() {
   const history = [];
   const MAX_HISTORY = 5;
-  const HOLD_MS = 500;
+  const HOLD_MS = 1000;
+  const MIN_FREQ = 82;
+  const MAX_FREQ = 800;
+  const STABILITY_TOLERANCE = 0.15;
+  const STABILITY_REQUIRED = 3;
   let lastGood = -1;
   let lastGoodTime = 0;
+  let stableCount = 0;
+  let pendingRaw = -1;
 
   function median(arr) {
     const s = [...arr].sort((a, b) => a - b);
@@ -63,7 +69,24 @@ function createPitchTracker() {
   return {
     advance(raw, now) {
       const t = now || performance.now();
-      if (raw > 50 && raw < 800) {
+      if (raw > MIN_FREQ && raw < MAX_FREQ) {
+        if (lastGood > 0) {
+          const deviation = Math.abs(raw - lastGood) / lastGood;
+          if (deviation > STABILITY_TOLERANCE) {
+            if (raw === pendingRaw) {
+              stableCount++;
+            } else {
+              pendingRaw = raw;
+              stableCount = 1;
+            }
+            if (stableCount < STABILITY_REQUIRED) {
+              if (lastGood > 0 && t - lastGoodTime < HOLD_MS) return lastGood;
+              return lastGood > 0 ? lastGood : -1;
+            }
+          }
+        }
+        stableCount = 0;
+        pendingRaw = -1;
         history.push(raw);
         if (history.length > MAX_HISTORY) history.shift();
         lastGood = median(history);
@@ -76,6 +99,8 @@ function createPitchTracker() {
       history.length = 0;
       lastGood = -1;
       lastGoodTime = 0;
+      stableCount = 0;
+      pendingRaw = -1;
     }
   };
 }
