@@ -57,7 +57,7 @@ export async function showTab(tabId) {
   try {
     if (normalizedTabId === "config") {
       console.log("⚙️ [Lazy Load] Cargando configuraciones de hardware...");
-      const { initSettings, loadAvailableMics } = await import("./modules/config.js?v=6");
+      const { initSettings, loadAvailableMics } = await import("./modules/config.js?v=7");
       if (typeof initSettings === "function") initSettings();
       if (typeof loadAvailableMics === "function") await loadAvailableMics();
     } else if (normalizedTabId === "biblioteca") {
@@ -81,8 +81,8 @@ export async function showTab(tabId) {
       if (typeof loadPitchKaraokeOptions === "function") await loadPitchKaraokeOptions();
     } else if (normalizedTabId === "karaoke") {
       console.log("🎤 [Lazy Load] Inicializando Canvas e Históricos de Canto...");
-      const { loadTrackOptionsInKaraoke, loadKaraokeSong } = await import("./modules/karaoke.js?v=7");
-      const { inicializarEscenarioDesdeMemoria } = await import("./modules/config.js?v=6");
+      const { loadTrackOptionsInKaraoke, loadKaraokeSong } = await import("./modules/karaoke.js?v=9");
+      const { inicializarEscenarioDesdeMemoria } = await import("./modules/config.js?v=7");
 
       if (typeof inicializarEscenarioDesdeMemoria === "function") inicializarEscenarioDesdeMemoria();
       if (typeof loadTrackOptionsInKaraoke === "function") await loadTrackOptionsInKaraoke();
@@ -109,7 +109,7 @@ export async function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2 
 
   // Cachear la referencia al renderizador para evitar un import dinámico por cada repintado
   if (!_karaokeRenderPincel) {
-    const { drawKaraokeMonitor: renderPincel } = await import('./modules/karaoke.js?v=7');
+    const { drawKaraokeMonitor: renderPincel } = await import('./modules/karaoke.js?v=9');
     _karaokeRenderPincel = renderPincel;
   }
   if (typeof _karaokeRenderPincel === "function") {
@@ -326,56 +326,56 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // --- EVENTOS KARAOKE ---
   safeAdd("karaokeTrackSelect", "change", async () => {
-    const { loadKaraokeSong } = await import("./modules/karaoke.js?v=7");
+    const { loadKaraokeSong } = await import("./modules/karaoke.js?v=9");
     const id = $("karaokeTrackSelect")?.value;
     if (id && typeof loadKaraokeSong === "function") loadKaraokeSong(id);
   });
   safeAdd("karaokeDuoSplitToggleBtn", "click", async () => {
-    const { toggleKaraokeDuoSplitMode } = await import("./modules/karaoke.js?v=7");
+    const { toggleKaraokeDuoSplitMode } = await import("./modules/karaoke.js?v=9");
     if (typeof toggleKaraokeDuoSplitMode === "function") toggleKaraokeDuoSplitMode();
   });
   safeAdd("karaokeStartBtn", "click", async () => {
-    const { startKaraokeRecording } = await import("./modules/karaoke.js?v=7");
+    const { startKaraokeRecording } = await import("./modules/karaoke.js?v=9");
     if (typeof startKaraokeRecording === "function") startKaraokeRecording();
   });
   safeAdd("karaokeStopBtn", "click", async () => {
-    const { stopKaraokeRecording } = await import("./modules/karaoke.js?v=7");
+    const { stopKaraokeRecording } = await import("./modules/karaoke.js?v=9");
     if (typeof stopKaraokeRecording === "function") stopKaraokeRecording();
   });
   safeAdd("karaokeRestartBtn", "click", async () => {
-    const { restartKaraokeRecording } = await import("./modules/karaoke.js?v=7");
+    const { restartKaraokeRecording } = await import("./modules/karaoke.js?v=9");
     if (typeof restartKaraokeRecording === "function") restartKaraokeRecording();
   });
   safeAdd("karaokeMixBtn", "click", async () => {
-    const { mixKaraoke } = await import("./modules/karaoke.js?v=7");
+    const { mixKaraoke } = await import("./modules/karaoke.js?v=9");
     if (typeof mixKaraoke === "function") mixKaraoke();
   });
 
   // --- EVENTOS CONFIGURACIÓN HARDWARE MICS ---
   safeAdd("refreshMicsBtn", "click", async () => {
-    const { loadAvailableMics } = await import("./modules/config.js?v=6");
+    const { loadAvailableMics } = await import("./modules/config.js?v=7");
     if (typeof loadAvailableMics === "function") loadAvailableMics();
   });
   safeAdd("testMic1Btn", "click", async () => {
-    const { testMicrophone } = await import("./modules/config.js?v=6");
+    const { testMicrophone } = await import("./modules/config.js?v=7");
     if (typeof testMicrophone === "function") testMicrophone(1);
   });
   safeAdd("testMic2Btn", "click", async () => {
-    const { testMicrophone } = await import("./modules/config.js?v=6");
+    const { testMicrophone } = await import("./modules/config.js?v=7");
     if (typeof testMicrophone === "function") testMicrophone(2);
   });
   safeAdd("stopMic1TestBtn", "click", async () => {
-    const { stopMicTest } = await import("./modules/config.js?v=6");
+    const { stopMicTest } = await import("./modules/config.js?v=7");
     if (typeof stopMicTest === "function") stopMicTest();
   });
   safeAdd("stopMic2TestBtn", "click", async () => {
-    const { stopMicTest } = await import("./modules/config.js?v=6");
+    const { stopMicTest } = await import("./modules/config.js?v=7");
     if (typeof stopMicTest === "function") stopMicTest();
   });
 
   // Carga inicial diferida
   try {
-    const { initSettings, loadAvailableMics, toggleMic2Visibility } = await import("./modules/config.js?v=6");
+    const { initSettings, loadAvailableMics, toggleMic2Visibility } = await import("./modules/config.js?v=7");
     if (typeof initSettings === "function") initSettings();
     if (typeof loadAvailableMics === "function") await loadAvailableMics();
     if (typeof toggleMic2Visibility === "function") toggleMic2Visibility();
@@ -385,5 +385,3 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   iniciarAplicacion();
 });
-
-
