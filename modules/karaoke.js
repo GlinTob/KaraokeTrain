@@ -39,26 +39,34 @@ let karaokeLoadedItem = null;
 let avatarCache = { P1: null, P2: null }; 
 let avatarImageCache = { P1: null, P2: null };
 
+const TRAIL_HOLD_MS = 1200;
+let trailLastPitchP1 = -1;
+let trailLastTimeP1 = 0;
+let trailLastPitchP2 = -1;
+let trailLastTimeP2 = 0;
+
 window.karaokeMediaRecorder = null;
 
 // Rastreador de pitch para el monitor: suaviza el temblor (mediana de 5) y
-// retiene la última nota ~260ms ante cortes breves del micrófono (consonantes,
-// silencios) para que el punto no caiga al suelo. Las sub-octavas las corrige
-// el detector en origen (audio-processor-worker.js), no aquí: un "lock" de
-// octava a nivel de monitor se reforzaba hacia la octava equivocada cuando el
-// arranque caía en sub-octava.
+// retiene la última nota hasta 1s ante cortes del micrófono (consonantes,
+// silencios, respiraciones) para que el punto no caiga al suelo.
+//
+// Guarda de estabilidad: si una nueva lectura difere >15% del lastGood
+// (ruido de fondo / breath que produce 60-80 Hz), se requieren 3 lecturas
+// consecutivas iguales antes de aceptar el cambio. Esto evita que 1-2 frames
+// basura jalen la mediana hacia abajo durante silencios.
 function createPitchTracker() {
   const history = [];
   const MAX_HISTORY = 5;
   const HOLD_MS = 1000;
   const MIN_FREQ = 82;
   const MAX_FREQ = 800;
-  const STABILITY_TOLERANCE = 0.15;
-  const STABILITY_REQUIRED = 3;
+  const JUMP_TOLERANCE = 0.15;
+  const JUMP_REQUIRED = 3;
   let lastGood = -1;
   let lastGoodTime = 0;
-  let stableCount = 0;
-  let pendingRaw = -1;
+  let jumpCandidate = -1;
+  let jumpCount = 0;
 
   function median(arr) {
     const s = [...arr].sort((a, b) => a - b);
@@ -70,23 +78,20 @@ function createPitchTracker() {
     advance(raw, now) {
       const t = now || performance.now();
       if (raw > MIN_FREQ && raw < MAX_FREQ) {
-        if (lastGood > 0) {
-          const deviation = Math.abs(raw - lastGood) / lastGood;
-          if (deviation > STABILITY_TOLERANCE) {
-            if (raw === pendingRaw) {
-              stableCount++;
-            } else {
-              pendingRaw = raw;
-              stableCount = 1;
-            }
-            if (stableCount < STABILITY_REQUIRED) {
-              if (lastGood > 0 && t - lastGoodTime < HOLD_MS) return lastGood;
-              return lastGood > 0 ? lastGood : -1;
-            }
+        if (lastGood > 0 && Math.abs(raw - lastGood) / lastGood > JUMP_TOLERANCE) {
+          if (raw === jumpCandidate) {
+            jumpCount++;
+          } else {
+            jumpCandidate = raw;
+            jumpCount = 1;
+          }
+          if (jumpCount < JUMP_REQUIRED) {
+            if (t - lastGoodTime < HOLD_MS) return lastGood;
+            return lastGood > 0 ? lastGood : -1;
           }
         }
-        stableCount = 0;
-        pendingRaw = -1;
+        jumpCandidate = -1;
+        jumpCount = 0;
         history.push(raw);
         if (history.length > MAX_HISTORY) history.shift();
         lastGood = median(history);
@@ -99,8 +104,8 @@ function createPitchTracker() {
       history.length = 0;
       lastGood = -1;
       lastGoodTime = 0;
-      stableCount = 0;
-      pendingRaw = -1;
+      jumpCandidate = -1;
+      jumpCount = 0;
     }
   };
 }
@@ -127,6 +132,10 @@ export function toggleKaraokeDuoSplitMode() {
   karaokePitchP2 = -1;
   pitchTrackerP1.reset();
   pitchTrackerP2.reset();
+  trailLastPitchP1 = -1;
+  trailLastTimeP1 = 0;
+  trailLastPitchP2 = -1;
+  trailLastTimeP2 = 0;
 
   drawKaraokeMonitor(0, -1, -1);
 
@@ -161,20 +170,34 @@ export function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2) {
   ctx.fillStyle = paleta.fondo;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+  const now = performance.now();
+
+  if (karaokePitchP1 > 0) {
+    trailLastPitchP1 = karaokePitchP1;
+    trailLastTimeP1 = now;
+  }
+  if (karaokePitchP2 > 0) {
+    trailLastPitchP2 = karaokePitchP2;
+    trailLastTimeP2 = now;
+  }
+
   if (karaokeDuoSplitMode) {
     const TELE_H = 100;
     const GAP = 20;
     const regionH = (canvas.height - TELE_H - 40 - GAP) / 2;
 
-    pitchHistoryP1.push(karaokePitchP1 > 0 ? karaokePitchP1 : null);
+    const p1ForTrail = (karaokePitchP1 > 0) || (trailLastPitchP1 > 0 && now - trailLastTimeP1 < TRAIL_HOLD_MS);
+    pitchHistoryP1.push(p1ForTrail ? (karaokePitchP1 > 0 ? karaokePitchP1 : trailLastPitchP1) : null);
     if (pitchHistoryP1.length > 80) pitchHistoryP1.shift();
-    pitchHistoryP2.push(karaokePitchP2 > 0 ? karaokePitchP2 : null);
+    const p2ForTrail = (karaokePitchP2 > 0) || (trailLastPitchP2 > 0 && now - trailLastTimeP2 < TRAIL_HOLD_MS);
+    pitchHistoryP2.push(p2ForTrail ? (karaokePitchP2 > 0 ? karaokePitchP2 : trailLastPitchP2) : null);
     if (pitchHistoryP2.length > 80) pitchHistoryP2.shift();
 
     drawRegion(20, 20 + regionH, karaokePitchP1, pitchHistoryP1, "P1", "P1", paleta, currentTime, canvas, AVATAR_BLOCK_W);
     drawRegion(20 + regionH + GAP, 20 + regionH * 2 + GAP, karaokePitchP2, pitchHistoryP2, "P2", "P2", paleta, currentTime, canvas, AVATAR_BLOCK_W);
   } else {
-    pitchHistory.push(karaokePitchP1 > 0 ? karaokePitchP1 : null);
+    const p1ForTrailSolo = (karaokePitchP1 > 0) || (trailLastPitchP1 > 0 && now - trailLastTimeP1 < TRAIL_HOLD_MS);
+    pitchHistory.push(p1ForTrailSolo ? (karaokePitchP1 > 0 ? karaokePitchP1 : trailLastPitchP1) : null);
     if (pitchHistory.length > 80) pitchHistory.shift();
     drawRegion(20, canvas.height - 122, karaokePitchP1, pitchHistory, null, null, paleta, currentTime, canvas, 0);
   }
@@ -907,6 +930,10 @@ export function setKaraokeData(lyrics, name, fileUrl) {
   karaokePitchP2 = -1;
   pitchTrackerP1.reset();
   pitchTrackerP2.reset();
+  trailLastPitchP1 = -1;
+  trailLastTimeP1 = 0;
+  trailLastPitchP2 = -1;
+  trailLastTimeP2 = 0;
 
   cargarLetrasEnMonitor();
 
