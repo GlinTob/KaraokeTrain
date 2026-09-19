@@ -19,15 +19,16 @@
 // El paso-alto de gravedad/retumbos se hace con un BiquadFilterNode en el
 // grafo principal (karaoke.js), este processor NO hace filtrado espectral.
 
-const UMBRAL_APERTURA_DB = -30;   // por encima: voz abierta (ganancia 1)
-const UMBRAL_CIERRE_DB = -42;     // por debajo: gate cerrado (ganancia piso)
-const PISO_DB = -50;              // ganancia mínima cuando está cerrado
-const RATIO = 2;                  // expansor 2:1 en la banda de transición
+const UMBRAL_APERTURA_DB = -28;   // por encima: voz abierta (ganancia 1)
+const UMBRAL_CIERRE_DB = -44;     // por debajo: gate cerrado (ganancia piso)
+const PISO_DB = -42;              // ganancia mínima cuando está cerrado
+const RATIO = 1.5;                // expansor suave 1.5:1 en la transición
 
-const ATTACK_S = 0.05;            // env sigue subidas rápido (ataque de la voz)
-const RELEASE_S = 0.35;           // env cae lento (cola natural de las sílabas)
+const ATTACK_S = 0.03;            // env sigue subidas rápido (ataque de la voz)
+const RELEASE_S = 0.6;            // env cae lento: mantiene la voz abierta entre
+                                  // sílabas cortas (evita "entrecorte")
 const G_ATTACK_S = 0.002;         // suavizado de ganancia al abrir
-const G_RELEASE_S = 0.12;         // suavizado de ganancia al cerrar
+const G_RELEASE_S = 0.25;         // suavizado de ganancia al cerrar
 
 const PISO_LIN = Math.pow(10, PISO_DB / 20);
 
