@@ -6,7 +6,6 @@ import { getLibraryItemsByIdFromSupabase, getLibraryItemsByTypeFromSupabase, sav
 // El encode WAV ahora corre en el worker (encodeWavToBlob) para no bloquear
 // el hilo principal con mezclas largas.
 import { getAudioController } from "./audio-controller.js";
-import { loadVocalGateProcessor, createVocalGateNode } from "./worklets.js?v=5";
 import { getSelectedMicId } from "./config.js?v=7";
 import { midiToNoteName } from "./afinador.js?v=1";
 
@@ -51,10 +50,9 @@ window.karaokeMediaRecorder = null;
 function createPitchTracker() {
   const history = [];
   const MAX_HISTORY = 5;
-  const HOLD_MS = 260;
+  const HOLD_MS = 300;
   let lastGood = -1;
   let lastGoodTime = 0;
-  let downCandidate = null;
 
   function median(arr) {
     const s = [...arr].sort((a, b) => a - b);
@@ -65,32 +63,13 @@ function createPitchTracker() {
   return {
     advance(raw, now) {
       const t = now || performance.now();
-      if (raw > 0) {
+      if (raw > 0 && raw < 800) {
         history.push(raw);
         if (history.length > MAX_HISTORY) history.shift();
-        const m = median(history);
-        // FIX picada: una caída brusca (> 1 octava) frente a la última nota
-        // fiable suele ser ruido grave/ambiente que el detector confunde con
-        // voz. Se exige que el descenso se confirme en un SEGUNDO frame antes
-        // de aceptarlo; mientras tanto el punto se mantiene en la nota previa
-        // y no se va al suelo con el más mínimo silencio.
-        if (lastGood > 0 && m < lastGood * 0.55) {
-          const confirmedDown = downCandidate !== null &&
-            Math.abs(m - downCandidate) < lastGood * 0.15;
-          if (confirmedDown) {
-            downCandidate = null;
-          } else {
-            downCandidate = m;
-            return lastGood;
-          }
-        } else {
-          downCandidate = null;
-        }
-        lastGood = m;
+        lastGood = median(history);
         lastGoodTime = t;
-        return m;
+        return lastGood;
       }
-      downCandidate = null;
       if (lastGood > 0 && t - lastGoodTime < HOLD_MS) return lastGood;
       return -1;
     },
@@ -98,7 +77,6 @@ function createPitchTracker() {
       history.length = 0;
       lastGood = -1;
       lastGoodTime = 0;
-      downCandidate = null;
     }
   };
 }
@@ -557,7 +535,7 @@ export async function startKaraokeRecording() {
     // detectPitch. Aplicamos una ganancia fija SOLO en la ruta de análisis;
     // la grabación sigue usando el micrófono en crudo.
     const pitchInputGain = karaokePitchDetectionAudioCtx.createGain();
-    pitchInputGain.gain.value = 6;
+    pitchInputGain.gain.value = 1;
     source1.connect(pitchInputGain);
     pitchInputGain.connect(karaokePitchDetectionAnalyser);
 
@@ -565,10 +543,10 @@ export async function startKaraokeRecording() {
       const source2 = karaokePitchDetectionAudioCtx.createMediaStreamSource(karaokeStream2);
       karaokeSplitAnalyser2 = karaokePitchDetectionAudioCtx.createAnalyser();
       karaokeSplitAnalyser2.fftSize = 2048;
-      const pitchInputGain2 = karaokePitchDetectionAudioCtx.createGain();
-      pitchInputGain2.gain.value = 6;
-      source2.connect(pitchInputGain2);
-      pitchInputGain2.connect(karaokeSplitAnalyser2);
+const pitchInputGain2 = karaokePitchDetectionAudioCtx.createGain();
+    pitchInputGain2.gain.value = 1;
+    source2.connect(pitchInputGain2);
+    pitchInputGain2.connect(karaokeSplitAnalyser2);
     }
 
     karaokeAudioController = getAudioController();
@@ -1421,11 +1399,6 @@ export async function mixKaraoke() {
       sampleRate
     );
 
-    // Limpieza automática de la voz: paso-alto (retumbos / ruido grave de
-    // ambiente) + noise gate/expansor (ruido de fondo y respiraciones).
-    // Todo interno, sin controles para el usuario.
-    await loadVocalGateProcessor(offlineCtx);
-
     // Balance de la pista: compresor suave para uniformar el volumen base
     const trackCompressor = offlineCtx.createDynamicsCompressor();
     trackCompressor.threshold.value = -14;
@@ -1453,22 +1426,12 @@ export async function mixKaraoke() {
     voiceCompressor.attack.value = 0.003;
     voiceCompressor.release.value = 0.25;
 
-    // Cadena de la voz: pasa-alto -> gate/limpieza -> compresor -> nivel.
-    const voiceHighpass = offlineCtx.createBiquadFilter();
-    voiceHighpass.type = "highpass";
-    voiceHighpass.frequency.value = 90;
-    voiceHighpass.Q.value = 0.5;
-
-    const voiceGate = createVocalGateNode(offlineCtx, renderChannels);
-
     const voiceGain = offlineCtx.createGain();
-    // Fix #20: la voz queda un poco por encima de la pista (55% vs 45%).
+    // FIX #20: la voz queda un poco por encima de la pista (55% vs 45%).
     voiceGain.gain.value = 0.55;
     const voiceSource = offlineCtx.createBufferSource();
     voiceSource.buffer = voiceBuffer;
-    voiceSource.connect(voiceHighpass);
-    voiceHighpass.connect(voiceGate);
-    voiceGate.connect(voiceCompressor);
+    voiceSource.connect(voiceCompressor);
     voiceCompressor.connect(voiceGain);
     voiceGain.connect(offlineCtx.destination);
 
