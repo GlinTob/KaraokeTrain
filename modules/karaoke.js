@@ -546,7 +546,7 @@ export async function startKaraokeRecording() {
     // NotAllowedError de autoplay y la pista quedaba muda.
     let trackPlaybackFailed = false;
     try {
-      track.volume = 0.7;
+      track.volume = 0.5;
       await track.play();
     } catch (e) {
       trackPlaybackFailed = true;
