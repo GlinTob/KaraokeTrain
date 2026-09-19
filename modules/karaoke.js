@@ -6,8 +6,7 @@ import { getLibraryItemsByIdFromSupabase, getLibraryItemsByTypeFromSupabase, sav
 // El encode WAV ahora corre en el worker (encodeWavToBlob) para no bloquear
 // el hilo principal con mezclas largas.
 import { getAudioController } from "./audio-controller.js";
-import { getSelectedMicId } from "./config.js?v=6";
-import { registerVocalNode } from "./vocal-settings.js";
+import { getSelectedMicId } from "./config.js?v=7";
 import { midiToNoteName } from "./afinador.js?v=1";
 
 let textSegments = [];
@@ -30,10 +29,10 @@ let karaokeMediaRecorder = null;
 let karaokePitchDetectionAudioCtx = null;
 let karaokePitchDetectionAnalyser = null;
 let karaokeSplitAnalyser2 = null;
-let karaokePitchWorkletNode = null;
 let karaokePitchLoopRafId = null;
 let karaokeLoopBusy = false;
 let karaokeRecordingActive = false;
+let loopTick = 0;
 let karaokeSelectedTrackBlob = null;
 let karaokeSelectedTrackName = "";
 let karaokeLoadedItem = null;
@@ -484,10 +483,6 @@ export async function startKaraokeRecording() {
     const mixBtnAtStart = $("karaokeMixBtn");
     if (mixBtnAtStart) mixBtnAtStart.disabled = true;
 
-    if (karaokePitchWorkletNode) {
-      try { karaokePitchWorkletNode.disconnect(); } catch (e) {}
-      karaokePitchWorkletNode = null;
-    }
     if (karaokePitchDetectionAudioCtx) {
       try { karaokePitchDetectionAudioCtx.close(); } catch (e) {}
       karaokePitchDetectionAudioCtx = null;
@@ -528,38 +523,11 @@ export async function startKaraokeRecording() {
       karaokeStream2 = await navigator.mediaDevices.getUserMedia(constraints2);
     }
 
-    try {
-      // FIX #4: carga centralizada via worklets.js (idempotente + concurrent-safe).
-      // Antes, este modulo solo cargaba `vocal-processor.js` con su propia URL
-      // relativa, lo que provocaba registros duplicados cuando el usuario ya
-      // habia usado `liveAudioService.js` (que cargaba el mismo archivo con
-      // su propio `import.meta.url`). En Safari/Firefox eso lanzaba
-      // "This name has already been used" y el analyser quedaba mudo.
-      const { loadVocalProcessor } = await import("./worklets.js");
-      await loadVocalProcessor(karaokePitchDetectionAudioCtx);
-    } catch (e) {
-      console.warn("Worklet vocal no disponible:", e);
-    }
-
     const source1 = karaokePitchDetectionAudioCtx.createMediaStreamSource(karaokeStream);
 
     // El micrófono se usa SOLO para análisis (pitch) y grabación.
     // NUNCA se conecta al altavoz: así no se escucha la voz del usuario mientras canta.
     // La voz se graba en crudo y se reproduce después para que el usuario la evalúe.
-    // FIX: el análisis de pitch lee SIEMPRE el micrófono crudo (source1). Si el
-    // procesador vocal está activo, su noise-gate/compresor podría silenciar su
-    // salida y las barras del monitor quedarían vacías aunque la voz se grabe bien.
-    if ($("vocalProcessorEnabled")?.checked) {
-      try {
-        karaokePitchWorkletNode = new AudioWorkletNode(karaokePitchDetectionAudioCtx, "vocal-processor");
-        source1.connect(karaokePitchWorkletNode);
-        registerVocalNode(karaokePitchWorkletNode);
-      } catch (e) {
-        console.warn("Vocal processor no aplicado en karaoke:", e);
-        karaokePitchWorkletNode = null;
-      }
-    }
-
     karaokePitchDetectionAnalyser = karaokePitchDetectionAudioCtx.createAnalyser();
     karaokePitchDetectionAnalyser.fftSize = 2048;
     // FIX: el pitch/dot solo reaccionaba al cantar muy fuerte o gritar porque
@@ -606,6 +574,7 @@ export async function startKaraokeRecording() {
         if (karaokeMediaRecorder !== recorder) return;
         if (sessionChunks.length) {
           karaokeRecordedBlob = new Blob(sessionChunks, { type: recorder.mimeType || "audio/webm" });
+          console.log("🎤 Voz finalizada:", sessionChunks.length, "chunks,", karaokeRecordedBlob.size, "bytes, mime:", recorder.mimeType || "audio/webm");
           const voicePlayer = $("karaokeVoicePlayer");
           if (voicePlayer) {
             voicePlayer.src = URL.createObjectURL(karaokeRecordedBlob);
@@ -613,6 +582,8 @@ export async function startKaraokeRecording() {
           }
           const mixBtn = $("karaokeMixBtn");
           if (mixBtn) mixBtn.disabled = false;
+        } else {
+          console.warn("🎤 No se capturaron chunks de voz (grabación muy corta o chunk final vacío).");
         }
         karaokeMediaRecorder = null;
         window.karaokeMediaRecorder = null;
@@ -684,11 +655,29 @@ async function loop() {
     const currentTime = track ? track.currentTime : 0;
     const isRecording = !!(karaokeMediaRecorder && karaokeMediaRecorder.state === "recording");
     const trackEnded = !!(track && track.ended);
+    // FIX #19: si el usuario "detiene la pista" (pausa o termina el audio),
+    // hay que FINALIZAR la grabación aquí mismo. Antes solo se finalizaba en
+    // `track.ended` o con el botón "Detener"; si la pista se pausaba de otra
+    // forma, el MediaRecorder seguía en "recording" para siempre, nunca llegaba
+    // el onstop y la voz jamás aparecía en el player (y "Mezclar" decía
+    // "primero canta"). `currentTime > 0.15` evita detener por una pausa
+    // momentánea del arranque (buffering) antes de que empiece a sonar.
+    const trackPaused = !!(track && track.paused && !track.ended && track.currentTime > 0.15);
+    const shouldFinalize = isRecording && (trackEnded || trackPaused);
+
+    // FIX #20 (entrecortado del mic): el MediaRecorder corre en el hilo
+    // principal y Chrome suelta tramas si el hilo está saturado. El análisis
+    // de pitch + repintado del canvas cada frame (~60fps) satura el hilo y la
+    // voz grabada sale entrecortada. Limitamos el trabajo pesado a ~30fps
+// (un frame sí, uno no): el monitor no nota la diferencia y la grabación
+// deja de laggear. El chequeo de finalizar grabación se mantiene siempre.
+    loopTick ^= 1;
+    const heavyFrame = (loopTick & 1) === 0;
 
     let pitch = -1;
     let pitch2 = -1;
 
-    if (karaokePitchDetectionAnalyser && karaokePitchDetectionAudioCtx && karaokeAudioController) {
+    if (heavyFrame && karaokePitchDetectionAnalyser && karaokePitchDetectionAudioCtx && karaokeAudioController) {
       try {
         const buffer = new Float32Array(karaokePitchDetectionAnalyser.fftSize);
         karaokePitchDetectionAnalyser.getFloatTimeDomainData(buffer);
@@ -699,7 +688,7 @@ async function loop() {
       }
     }
 
-    if (karaokeDuoSplitMode && karaokeSplitAnalyser2 && karaokePitchDetectionAudioCtx && karaokeAudioController) {
+    if (heavyFrame && karaokeDuoSplitMode && karaokeSplitAnalyser2 && karaokePitchDetectionAudioCtx && karaokeAudioController) {
       try {
         const buf2 = new Float32Array(karaokeSplitAnalyser2.fftSize);
         karaokeSplitAnalyser2.getFloatTimeDomainData(buf2);
@@ -709,17 +698,19 @@ async function loop() {
       }
     }
 
-    karaokePitchP1 = pitchTrackerP1.advance(pitch);
-    karaokePitchP2 = karaokeDuoSplitMode ? pitchTrackerP2.advance(pitch2) : -1;
+    if (heavyFrame) {
+      karaokePitchP1 = pitchTrackerP1.advance(pitch);
+      karaokePitchP2 = karaokeDuoSplitMode ? pitchTrackerP2.advance(pitch2) : -1;
 
-    if (karaokeDuoSplitMode) updateDuoLevels();
-    else setBarWidth("karaokeMic1Level", karaokePitchDetectionAnalyser);
+      if (karaokeDuoSplitMode) updateDuoLevels();
+      else setBarWidth("karaokeMic1Level", karaokePitchDetectionAnalyser);
 
-    drawKaraokeMonitor(currentTime, karaokePitchP1, karaokePitchP2);
+      drawKaraokeMonitor(currentTime, karaokePitchP1, karaokePitchP2);
+    }
 
-    if (!isRecording || trackEnded) {
+    if (!isRecording || shouldFinalize) {
       karaokePitchLoopRafId = null;
-      if (trackEnded && isRecording) stopKaraokeRecording();
+      if (shouldFinalize) stopKaraokeRecording();
       return;
     }
 
@@ -766,11 +757,6 @@ export function stopKaraokeRecording() {
   // blob finalice, o el chunk final llega vacío y la voz "no se graba").
   if (!recorder || recorder.state === "inactive") {
     releaseKaraokeCaptureStreams();
-  }
-
-  if (karaokePitchWorkletNode) {
-    try { karaokePitchWorkletNode.disconnect(); } catch (e) {}
-    karaokePitchWorkletNode = null;
   }
 
   if (karaokePitchDetectionAudioCtx && karaokePitchDetectionAudioCtx.state !== "closed") {
@@ -1329,6 +1315,18 @@ export async function loadTrackOptionsInKaraoke() {
 }
 
 export async function mixKaraoke() {
+  // FIX #19: si por lo que sea la pista se detuvo sin pasar por el onstop
+  // (recorder aún en "recording"), finalizamos la grabación aquí y esperamos
+  // el blob. Así "Mezclar" funciona aunque el usuario haya "detenido la pista"
+  // de cualquier forma.
+  if (!karaokeRecordedBlob && karaokeMediaRecorder && karaokeMediaRecorder.state !== "inactive") {
+    console.log("🎤 Mezclar detectó recorder activo; finalizando grabación...");
+    stopKaraokeRecording();
+    for (let i = 0; i < 10 && !karaokeRecordedBlob; i++) {
+      await new Promise(r => setTimeout(r, 150));
+    }
+  }
+
   if (!karaokeRecordedBlob) {
     alert("⚠️ Tu voz no se grabó. Pulsa '▶️ Iniciar Grabación', canta, y al terminar presiona '⏹️ Detener'. Luego vuelve a intentar mezclar.");
     return;
@@ -1410,7 +1408,9 @@ export async function mixKaraoke() {
     trackCompressor.release.value = 0.2;
 
     const trackGain = offlineCtx.createGain();
-    trackGain.gain.value = 0.9;
+    // FIX #20: equilibrio fijo voz/pista sin procesador vocal: la voz suena un
+    // poquito más fuerte que la pista (~55/45). Queda a ~0.45/0.55.
+    trackGain.gain.value = 0.45;
     const trackSource = offlineCtx.createBufferSource();
     trackSource.buffer = trackBuffer;
     trackSource.connect(trackCompressor);
@@ -1427,7 +1427,8 @@ export async function mixKaraoke() {
     voiceCompressor.release.value = 0.25;
 
     const voiceGain = offlineCtx.createGain();
-    voiceGain.gain.value = 1.6;
+    // FIX #20: la voz queda un poco por encima de la pista (55% vs 45%).
+    voiceGain.gain.value = 0.55;
     const voiceSource = offlineCtx.createBufferSource();
     voiceSource.buffer = voiceBuffer;
     voiceSource.connect(voiceCompressor);
