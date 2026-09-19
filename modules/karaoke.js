@@ -471,10 +471,18 @@ export async function startKaraokeRecording() {
     }
 
     if (karaokeMediaRecorder && karaokeMediaRecorder.state !== "inactive") {
+      // FIX #18: este recorder queda descartado (nueva sesión). Al no ser ya
+      // la sesión actual, su onstop no debe publicar blob ni tocar streams.
+      karaokeMediaRecorder.onstop = null;
       try { karaokeMediaRecorder.stop(); } catch (e) {}
     }
     karaokeChunks = [];
     karaokeRecordedBlob = null;
+
+    // Durante una grabación nueva no hay voz lista; se habilita "Mezclar"
+    // recién cuando el onstop construye el blob (FIX #18).
+    const mixBtnAtStart = $("karaokeMixBtn");
+    if (mixBtnAtStart) mixBtnAtStart.disabled = true;
 
     if (karaokePitchWorkletNode) {
       try { karaokePitchWorkletNode.disconnect(); } catch (e) {}
@@ -576,26 +584,47 @@ export async function startKaraokeRecording() {
     karaokeAudioController = getAudioController();
 
     try {
+      // FIX #18: chunks POR SESIÓN. Si un recorder viejo (p.ej. de un
+      // "Volver a intentar") dispara su onstop DESPUÉS de iniciar una sesión
+      // nueva, no debe leer ni mezclarse con los chunks de la sesión nueva.
+      karaokeChunks = [];
+      const sessionChunks = karaokeChunks;
       karaokeMediaRecorder = new MediaRecorder(karaokeStream);
       window.karaokeMediaRecorder = karaokeMediaRecorder;
+      const recorder = karaokeMediaRecorder;
       karaokeMediaRecorder.ondataavailable = (e) => {
-        if (e.data && e.data.size > 0) karaokeChunks.push(e.data);
+        if (e.data && e.data.size > 0) sessionChunks.push(e.data);
       };
       karaokeMediaRecorder.onstop = () => {
-        if (karaokeChunks.length) {
-          karaokeRecordedBlob = new Blob(karaokeChunks, { type: karaokeMediaRecorder?.mimeType || "audio/webm" });
+        // FIX #18: el blob de la voz solo está completo AQUÍ (evento async
+        // tras stop()). Por eso liberamos los tracks del micrófono en este
+        // punto y NO en stopKaraokeRecording(): si se paran antes, Chrome
+        // puede entregar un chunk final vacío y la voz "no se graba"
+        // (karaokeRecordedBlob queda null → "primero canta").
+        // Solo actúa si ESTE recorder sigue siendo el actual (un onstop
+        // tardío de un "Volver a intentar" no debe pisar la sesión nueva).
+        if (karaokeMediaRecorder !== recorder) return;
+        if (sessionChunks.length) {
+          karaokeRecordedBlob = new Blob(sessionChunks, { type: recorder.mimeType || "audio/webm" });
           const voicePlayer = $("karaokeVoicePlayer");
           if (voicePlayer) {
             voicePlayer.src = URL.createObjectURL(karaokeRecordedBlob);
             voicePlayer.controls = true;
           }
+          const mixBtn = $("karaokeMixBtn");
+          if (mixBtn) mixBtn.disabled = false;
         }
+        karaokeMediaRecorder = null;
         window.karaokeMediaRecorder = null;
+        releaseKaraokeCaptureStreams();
       };
-      karaokeMediaRecorder.start();
+      // timeslice: entrega los chunks en intervalos; si el chunk final se
+      // perdiera por cualquier razón, la grabación conserva los anteriores.
+      karaokeMediaRecorder.start(500);
     } catch (e) {
       console.warn("MediaRecorder no disponible en este navegador:", e);
       karaokeMediaRecorder = null;
+      window.karaokeMediaRecorder = null;
     }
 
     if (trackPlaybackFailed) {
@@ -702,20 +731,42 @@ async function loop() {
   }
 }
 
+// FIX #18: liberación idempotente de los streams del micrófono. Se invoca
+// desde el onstop del MediaRecorder (una vez que el blob de la voz ya está
+// finalizado) o inmediatamente cuando no hay recorder pendiente.
+function releaseKaraokeCaptureStreams() {
+  if (karaokeStream) {
+    try { karaokeStream.getTracks().forEach(t => t.stop()); } catch (e) {}
+    karaokeStream = null;
+  }
+  if (karaokeStream2) {
+    try { karaokeStream2.getTracks().forEach(t => t.stop()); } catch (e) {}
+    karaokeStream2 = null;
+  }
+}
+
 export function stopKaraokeRecording() {
   if (karaokePitchLoopRafId) {
     cancelAnimationFrame(karaokePitchLoopRafId);
     karaokePitchLoopRafId = null;
   }
 
-  if (karaokeMediaRecorder && karaokeMediaRecorder.state !== "inactive") {
+  const recorder = karaokeMediaRecorder;
+  if (recorder && recorder.state !== "inactive") {
     try {
-      karaokeMediaRecorder.stop();
+      recorder.stop();
     } catch (e) {
       console.warn("No se pudo detener MediaRecorder:", e);
     }
   }
   window.karaokeMediaRecorder = null;
+
+  // Si el recorder está pending (stop() pedido), su onstop construirá el
+  // blob Y liberará los tracks (FIX #18: no parar el mic antes de que el
+  // blob finalice, o el chunk final llega vacío y la voz "no se graba").
+  if (!recorder || recorder.state === "inactive") {
+    releaseKaraokeCaptureStreams();
+  }
 
   if (karaokePitchWorkletNode) {
     try { karaokePitchWorkletNode.disconnect(); } catch (e) {}
@@ -729,14 +780,9 @@ export function stopKaraokeRecording() {
   karaokePitchDetectionAnalyser = null;
   karaokeSplitAnalyser2 = null;
 
-  if (karaokeStream) {
-    karaokeStream.getTracks().forEach(t => t.stop());
-    karaokeStream = null;
-  }
-  if (karaokeStream2) {
-    karaokeStream2.getTracks().forEach(t => t.stop());
-    karaokeStream2 = null;
-  }
+  // NOTA: los streams del mic se liberan en releaseKaraokeCaptureStreams().
+  // No parar los tracks aquí si el recorder está pending: ya lo comentamos
+  // (FIX #18), parar antes del onstop pierde el blob final.
 
   // FIX #17: NO destruimos el singleton de audio controller aquí. El worker
   // se comparte con el afinador y otros módulos. Destruirlo rompería sus
@@ -764,10 +810,9 @@ export function stopKaraokeRecording() {
   const statusEl = $("karaokeStatus");
   if (statusEl) statusEl.textContent = "⏹️ Grabación detenida. Escucha tu voz abajo.";
 
-  const mixBtn = $("karaokeMixBtn");
-  if (mixBtn) {
-    mixBtn.disabled = false;
-  }
+  // El botón Mezclar se habilita en el onstop del recorder, cuando la voz ya
+  // está construida (FIX #18). Aquí NO se habilita: si el blob aún no existe,
+  // el usuario vería el aviso "primero canta" sin motivo.
 
   const startBtn = $("karaokeStartBtn");
   if (startBtn) startBtn.disabled = false;
@@ -1284,8 +1329,12 @@ export async function loadTrackOptionsInKaraoke() {
 }
 
 export async function mixKaraoke() {
-  if (!karaokeSelectedTrackBlob || !karaokeRecordedBlob) {
-    alert("⚠️ Primero presiona 'Iniciar Grabación' en un karaoke y luego detén la grabación.");
+  if (!karaokeRecordedBlob) {
+    alert("⚠️ Tu voz no se grabó. Pulsa '▶️ Iniciar Grabación', canta, y al terminar presiona '⏹️ Detener'. Luego vuelve a intentar mezclar.");
+    return;
+  }
+  if (!karaokeSelectedTrackBlob) {
+    alert("⚠️ No hay pista seleccionada. Elige un karaoke desde la Biblioteca y vuelve a intentar.");
     return;
   }
 
