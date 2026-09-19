@@ -6,7 +6,7 @@ import {
   updateLibraryItemsFromSupabase,
   renderLibrary
 } from './biblioteca.js';
-import { noteToFrequency, frequencyToMidi, midiToNoteName, frequencyToNoteName } from "./afinador.js";
+import { noteToFrequency, frequencyToMidi, midiToNoteName, frequencyToNoteName } from "./afinador.js?v=1";
 // FIX #17: removido `destroyAudioController` del import. Se mantiene el
 // singleton vivo durante toda la sesión del navegador (no se destruye en
 // flujos normales de karaoke/estudio) para evitar romper las promesas en
