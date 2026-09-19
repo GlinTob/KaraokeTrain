@@ -31,7 +31,8 @@
 //   await loadPitchShifterProcessor(audioContext);
 
 const PROCESSOR_NAMES = {
-  pitchShifter: "pitch-shifter-processor"
+  pitchShifter: "pitch-shifter-processor",
+  vocalGate: "vocal-gate-processor"
 };
 
 // Cache de promesas por (AudioContext, nombre). Usamos un WeakMap para que
@@ -112,4 +113,32 @@ export async function loadPitchShifterProcessor(audioContext) {
     "./pitch-shifter-processor.js"
   );
   return addModuleOnce(audioContext, url, PROCESSOR_NAMES.pitchShifter);
+}
+
+/**
+ * Carga el vocal-gate-processor (limpieza automática de voz del mix karaoke).
+ * El `?v=1` hace cache-busting del módulo del worklet al cambiarlo.
+ * @param {BaseAudioContext} audioContext
+ * @returns {Promise<void>}
+ */
+export async function loadVocalGateProcessor(audioContext) {
+  const url = new URL("./vocal-gate-processor.js?v=1", import.meta.url).href;
+  return addModuleOnce(audioContext, url, PROCESSOR_NAMES.vocalGate);
+}
+
+/**
+ * Crea un AudioWorkletNode del vocal-gate. Requiere llamar antes a
+ * loadVocalGateProcessor sobre el mismo AudioContext.
+ * @param {BaseAudioContext} audioContext
+ * @param {number} channels - canales de salida del nodo
+ * @returns {AudioWorkletNode}
+ */
+export function createVocalGateNode(audioContext, channels) {
+  return new AudioWorkletNode(audioContext, PROCESSOR_NAMES.vocalGate, {
+    numberOfInputs: 1,
+    numberOfOutputs: 1,
+    outputChannelCount: [channels],
+    channelCount: channels,
+    channelCountMode: "explicit"
+  });
 }
