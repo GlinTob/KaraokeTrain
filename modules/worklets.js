@@ -122,7 +122,7 @@ export async function loadPitchShifterProcessor(audioContext) {
  * @returns {Promise<void>}
  */
 export async function loadVocalGateProcessor(audioContext) {
-  const url = new URL("./vocal-gate-processor.js?v=1", import.meta.url).href;
+  const url = new URL("./vocal-gate-processor.js?v=2", import.meta.url).href;
   return addModuleOnce(audioContext, url, PROCESSOR_NAMES.vocalGate);
 }
 
