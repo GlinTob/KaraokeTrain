@@ -14,24 +14,23 @@
 //   "DOMException: This name has already been used..."
 //
 // Además, las llamadas concurrentes a `addModule` desde dos módulos distintos
-// (p.ej. `liveAudioService.js` y `karaoke.js` cuando el usuario navega entre
-// pestañas) generaban una race condition: ambos esperan su propio `addModule`
+// (p.ej. `cambiar-tono.js` y dependencias al navegar entre pestañas)
+// generaban una race condition: ambos esperan su propio `addModule`
 // y durante una fracción de segundo los registros están en vuelo.
 //
-// Esta utility:
-//   1. Resuelve la URL del worklet priorizando `window.__VOCAL_PROCESSOR_URL__`
-//      y `window.__PITCH_WORKLET_URL__` (definidas en index.html).
+// Este archivo:
+//   1. Resuelve la URL del worklet priorizando `window.__PITCH_WORKLET_URL__`
+//      (definida en index.html).
 //   2. Cachea las promesas de `addModule` por nombre de processor, de modo
 //      que múltiples llamadas concurrentes devuelven LA MISMA promesa.
 //   3. Garantiza idempotencia: una vez que un processor se cargó, no se
 //      vuelve a llamar `addModule` para él.
 //
 // Uso:
-//   import { loadVocalProcessor, loadPitchShifterProcessor } from "./worklets.js";
-//   await loadVocalProcessor(audioContext);
+//   import { loadPitchShifterProcessor } from "./worklets.js";
+//   await loadPitchShifterProcessor(audioContext);
 
 const PROCESSOR_NAMES = {
-  vocal: "vocal-processor",
   pitchShifter: "pitch-shifter-processor"
 };
 
@@ -43,8 +42,8 @@ const _addModuleCache = new WeakMap();
 /**
  * Resuelve la URL del worklet. Prioriza la constante global definida en
  * index.html, y si no existe, usa la ruta relativa al módulo actual.
- * @param {string} globalKey - "__VOCAL_PROCESSOR_URL__" | "__PITCH_WORKLET_URL__"
- * @param {string} relativePath - "./vocal-processor.js" | "./pitch-shifter-processor.js"
+ * @param {string} globalKey - "__PITCH_WORKLET_URL__"
+ * @param {string} relativePath - "./pitch-shifter-processor.js"
  * @returns {string} URL absoluta o relativa resolvable por `addModule`
  */
 function resolveWorkletUrl(globalKey, relativePath) {
@@ -103,16 +102,6 @@ async function addModuleOnce(audioContext, url, processorName) {
 }
 
 /**
- * Carga el vocal-processor en el AudioContext dado.
- * @param {BaseAudioContext} audioContext
- * @returns {Promise<void>}
- */
-export async function loadVocalProcessor(audioContext) {
-  const url = resolveWorkletUrl("__VOCAL_PROCESSOR_URL__", "./vocal-processor.js");
-  return addModuleOnce(audioContext, url, PROCESSOR_NAMES.vocal);
-}
-
-/**
  * Carga el pitch-shifter-processor en el AudioContext dado.
  * @param {BaseAudioContext} audioContext
  * @returns {Promise<void>}
@@ -123,15 +112,4 @@ export async function loadPitchShifterProcessor(audioContext) {
     "./pitch-shifter-processor.js"
   );
   return addModuleOnce(audioContext, url, PROCESSOR_NAMES.pitchShifter);
-}
-
-/**
- * Helper para el flujo típico: carga ambos worklets en paralelo.
- * @param {BaseAudioContext} audioContext
- */
-export async function loadAllWorklets(audioContext) {
-  return Promise.all([
-    loadVocalProcessor(audioContext),
-    loadPitchShifterProcessor(audioContext)
-  ]);
 }
