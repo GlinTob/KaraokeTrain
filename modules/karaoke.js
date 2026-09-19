@@ -1,5 +1,5 @@
 import { $, safeAdd } from "./utils.js";
-import { getLibraryItemsByIdFromSupabase, getLibraryItemsByTypeFromSupabase, saveToLibrary } from "./biblioteca.js";
+import { getLibraryItemsByIdFromSupabase, getLibraryItemsByTypeFromSupabase, saveToLibrary } from "./biblioteca.js?v=4";
 // FIX #17: removido `destroyAudioController` del import. Se mantiene el
 // singleton vivo durante toda la sesión (no se destruye en flujos normales)
 // para evitar romper las promesas en vuelo de otros consumidores (afina-dor).
