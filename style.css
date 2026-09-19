@@ -835,30 +835,37 @@ audio {
 .avatar-category-tabs {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 12px;
+  gap: 10px;
+  margin-bottom: 16px;
 }
 
 .avatar-category-tab {
-  background: rgba(30, 41, 59, 0.8);
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.9));
   border: 1px solid #334155;
   color: var(--text-main);
-  padding: 8px 14px;
-  border-radius: 20px;
-  font-size: 13px;
-  font-weight: 600;
+  padding: 10px 20px;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
   cursor: pointer;
   transition: all 0.2s;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
 }
 
 .avatar-category-tab:hover {
   border-color: var(--accent-secondary);
+  background: rgba(59, 130, 246, 0.12);
+  color: #ffffff;
+  transform: translateY(-1px);
 }
 
 .avatar-category-tab.active {
-  background: rgba(59, 130, 246, 0.14);
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.35), rgba(59, 130, 246, 0.12));
   border-color: var(--accent-secondary);
-  color: #93c5fd;
+  color: #ffffff;
+  box-shadow: 0 0 0 2px var(--accent-secondary-border), 0 0 14px var(--accent-secondary-shadow);
 }
 
 .avatar-user-tabs {
@@ -1030,6 +1037,10 @@ audio {
   margin-top: 10px;
 }
 
+#refreshMicsBtn {
+  margin-bottom: 15px;
+}
+
 .mic-status {
   font-size: 11px;
   color: var(--text-muted);
@@ -1038,6 +1049,10 @@ audio {
 /* ==========================================
    ESTUDIO
 ========================================== */
+
+#loadSelectedTextBtn {
+  margin-top: 15px;
+}
 
 #lyricsText {
   width: 33.33%;
@@ -1401,6 +1416,7 @@ body[data-theme="otono"] {
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+  margin-bottom: 15px;
 }
 
 .file-chosen-text {
