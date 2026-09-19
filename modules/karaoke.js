@@ -50,7 +50,7 @@ window.karaokeMediaRecorder = null;
 function createPitchTracker() {
   const history = [];
   const MAX_HISTORY = 5;
-  const HOLD_MS = 300;
+  const HOLD_MS = 500;
   let lastGood = -1;
   let lastGoodTime = 0;
 
@@ -63,15 +63,14 @@ function createPitchTracker() {
   return {
     advance(raw, now) {
       const t = now || performance.now();
-      if (raw > 0 && raw < 800) {
+      if (raw > 50 && raw < 800) {
         history.push(raw);
         if (history.length > MAX_HISTORY) history.shift();
         lastGood = median(history);
         lastGoodTime = t;
-        return lastGood;
       }
       if (lastGood > 0 && t - lastGoodTime < HOLD_MS) return lastGood;
-      return -1;
+      return lastGood > 0 ? lastGood : -1;
     },
     reset() {
       history.length = 0;
