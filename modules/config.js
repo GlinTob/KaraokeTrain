@@ -1,5 +1,4 @@
 import { $ } from "./utils.js";
-import { initVocalProcessorUI } from "./vocal-settings.js";
 
 /**
  * MÓDULO CONFIGURACIÓN COMPLETO
@@ -66,12 +65,12 @@ const AVATAR_CATEGORIES = {
       { id: "fantastic-four", name: "Fantastic Four", img: "../assets/avatares/fantastic-four.png" },
       { id: "wolverine", name: "Wolverine", img: "../assets/avatares/wolverine.png" },
       { id: "green-lantern", name: "Green Lantern", img: "../assets/avatares/green-lantern.png" },
-      { id: "grey", name: "Jean Grey", img: "../assets/avatares/grey.png" },
+      { id: "grey", name: "Grey", img: "../assets/avatares/grey.png" },
       { id: "magneto", name: "Magneto", img: "../assets/avatares/magneto.png" },
       { id: "mysterio", name: "Mysterio", img: "../assets/avatares/mysterio.png" },
       { id: "professor-x", name: "Professor X", img: "../assets/avatares/professor-x.png" },
       { id: "avengers", name: "Avengers", img: "../assets/avatares/avengers.png" },
-      { id: "x-men", name: "X-Men", img: "../assets/avatares/x-men.png" }
+      { id: "x-men", name: "X-Men", img: "../assets/avatares/x-men.png" },
     ]
   },
   personajes: {
@@ -125,7 +124,7 @@ const AVATAR_CATEGORIES = {
       { id: "olive-oyl", name: "Olive Oyl", img: "../assets/avatares/olive-oyl.png" },
       { id: "princess-bubblegum", name: "Princess Bubblegum", img: "../assets/avatares/princess-bubblegum.png" },
       { id: "woody-woodpecker", name: "Woody Woodpecker", img: "../assets/avatares/woody-woodpecker.png" },
-      { id: "yoda", name: "Yoda", img: "../assets/avatares/yoda.png" }
+      { id: "yoda", name: "Yoda", img: "../assets/avatares/yoda.png" },
     ]
   }
 };
@@ -355,7 +354,6 @@ export async function initSettings() {
   applyAppTheme(localStorage.getItem("karaokeTrain_theme") || "oscuro");
   inicializarEscenarioDesdeMemoria();
   initializeAvatarSelector();
-  initVocalProcessorUI();
   toggleMic2Visibility();
 }
 
