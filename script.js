@@ -81,7 +81,7 @@ export async function showTab(tabId) {
       if (typeof loadPitchKaraokeOptions === "function") await loadPitchKaraokeOptions();
     } else if (normalizedTabId === "karaoke") {
       console.log("🎤 [Lazy Load] Inicializando Canvas e Históricos de Canto...");
-      const { loadTrackOptionsInKaraoke, loadKaraokeSong } = await import("./modules/karaoke.js?v=9");
+      const { loadTrackOptionsInKaraoke, loadKaraokeSong } = await import("./modules/karaoke.js?v=10");
       const { inicializarEscenarioDesdeMemoria } = await import("./modules/config.js?v=7");
 
       if (typeof inicializarEscenarioDesdeMemoria === "function") inicializarEscenarioDesdeMemoria();
@@ -109,7 +109,7 @@ export async function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2 
 
   // Cachear la referencia al renderizador para evitar un import dinámico por cada repintado
   if (!_karaokeRenderPincel) {
-    const { drawKaraokeMonitor: renderPincel } = await import('./modules/karaoke.js?v=9');
+    const { drawKaraokeMonitor: renderPincel } = await import('./modules/karaoke.js?v=10');
     _karaokeRenderPincel = renderPincel;
   }
   if (typeof _karaokeRenderPincel === "function") {
@@ -326,28 +326,28 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // --- EVENTOS KARAOKE ---
   safeAdd("karaokeTrackSelect", "change", async () => {
-    const { loadKaraokeSong } = await import("./modules/karaoke.js?v=9");
+    const { loadKaraokeSong } = await import("./modules/karaoke.js?v=10");
     const id = $("karaokeTrackSelect")?.value;
     if (id && typeof loadKaraokeSong === "function") loadKaraokeSong(id);
   });
   safeAdd("karaokeDuoSplitToggleBtn", "click", async () => {
-    const { toggleKaraokeDuoSplitMode } = await import("./modules/karaoke.js?v=9");
+    const { toggleKaraokeDuoSplitMode } = await import("./modules/karaoke.js?v=10");
     if (typeof toggleKaraokeDuoSplitMode === "function") toggleKaraokeDuoSplitMode();
   });
   safeAdd("karaokeStartBtn", "click", async () => {
-    const { startKaraokeRecording } = await import("./modules/karaoke.js?v=9");
+    const { startKaraokeRecording } = await import("./modules/karaoke.js?v=10");
     if (typeof startKaraokeRecording === "function") startKaraokeRecording();
   });
   safeAdd("karaokeStopBtn", "click", async () => {
-    const { stopKaraokeRecording } = await import("./modules/karaoke.js?v=9");
+    const { stopKaraokeRecording } = await import("./modules/karaoke.js?v=10");
     if (typeof stopKaraokeRecording === "function") stopKaraokeRecording();
   });
   safeAdd("karaokeRestartBtn", "click", async () => {
-    const { restartKaraokeRecording } = await import("./modules/karaoke.js?v=9");
+    const { restartKaraokeRecording } = await import("./modules/karaoke.js?v=10");
     if (typeof restartKaraokeRecording === "function") restartKaraokeRecording();
   });
   safeAdd("karaokeMixBtn", "click", async () => {
-    const { mixKaraoke } = await import("./modules/karaoke.js?v=9");
+    const { mixKaraoke } = await import("./modules/karaoke.js?v=10");
     if (typeof mixKaraoke === "function") mixKaraoke();
   });
 
