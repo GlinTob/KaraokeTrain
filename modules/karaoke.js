@@ -583,7 +583,7 @@ export async function startKaraokeRecording() {
     // detectPitch. Aplicamos una ganancia fija SOLO en la ruta de análisis;
     // la grabación sigue usando el micrófono en crudo.
     const pitchInputGain = karaokePitchDetectionAudioCtx.createGain();
-    pitchInputGain.gain.value = 1;
+    pitchInputGain.gain.value = 2;
     source1.connect(pitchInputGain);
     pitchInputGain.connect(karaokePitchDetectionAnalyser);
 
@@ -591,10 +591,10 @@ export async function startKaraokeRecording() {
       const source2 = karaokePitchDetectionAudioCtx.createMediaStreamSource(karaokeStream2);
       karaokeSplitAnalyser2 = karaokePitchDetectionAudioCtx.createAnalyser();
       karaokeSplitAnalyser2.fftSize = 2048;
-const pitchInputGain2 = karaokePitchDetectionAudioCtx.createGain();
-    pitchInputGain2.gain.value = 1;
-    source2.connect(pitchInputGain2);
-    pitchInputGain2.connect(karaokeSplitAnalyser2);
+      const pitchInputGain2 = karaokePitchDetectionAudioCtx.createGain();
+      pitchInputGain2.gain.value = 2;
+      source2.connect(pitchInputGain2);
+      pitchInputGain2.connect(karaokeSplitAnalyser2);
     }
 
     karaokeAudioController = getAudioController();
@@ -1294,7 +1294,7 @@ export async function loadKaraokeSong(id) {
       track.dataset.objectUrl = "";
       track.dataset.karaokeId = String(item.id);
       track.dataset.karaokeLoaded = "1";
-      track.volume = 0.5;
+      track.volume = 0.4;
       track.load();
 
 track.onloadedmetadata = () => {
@@ -1462,7 +1462,7 @@ export async function mixKaraoke() {
     const trackGain = offlineCtx.createGain();
     // FIX #20: equilibrio fijo voz/pista sin procesador vocal: la voz suena un
     // poquito más fuerte que la pista (~55/45). Queda a ~0.45/0.55.
-    trackGain.gain.value = 0.45;
+    trackGain.gain.value = 0.40;
     const trackSource = offlineCtx.createBufferSource();
     trackSource.buffer = trackBuffer;
     trackSource.connect(trackCompressor);
@@ -1480,7 +1480,7 @@ export async function mixKaraoke() {
 
     const voiceGain = offlineCtx.createGain();
     // FIX #20: la voz queda un poco por encima de la pista (55% vs 45%).
-    voiceGain.gain.value = 0.55;
+    voiceGain.gain.value = 0.60;
     const voiceSource = offlineCtx.createBufferSource();
     voiceSource.buffer = voiceBuffer;
     voiceSource.connect(voiceCompressor);
