@@ -22,13 +22,38 @@ export const state = {
 const allKaraokeThemes = ["theme-clasico", "theme-moderno", "theme-disco", "theme-acustico", "theme-fiesta", "theme-retrowave"];
 
 // ============================================
-// ðŸš€ ENRUTADOR DINÃMICO Y DESCARGA BAJO DEMANDA (LAZY IMPORT)
+// 🚀 ENRUTADOR DINÁMICO Y DESCARGA BAJO DEMANDA (LAZY IMPORT)
 // ============================================
+// Limpieza al salir de un tab: detiene audios/mics/renders que de otro modo
+// seguirían vivos en segundo plano (grabación karaoke, mic del afinador,
+// guía sonando, render offline de tono, test de mics).
+let currentTabId = null;
+
+async function cleanupTab(tabId) {
+  try {
+    if (tabId === "karaoke") {
+      const { destroyKaraoke } = await import("./modules/karaoke.js?v=18");
+      if (typeof destroyKaraoke === "function") destroyKaraoke();
+    } else if (tabId === "afinador") {
+      const { destroyAfinador } = await import("./modules/afinador.js?v=1");
+      if (typeof destroyAfinador === "function") destroyAfinador();
+    } else if (tabId === "cambiar-tono") {
+      const { destroyCambiarTono } = await import("./modules/cambiar-tono.js?v=6");
+      if (typeof destroyCambiarTono === "function") destroyCambiarTono();
+    } else if (tabId === "config") {
+      const { destroyConfig } = await import("./modules/config.js?v=9");
+      if (typeof destroyConfig === "function") destroyConfig();
+    }
+  } catch (e) {
+    console.warn(`No se pudo limpiar el tab [${tabId}]:`, e);
+  }
+}
+
 export async function showTab(tabId) {
   const originalTabId = String(tabId);
   const normalizedTabId = originalTabId.toLowerCase();
 
-  console.log(`\nðŸ“Œ [NavegaciÃ³n] Solicitando cambio a la pestaÃ±a: [${normalizedTabId.toUpperCase()}]`);
+  console.log(`\n📌 [Navegación] Solicitando cambio a la pestaña: [${normalizedTabId.toUpperCase()}]`);
 
   document.querySelectorAll(".tab").forEach(tab => tab.classList.remove("active"));
 
@@ -36,9 +61,14 @@ export async function showTab(tabId) {
   if (target) {
     target.classList.add("active");
   } else {
-    console.warn(`âš ï¸ No se encontrÃ³ la pestaÃ±a con ID: ${normalizedTabId}`);
+    console.warn(`⚠️ No se encontró la pestaña con ID: ${normalizedTabId}`);
     return;
   }
+
+  if (currentTabId && currentTabId !== normalizedTabId) {
+    await cleanupTab(currentTabId);
+  }
+  currentTabId = normalizedTabId;
 
   document.querySelectorAll(".sidebar button").forEach(btn => btn.classList.remove("active"));
 
