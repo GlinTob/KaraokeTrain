@@ -4,7 +4,18 @@ import { $ } from "./utils.js";
  * MÃ“DULO BIBLIOTECA â€” Gestor de Almacenamiento Remoto, SincronizaciÃ³n Supabase y Cargas R2
  */
 
-let db = null; 
+let db = null;
+
+// Escapa texto para interpolar en innerHTML (nombres de archivo vienen del
+// usuario o de la nube y podrían inyectar HTML/JS).
+export function escapeHTML(text) {
+  return String(text ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+} 
 
 export function initBiblioteca() {
   console.log("ðŸ“š [biblioteca.js] Inicializado con Ã©xito");
@@ -96,32 +107,31 @@ export async function deleteLibraryItemsFromSupabase(id) {
   if (!db) await initSupabase();
   try {
     const item = await getLibraryItemsByIdFromSupabase(id);
-    const r2Key = item?.file_path; 
+    const r2Key = item?.file_path;
 
-    // 1. Eliminar primero el registro en la base de datos de Supabase
-    const { error } = await db.from('library').delete().eq('id', id);
-    if (error) throw new Error(error.message);
-    console.log(`âœ… Registro con ID ${id} eliminado de Supabase.`);
-
-    // 2. âœ… VALIDACIÃ“N EXPLICITA: Si r2Key es null, undefined, vacÃ­o o la cadena "null", 
-    // significa que era un texto plano. Terminamos la funciÃ³n aquÃ­ sin llamar a R2.
+    // Textos planos (sin binario): solo se borra el registro.
     if (!r2Key || r2Key === "null") {
-      console.log("ðŸ“„ Archivo de texto plano local eliminado correctamente (sin interacciÃ³n con R2).");
-      return; 
+      const { error: textErr } = await db.from('library').delete().eq('id', id);
+      if (textErr) throw new Error(textErr.message);
+      console.log(`Registro con ID ${id} eliminado de Supabase (texto, sin R2).`);
+      return;
     }
 
-    // 3. Si tiene una clave real (pistas, voces), procedemos a borrar el binario en Cloudflare R2
+    // 1. Borrar PRIMERO el binario en R2. Si falla, se conserva el registro
+    // para reintentar y no queda un binario huerfano (con costo) en R2.
     if (typeof window !== 'undefined' && window.CloudflareStorage) {
-      try {
-        await window.CloudflareStorage.deleteFileFromCloudflare(r2Key);
-        console.log(`â˜ï¸ Archivo binario eliminado de Cloudflare R2: ${r2Key}`);
-      } catch (e) {
-        console.warn('No se pudo eliminar de R2:', e);
-      }
+      const ok = await window.CloudflareStorage.deleteFileFromCloudflare(r2Key);
+      if (!ok) throw new Error("No se pudo eliminar el binario de R2; el registro se conserva para reintentar.");
+      console.log(`Archivo binario eliminado de Cloudflare R2: ${r2Key}`);
     }
+
+    // 2. Luego el registro en Supabase.
+    const { error } = await db.from('library').delete().eq('id', id);
+    if (error) throw new Error(error.message + " (el binario de R2 ya fue eliminado)");
+    console.log(`Registro con ID ${id} eliminado de Supabase.`);
 
   } catch (error) {
-    console.error("âŒ Error al eliminar el registro:", error.message);
+    console.error("Error al eliminar el registro:", error.message);
     throw error;
   }
 }
@@ -197,6 +207,9 @@ export async function saveLibraryItemToSupabase({ name, type, blob, transcriptio
 
   const { filePath, fileUrl } = await window.CloudflareStorage.uploadFileToCloudflare(blob, fileName, mimeType, type); 
 
+  // Si el insert falla tras subir a R2, compensar borrando el binario para
+  // no dejar huerfanos (mismo patron que saveLibraryItemToCloudflare).
+  try {
   const { data, error } = await db
     .from("library")
     .insert([
@@ -214,6 +227,13 @@ export async function saveLibraryItemToSupabase({ name, type, blob, transcriptio
 
   if (error) throw error;
   return data?.[0]; // Retornar el registro insertado con su ID
+  } catch (insertErr) {
+    try {
+      await window.CloudflareStorage.deleteFileFromCloudflare(filePath);
+      console.log("Binario huerfano compensado en R2 tras fallo de insert.");
+    } catch (_) {}
+    throw insertErr;
+  }
 }
 
 export async function saveToLibrary(blob, options = {}) {
@@ -316,7 +336,7 @@ export async function renderLibrary(filter = "todos") {
       div.innerHTML = `
         <div class="item-info">
           <span class="item-icon">${iconoVisual}</span>
-          <span class="item-name">${item.name}</span>
+          <span class="item-name">${escapeHTML(item.name)}</span>
         </div>
         <div class="item-actions">
           ${botonCantarHTML}
@@ -590,7 +610,7 @@ function handleFileSelection(e) {
       div.className = "upload-file-item";
       div.id = `file-${i}-${file.name.replace(/[^a-zA-Z0-9]/g, "-")}`;
       div.innerHTML = `
-        <span class="file-name">ðŸ“„ ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)</span>
+        <span class="file-name">ðŸ“„ ${escapeHTML(file.name)} (${(file.size / 1024 / 1024).toFixed(2)} MB)</span>
         <span class="file-status status-pending">â³ Listo para subir</span>
       `;
       uploadFilesList.appendChild(div);
@@ -618,7 +638,7 @@ export function addFileToUploadList(container, fileName, status, index = 0) {
     div.className = "upload-file-item";
     div.id = `file-${index}-${fileName.replace(/[^a-zA-Z0-9]/g, "-")}`;
     div.innerHTML = `
-      <span class="file-name">${fileName}</span>
+      <span class="file-name">${escapeHTML(fileName)}</span>
       <span class="file-status status-${status}">â³ Pendiente</span>
     `;
     container.appendChild(div);
