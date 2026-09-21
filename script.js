@@ -5,7 +5,7 @@ export function safeAdd(id, event, handler) {
   if (el) {
     el.addEventListener(event, handler);
   } else {
-    console.warn(`âš ï¸ No se encontrÃ³ el elemento con ID: ${id} para registrar el evento [${event}]`);
+    console.warn(`⚠️ No se encontró el elemento con ID: ${id} para registrar el evento [${event}]`);
   }
 }
 
@@ -28,7 +28,7 @@ export async function showTab(tabId) {
   const originalTabId = String(tabId);
   const normalizedTabId = originalTabId.toLowerCase();
 
-  console.log(`\nðŸ“Œ [NavegaciÃ³n] Solicitando cambio a la pestaÃ±a: [${normalizedTabId.toUpperCase()}]`);
+  console.log(`⚠️ [Navegación] Solicitando cambio a la pestaña: [${normalizedTabId.toUpperCase()}]`);
 
   document.querySelectorAll(".tab").forEach(tab => tab.classList.remove("active"));
 
@@ -36,7 +36,7 @@ export async function showTab(tabId) {
   if (target) {
     target.classList.add("active");
   } else {
-    console.warn(`âš ï¸ No se encontrÃ³ la pestaÃ±a con ID: ${normalizedTabId}`);
+    console.warn(`⚠️ No se encontró la pestaña con ID: ${normalizedTabId}`);
     return;
   }
 
@@ -56,18 +56,18 @@ export async function showTab(tabId) {
 
   try {
     if (normalizedTabId === "config") {
-      console.log("âš™ï¸ [Lazy Load] Cargando configuraciones de hardware...");
+      console.log(`⚠️ [Lazy Load] Cargando configuraciones de hardware..."`);
       const { initSettings, loadAvailableMics } = await import("./modules/config.js?v=8");
       if (typeof initSettings === "function") initSettings();
       if (typeof loadAvailableMics === "function") await loadAvailableMics();
     } else if (normalizedTabId === "biblioteca") {
-      console.log("ðŸ“ [Lazy Load] Cargando visor de Base de Datos...");
+      console.log(`⚠️ [Lazy Load] Cargando visor de Base de Datos..."`);
       const { initBiblioteca, renderLibrary } = await import("./modules/biblioteca.js?v=4");
       if (typeof initBiblioteca === "function") {
         initBiblioteca();
       }
       } else if (normalizedTabId === "estudio") {
-      console.log("ðŸŽ§ [Lazy Load] Cargando entorno de sincronizaciÃ³n y listados...");
+      console.log(`⚠️ [Lazy Load] Cargando entorno de sincronización y listados..."`);
       const { initEstudio } = await import("./modules/estudio.js");
       if (typeof initEstudio === "function") {
         await initEstudio();
