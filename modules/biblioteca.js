@@ -72,7 +72,7 @@ export async function initSupabase() {
 export async function getAllLibraryItemsFromSupabase() {
   if (!db) await initSupabase();
   try {
-    const { data, error } = await db.from('library').select('*');
+    const { data, error } = await db.from('library').select('*').order('date', { ascending: false }).range(0, 199);
     if (error) throw new Error(`âŒ Error al leer la Biblioteca: ${error.message}`);
     console.log(`âœ… Se recuperaron ${data.length} elementos desde Supabase.`);
     return data;
