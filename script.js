@@ -5,7 +5,7 @@ export function safeAdd(id, event, handler) {
   if (el) {
     el.addEventListener(event, handler);
   } else {
-    console.warn(`⚠️ No se encontró el elemento con ID: ${id} para registrar el evento [${event}]`);
+    console.warn(`âš ï¸ No se encontrÃ³ el elemento con ID: ${id} para registrar el evento [${event}]`);
   }
 }
 
@@ -16,19 +16,19 @@ export const state = {
 };
 
 // FIX #6: eliminada la variable local `autoScrollEnabled` que duplicaba la de
-// `estudio.js`. Ahora el botón consulta el estado real via `toggleAutoScrollEstudio()`
-// (que retorna el valor actualizado) para evitar desincronización en hot-reload
-// o reimportaciones del módulo.
+// `estudio.js`. Ahora el botÃ³n consulta el estado real via `toggleAutoScrollEstudio()`
+// (que retorna el valor actualizado) para evitar desincronizaciÃ³n en hot-reload
+// o reimportaciones del mÃ³dulo.
 const allKaraokeThemes = ["theme-clasico", "theme-moderno", "theme-disco", "theme-acustico", "theme-fiesta", "theme-retrowave"];
 
 // ============================================
-// 🚀 ENRUTADOR DINÁMICO Y DESCARGA BAJO DEMANDA (LAZY IMPORT)
+// ðŸš€ ENRUTADOR DINÃMICO Y DESCARGA BAJO DEMANDA (LAZY IMPORT)
 // ============================================
 export async function showTab(tabId) {
   const originalTabId = String(tabId);
   const normalizedTabId = originalTabId.toLowerCase();
 
-  console.log(`\n📌 [Navegación] Solicitando cambio a la pestaña: [${normalizedTabId.toUpperCase()}]`);
+  console.log(`\nðŸ“Œ [NavegaciÃ³n] Solicitando cambio a la pestaÃ±a: [${normalizedTabId.toUpperCase()}]`);
 
   document.querySelectorAll(".tab").forEach(tab => tab.classList.remove("active"));
 
@@ -36,7 +36,7 @@ export async function showTab(tabId) {
   if (target) {
     target.classList.add("active");
   } else {
-    console.warn(`⚠️ No se encontró la pestaña con ID: ${normalizedTabId}`);
+    console.warn(`âš ï¸ No se encontrÃ³ la pestaÃ±a con ID: ${normalizedTabId}`);
     return;
   }
 
@@ -56,48 +56,48 @@ export async function showTab(tabId) {
 
   try {
     if (normalizedTabId === "config") {
-      console.log("⚙️ [Lazy Load] Cargando configuraciones de hardware...");
-      const { initSettings, loadAvailableMics } = await import("./modules/config.js?v=7");
+      console.log("âš™ï¸ [Lazy Load] Cargando configuraciones de hardware...");
+      const { initSettings, loadAvailableMics } = await import("./modules/config.js?v=8");
       if (typeof initSettings === "function") initSettings();
       if (typeof loadAvailableMics === "function") await loadAvailableMics();
     } else if (normalizedTabId === "biblioteca") {
-      console.log("📁 [Lazy Load] Cargando visor de Base de Datos...");
+      console.log("ðŸ“ [Lazy Load] Cargando visor de Base de Datos...");
       const { initBiblioteca, renderLibrary } = await import("./modules/biblioteca.js?v=4");
       if (typeof initBiblioteca === "function") {
         initBiblioteca();
       }
       } else if (normalizedTabId === "estudio") {
-      console.log("🎧 [Lazy Load] Cargando entorno de sincronización y listados...");
+      console.log("ðŸŽ§ [Lazy Load] Cargando entorno de sincronizaciÃ³n y listados...");
       const { initEstudio } = await import("./modules/estudio.js");
       if (typeof initEstudio === "function") {
         await initEstudio();
       }
     } else if (normalizedTabId === "afinador") {
-      console.log("🎵 [Lazy Load] Módulo Afinador Vocal listo.");
+      console.log("ðŸŽµ [Lazy Load] MÃ³dulo Afinador Vocal listo.");
     } else if (normalizedTabId === "cambiar-tono") {
-      console.log("🎼 [Lazy Load] Módulo Cambiar Tono listo.");
+      console.log("ðŸŽ¼ [Lazy Load] MÃ³dulo Cambiar Tono listo.");
       const { initCambiarTono, loadPitchKaraokeOptions } = await import("./modules/cambiar-tono.js?v=6");
       if (typeof initCambiarTono === "function") initCambiarTono();
       if (typeof loadPitchKaraokeOptions === "function") await loadPitchKaraokeOptions();
     } else if (normalizedTabId === "karaoke") {
-      console.log("🎤 [Lazy Load] Inicializando Canvas e Históricos de Canto...");
-      const { loadTrackOptionsInKaraoke, loadKaraokeSong } = await import("./modules/karaoke.js?v=13");
-      const { inicializarEscenarioDesdeMemoria } = await import("./modules/config.js?v=7");
+      console.log("ðŸŽ¤ [Lazy Load] Inicializando Canvas e HistÃ³ricos de Canto...");
+      const { loadTrackOptionsInKaraoke, loadKaraokeSong } = await import("./modules/karaoke.js?v=16");
+      const { inicializarEscenarioDesdeMemoria } = await import("./modules/config.js?v=8");
 
       if (typeof inicializarEscenarioDesdeMemoria === "function") inicializarEscenarioDesdeMemoria();
       if (typeof loadTrackOptionsInKaraoke === "function") await loadTrackOptionsInKaraoke();
 
       const track = $("karaokeTrack");
-      // Solo carga si tiene ID Y NO tiene el flag de prevención
+      // Solo carga si tiene ID Y NO tiene el flag de prevenciÃ³n
       if (track && track.dataset.karaokeId && !track.dataset.preventLoad && typeof loadKaraokeSong === "function") {
         await loadKaraokeSong(track.dataset.karaokeId);
       }
       // Limpiar el flag para futuras navegaciones manuales
       if (track) delete track.dataset.preventLoad;
     }
-    console.log(`✅ [Navegación] Pestaña [${normalizedTabId.toUpperCase()}] cargada y visualizada.`);
+    console.log(`âœ… [NavegaciÃ³n] PestaÃ±a [${normalizedTabId.toUpperCase()}] cargada y visualizada.`);
   } catch (error) {
-    console.error(`❌ [Lazy Load Error] Falló el módulo [${normalizedTabId}]:`, error);
+    console.error(`âŒ [Lazy Load Error] FallÃ³ el mÃ³dulo [${normalizedTabId}]:`, error);
   }
 }
 
@@ -107,9 +107,9 @@ export async function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2 
   const canvas = $("karaokeCanvas");
   if (!canvas) return;
 
-  // Cachear la referencia al renderizador para evitar un import dinámico por cada repintado
+  // Cachear la referencia al renderizador para evitar un import dinÃ¡mico por cada repintado
   if (!_karaokeRenderPincel) {
-    const { drawKaraokeMonitor: renderPincel } = await import('./modules/karaoke.js?v=13');
+    const { drawKaraokeMonitor: renderPincel } = await import('./modules/karaoke.js?v=16');
     _karaokeRenderPincel = renderPincel;
   }
   if (typeof _karaokeRenderPincel === "function") {
@@ -118,15 +118,15 @@ export async function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2 
 }
 
 function iniciarAplicacion() {
-  console.log("🏁 [karaokeTrain] El núcleo del sistema ha arrancado exitosamente.");
+  console.log("ðŸ [karaokeTrain] El nÃºcleo del sistema ha arrancado exitosamente.");
   showTab("Config");
 }
 
 // ============================================
-// DomContentLoaded — CAPA GENERAL DE INYECCIÓN DE EVENTOS
+// DomContentLoaded â€” CAPA GENERAL DE INYECCIÃ“N DE EVENTOS
 // ============================================
 document.addEventListener("DOMContentLoaded", async () => {
-  // --- INICIALIZACIÓN DE SUPABASE CON RETRY ---
+  // --- INICIALIZACIÃ“N DE SUPABASE CON RETRY ---
   const initSupabaseWithRetry = async (retries = 5, delay = 500) => {
     for (let i = 0; i < retries; i++) {
       if (window.supabase) {
@@ -134,17 +134,17 @@ document.addEventListener("DOMContentLoaded", async () => {
           const { initSupabase } = await import("./modules/biblioteca.js?v=4");
           if (typeof initSupabase === "function") {
             await initSupabase();
-            console.log("✅ Supabase inicializado correctamente.");
+            console.log("âœ… Supabase inicializado correctamente.");
             return true;
           }
         } catch (err) {
-          console.warn(`⚠️ Intento ${i + 1} de inicializar Supabase falló:`, err);
+          console.warn(`âš ï¸ Intento ${i + 1} de inicializar Supabase fallÃ³:`, err);
         }
       }
-      console.log(`⏳ Esperando a Supabase... (intento ${i + 1})`);
+      console.log(`â³ Esperando a Supabase... (intento ${i + 1})`);
       await new Promise(resolve => setTimeout(resolve, delay));
     }
-    console.error("❌ No se pudo inicializar Supabase tras varios intentos.");
+    console.error("âŒ No se pudo inicializar Supabase tras varios intentos.");
     return false;
   };
 
@@ -198,7 +198,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   }
 
-  // --- NAVEGACIÓN SIDEBAR ---
+  // --- NAVEGACIÃ“N SIDEBAR ---
   safeAdd("btnAfinador", "click", () => showTab("afinador"));
   safeAdd("btnEstudio", "click", () => showTab("estudio"));
   safeAdd("btnBiblioteca", "click", () => showTab("biblioteca"));
@@ -232,14 +232,14 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     safeAdd("toggleAutoScrollBtn", "click", async () => {
     // FIX #6: ahora pedimos a estudio.js que togglee Y nos devuelva el estado
-    // actualizado. No guardamos una copia local para evitar desincronización.
+    // actualizado. No guardamos una copia local para evitar desincronizaciÃ³n.
     const estudioModule = await import("./modules/estudio.js");
     const enabled = typeof estudioModule.toggleAutoScrollEstudio === "function"
       ? estudioModule.toggleAutoScrollEstudio()
       : !document.getElementById("toggleAutoScrollBtn")?.textContent.includes("ON");
     const btn = $("toggleAutoScrollBtn");
     if (btn) {
-      btn.textContent = enabled ? "🔒 Auto-scroll: ON" : "🔓 Auto-scroll: OFF";
+      btn.textContent = enabled ? "ðŸ”’ Auto-scroll: ON" : "ðŸ”“ Auto-scroll: OFF";
       btn.style.background = enabled ? "#f59e0b" : "#6b7280";
     }
   });
@@ -326,61 +326,61 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // --- EVENTOS KARAOKE ---
   safeAdd("karaokeTrackSelect", "change", async () => {
-    const { loadKaraokeSong } = await import("./modules/karaoke.js?v=13");
+    const { loadKaraokeSong } = await import("./modules/karaoke.js?v=16");
     const id = $("karaokeTrackSelect")?.value;
     if (id && typeof loadKaraokeSong === "function") loadKaraokeSong(id);
   });
   safeAdd("karaokeDuoSplitToggleBtn", "click", async () => {
-    const { toggleKaraokeDuoSplitMode } = await import("./modules/karaoke.js?v=13");
+    const { toggleKaraokeDuoSplitMode } = await import("./modules/karaoke.js?v=16");
     if (typeof toggleKaraokeDuoSplitMode === "function") toggleKaraokeDuoSplitMode();
   });
   safeAdd("karaokeStartBtn", "click", async () => {
-    const { startKaraokeRecording } = await import("./modules/karaoke.js?v=13");
+    const { startKaraokeRecording } = await import("./modules/karaoke.js?v=16");
     if (typeof startKaraokeRecording === "function") startKaraokeRecording();
   });
   safeAdd("karaokeStopBtn", "click", async () => {
-    const { stopKaraokeRecording } = await import("./modules/karaoke.js?v=13");
+    const { stopKaraokeRecording } = await import("./modules/karaoke.js?v=16");
     if (typeof stopKaraokeRecording === "function") stopKaraokeRecording();
   });
   safeAdd("karaokeRestartBtn", "click", async () => {
-    const { restartKaraokeRecording } = await import("./modules/karaoke.js?v=13");
+    const { restartKaraokeRecording } = await import("./modules/karaoke.js?v=16");
     if (typeof restartKaraokeRecording === "function") restartKaraokeRecording();
   });
   safeAdd("karaokeMixBtn", "click", async () => {
-    const { mixKaraoke } = await import("./modules/karaoke.js?v=13");
+    const { mixKaraoke } = await import("./modules/karaoke.js?v=16");
     if (typeof mixKaraoke === "function") mixKaraoke();
   });
 
-  // --- EVENTOS CONFIGURACIÓN HARDWARE MICS ---
+  // --- EVENTOS CONFIGURACIÃ“N HARDWARE MICS ---
   safeAdd("refreshMicsBtn", "click", async () => {
-    const { loadAvailableMics } = await import("./modules/config.js?v=7");
+    const { loadAvailableMics } = await import("./modules/config.js?v=8");
     if (typeof loadAvailableMics === "function") loadAvailableMics();
   });
   safeAdd("testMic1Btn", "click", async () => {
-    const { testMicrophone } = await import("./modules/config.js?v=7");
+    const { testMicrophone } = await import("./modules/config.js?v=8");
     if (typeof testMicrophone === "function") testMicrophone(1);
   });
   safeAdd("testMic2Btn", "click", async () => {
-    const { testMicrophone } = await import("./modules/config.js?v=7");
+    const { testMicrophone } = await import("./modules/config.js?v=8");
     if (typeof testMicrophone === "function") testMicrophone(2);
   });
   safeAdd("stopMic1TestBtn", "click", async () => {
-    const { stopMicTest } = await import("./modules/config.js?v=7");
+    const { stopMicTest } = await import("./modules/config.js?v=8");
     if (typeof stopMicTest === "function") stopMicTest();
   });
   safeAdd("stopMic2TestBtn", "click", async () => {
-    const { stopMicTest } = await import("./modules/config.js?v=7");
+    const { stopMicTest } = await import("./modules/config.js?v=8");
     if (typeof stopMicTest === "function") stopMicTest();
   });
 
   // Carga inicial diferida
   try {
-    const { initSettings, loadAvailableMics, toggleMic2Visibility } = await import("./modules/config.js?v=7");
+    const { initSettings, loadAvailableMics, toggleMic2Visibility } = await import("./modules/config.js?v=8");
     if (typeof initSettings === "function") initSettings();
     if (typeof loadAvailableMics === "function") await loadAvailableMics();
     if (typeof toggleMic2Visibility === "function") toggleMic2Visibility();
   } catch (e) {
-    console.warn("Inicialización inicial diferida para interacción con usuario.");
+    console.warn("InicializaciÃ³n inicial diferida para interacciÃ³n con usuario.");
   }
 
   iniciarAplicacion();
