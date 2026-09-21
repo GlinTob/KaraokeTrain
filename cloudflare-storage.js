@@ -285,27 +285,31 @@ async function saveLibraryItemToCloudflare({
 }
 
 /**
- * Elimina archivo de Cloudflare R2
+ * Elimina archivo de Cloudflare R2.
+ * Retorna true si se eliminó, false si no (el llamador decide: reintentar o
+ * conservar el registro). Las claves con espacios/unicode se codifican.
  */
 async function deleteFileFromCloudflare(filePath) {
   const config = getCloudflareConfig();
 
-  if (!config || !filePath) return;
+  if (!config || !filePath) return false;
 
   try {
-    const deleteUrl = `${config.baseUrl}/api/delete/${filePath}`;
+    const deleteUrl = `${config.baseUrl}/api/delete/${encodeURIComponent(filePath)}`;
     console.log(`🗑️ Eliminando: ${deleteUrl}`);
 
     const response = await fetch(deleteUrl, { method: "DELETE" });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.warn(`⚠️ Error al eliminar (pero continuando): ${errorText}`);
-    } else {
-      console.log(`🗑️ Eliminado de R2: ${filePath}`);
+      console.warn(`⚠️ Error al eliminar de R2 (${response.status}): ${errorText}`);
+      return false;
     }
+    console.log(`🗑️ Eliminado de R2: ${filePath}`);
+    return true;
   } catch (error) {
     console.warn("No se pudo eliminar de R2:", error);
+    return false;
   }
 }
 
