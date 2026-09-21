@@ -15,8 +15,6 @@ const micTestState = {
   2: { audioContext: null, stream: null, analyser: null, animationId: null, timeoutId: null }
 };
 
-let selectedAvatar = null;
-let currentAvatarCategory = "videojuegos";
 let activeAvatarUser = "P1";
 let settingsInitialized = false;
 
@@ -566,16 +564,8 @@ window.getAvatarForUser = function (user) {
   };
 };
 
-export function guardarUsuario() {
-  const nombre = $("nombreUsuario").value;
-  const avatar = selectedAvatar; // Asumiendo que ya se seleccionó uno
-  const usuario = new Persona(nombre, avatar);
-  
-  localStorage.setItem("user_profile", JSON.stringify({
-    nombre: usuario.getNombre(),
-    avatar: usuario.getAvatar()
-  }));
-}
+// NOTA: se eliminó guardarUsuario() (rota: usaba clase inexistente Persona y
+// elemento inexistente nombreUsuario; el flujo real es selectAvatar + storage).
 
 // ====================================================================
 // MICRÓFONOS
@@ -592,23 +582,11 @@ export async function loadAvailableMics() {
   }
 
   try {
-    // PRIMERO: Enumerar SIN pedir permiso (labels pueden estar vacíos sin permiso)
-    let devices = await navigator.mediaDevices.enumerateDevices();
-    let mics = devices.filter((d) => d.kind === "audioinput");
-    
-    // Si no hay labels, pedir permiso una vez y re-enumerar
-    const needsPermission = mics.some(m => !m.label);
-    if (needsPermission) {
-      try {
-        const tempStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        tempStream.getTracks().forEach(t => t.stop());
-        devices = await navigator.mediaDevices.enumerateDevices();
-        mics = devices.filter((d) => d.kind === "audioinput");
-      } catch (permErr) {
-        console.warn("Permiso de micrófono denegado, labels no disponibles:", permErr);
-        // Continuar con deviceIds aunque labels estén vacíos
-      }
-    }
+    // Sin pedir permiso al abrir Config: solo enumerar. Los labels llegan
+    // vacíos hasta que el usuario pruebe un mic (ahí se pide el permiso con
+    // explicación) y entonces se re-enumera con nombres reales.
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const mics = devices.filter((d) => d.kind === "audioinput");
 
     const mic1Select = $("mic1Select");
     const mic2Select = $("mic2Select");
@@ -626,7 +604,7 @@ export async function loadAvailableMics() {
       mics.forEach((mic, index) => {
         const option = document.createElement("option");
         option.value = mic.deviceId;
-        option.textContent = mic.label || `Micrófono ${index + 1}`;
+        option.textContent = mic.label || `Micrófono ${index + 1} (nombre al probar)`;
         selectEl.appendChild(option);
       });
 
@@ -737,14 +715,22 @@ export async function testMicrophone(micNumber) {
       audio: { deviceId: { exact: select.value }, echoCancellation: false, noiseSuppression: false, autoGainControl: true }
     });
 
-    state.audioContext = new AudioContext();
+    // Ya hay permiso: re-enumerar para mostrar los nombres reales.
+    try { await loadAvailableMics(); } catch (e) {}
+
+    const CtxCtor = window.AudioContext || window.webkitAudioContext;
+    state.audioContext = new CtxCtor();
+    if (state.audioContext.state === "suspended") {
+      await state.audioContext.resume();
+    }
     const source = state.audioContext.createMediaStreamSource(state.stream);
     state.analyser = state.audioContext.createAnalyser();
-    state.analyser.fftSize = 256; // Tamaño pequeño = muy rápido
+    state.analyser.fftSize = 512;
     source.connect(state.analyser);
 
-    const bufferLength = state.analyser.frequencyBinCount;
-    const dataArray = new Uint8Array(bufferLength);
+    // RMS temporal (como en karaoke): el promedio de bins de frecuencia
+    // incluía bandas silenciosas y marcaba bajo aunque el mic funcionara.
+    const timeData = new Float32Array(state.analyser.fftSize);
 
     if (status) status.innerText = "🎤 Probando...";
 
@@ -752,15 +738,12 @@ export async function testMicrophone(micNumber) {
       if (!state.stream) return;
       state.animationId = requestAnimationFrame(draw);
       
-      state.analyser.getByteFrequencyData(dataArray);
-      
-      // Calcular volumen promedio
+      state.analyser.getFloatTimeDomainData(timeData);
+
       let sum = 0;
-      for (let i = 0; i < bufferLength; i++) {
-        sum += dataArray[i];
-      }
-      const average = sum / bufferLength;
-      const volume = Math.min(100, (average / 128) * 100);
+      for (let i = 0; i < timeData.length; i++) sum += timeData[i] * timeData[i];
+      const rms = Math.sqrt(sum / timeData.length);
+      const volume = Math.min(100, rms * 300);
 
       if (fill) fill.style.width = volume + "%";
     }
