@@ -39,6 +39,92 @@ function resetSustain() {
 }
 
 // ==========================================================
+// SONIDOS GUÍA (tono objetivo 4-5 s + check corto al afinar)
+// ==========================================================
+
+let sfxCtx = null;
+let activeGuide = null;
+
+function getSfxCtx() {
+  if (!sfxCtx) {
+    sfxCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (sfxCtx.state === 'suspended') {
+    sfxCtx.resume().catch(() => {});
+  }
+  return sfxCtx;
+}
+
+function stopGuideTone() {
+  if (activeGuide) {
+    try {
+      activeGuide.oscs.forEach(o => { try { o.stop(0); } catch (e) {} });
+      activeGuide.gain.disconnect();
+    } catch (e) {}
+    activeGuide = null;
+  }
+}
+
+// Tono guía de la nota objetivo (seno + octava suave, con envolvente de
+// entrada/salida para no chasquear). Dura 4.5 s.
+export function playGuideTone(freq, seconds = 4.5) {
+  if (!freq || freq <= 0) return;
+  try {
+    stopGuideTone();
+    const ctx = getSfxCtx();
+    const t0 = ctx.currentTime + 0.05;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.0001, t0);
+    gain.gain.linearRampToValueAtTime(0.25, t0 + 0.3);
+    gain.gain.setValueAtTime(0.25, t0 + Math.max(0.35, seconds - 0.8));
+    gain.gain.linearRampToValueAtTime(0.0001, t0 + seconds);
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    const osc2 = ctx.createOscillator();
+    osc2.type = 'triangle';
+    osc2.frequency.value = freq * 2;
+    const g2 = ctx.createGain();
+    g2.gain.value = 0.08;
+    osc.connect(gain);
+    osc2.connect(g2);
+    g2.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(t0);
+    osc2.start(t0);
+    osc.stop(t0 + seconds + 0.1);
+    osc2.stop(t0 + seconds + 0.1);
+    activeGuide = { oscs: [osc, osc2], gain };
+    console.log(`🎵 Tono guía: ${frequencyToNoteName(freq)} (${freq.toFixed(1)} Hz, ${seconds}s)`);
+  } catch (e) {
+    console.warn('No se pudo reproducir el tono guía:', e);
+  }
+}
+
+// Check corto al llegar a la nota objetivo (dos blips ascendentes).
+export function playCheckSound() {
+  try {
+    const ctx = getSfxCtx();
+    const t0 = ctx.currentTime + 0.02;
+    [[880, 0, 0.12], [1318.5, 0.1, 0.22]].forEach(([f, off, dur]) => {
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.value = f;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t0 + off);
+      g.gain.linearRampToValueAtTime(0.2, t0 + off + 0.02);
+      g.gain.linearRampToValueAtTime(0.0001, t0 + off + dur);
+      osc.connect(g);
+      g.connect(ctx.destination);
+      osc.start(t0 + off);
+      osc.stop(t0 + off + dur + 0.05);
+    });
+  } catch (e) {
+    console.warn('No se pudo reproducir el check:', e);
+  }
+}
+
+// ==========================================================
 // UTILIDADES MUSICALES
 // ==========================================================
 
@@ -207,13 +293,16 @@ export class AfinadorVisual {
     const isTuned = Math.abs(this.cents) <= this.maxCents * 0.35;
 
     if (isTuned) {
-      if ((!this.wasTuned || this.rippleCooldown <= 0)) {
+      const freshEntry = !this.wasTuned;
+      if (freshEntry || this.rippleCooldown <= 0) {
         this.triggerTunedExplosion();
         this.triggerRipple();
         // Re-disparo cada 2 s (antes 0.8 s): con ondas de ~5 s de vida ya no
         // se acumulan decenas a la vez mientras se sostiene la nota.
         this.rippleCooldown = 2.0;
       }
+      // El check suena SOLO al entrar afinado, no en cada re-disparo.
+      if (freshEntry) playCheckSound();
       this.wasTuned = true;
 
       // Acumular ciclos consecutivos afinados
@@ -697,14 +786,12 @@ async function startAfinador() {
     if (targetNoteEl) afinadorVisual.setTargetNote(targetNoteEl.value);
     if (difficultyEl) afinadorVisual.setDifficulty(difficultyEl.value);
 
-    if (targetNoteEl) {
-      targetNoteEl.onchange = () => afinadorVisual?.setTargetNote(targetNoteEl.value);
-    }
-    if (difficultyEl) {
-      difficultyEl.onchange = () => afinadorVisual?.setDifficulty(difficultyEl.value);
-    }
+    bindAfinadorSelectors();
 
     afinadorVisual.start();
+
+    // Al pulsar Iniciar también suena la guía: el usuario escucha el objetivo.
+    if (targetNoteEl) playGuideTone(noteToFrequency(targetNoteEl.value));
   }
 
   audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -753,8 +840,34 @@ async function startAfinador() {
   }, 200);
 }
 
+// Handler compartido: actualiza el visual (si existe) y suena la guía.
+// Se usa tanto con el afinador grabando como en reposo, para que elegir la
+// nota objetivo siempre la dé a escuchar.
+function onTargetNoteChanged() {
+  const targetNoteEl = $('targetNote');
+  if (!targetNoteEl) return;
+  if (afinadorVisual) afinadorVisual.setTargetNote(targetNoteEl.value);
+  playGuideTone(noteToFrequency(targetNoteEl.value));
+}
+
+function bindAfinadorSelectors() {
+  const targetNoteEl = $('targetNote');
+  const difficultyEl = $('afinadorDifficulty');
+  if (targetNoteEl) targetNoteEl.onchange = onTargetNoteChanged;
+  if (difficultyEl) {
+    difficultyEl.onchange = () => afinadorVisual?.setDifficulty(difficultyEl.value);
+  }
+}
+
+// Para que el tono guía suene al elegir nota aunque aún no se haya pulsado
+// Iniciar (el tab Afinador carga perezoso y no hay visual todavía).
+export function initAfinadorUI() {
+  bindAfinadorSelectors();
+}
+
 function stopAfinador() {
   resetSustain();
+  stopGuideTone();
   if (pitchLoopTimeout) {
     clearTimeout(pitchLoopTimeout);
     pitchLoopTimeout = null;
