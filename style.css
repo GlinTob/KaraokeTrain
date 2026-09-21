@@ -1124,7 +1124,7 @@ audio {
   --bg-sidebar: #f5d9fa;
   --bg-card: #f5d9fa;
   --text-main: #050505;
-  --text-muted: #475569;
+  --text-muted: #7f93b0;
   --accent: #f7efa1;
   --accent-hover: #9b90b0;
   --danger: #f7b7b7;
@@ -1144,7 +1144,7 @@ body[data-theme="claro"] {
 [data-theme="claro"] .sidebar button {
   background: linear-gradient(180deg, #f7fcae 0%, #e2e8f0 100%);
   border: 1px solid #cbd5e1;
-  color: #1e293b;
+  color: #7d8da8;
   box-shadow: 0 4px 0 #94a3b8, 0 6px 12px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.8);
 }
 
