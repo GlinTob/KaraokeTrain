@@ -32,6 +32,11 @@ let karaokeChunks2 = [];
 let karaokeRecordedBlob2 = null;
 let karaokeMediaRecorder2 = null;
 let duoPitchTurn = 0;
+// Diagnóstico/endurecido dúo: P2 activo solo si su recorder arrancó de
+// verdad; combinado listo para Mezclar; watchdog por si un onstop no llega.
+let karaokeDuoP2Active = false;
+let karaokeDuoCombined = false;
+let karaokeFinalizeTimeout = null;
 let karaokePitchDetectionAudioCtx = null;
 let karaokePitchDetectionAnalyser = null;
 let karaokeSplitAnalyser2 = null;
@@ -499,33 +504,92 @@ async function combineDuoVoiceBlobs(blob1, blob2) {
   }
 }
 
-function publishVoicePreview(blob) {
+function publishVoicePreview(blob, enableMix = true) {
   const voicePlayer = $("karaokeVoicePlayer");
   if (voicePlayer) {
     voicePlayer.src = URL.createObjectURL(blob);
     voicePlayer.controls = true;
   }
   const mixBtn = $("karaokeMixBtn");
-  if (mixBtn) mixBtn.disabled = false;
+  if (mixBtn) mixBtn.disabled = !enableMix;
 }
 
-// En dúo, la vista previa solo se publica cuando AMBOS recorders entregaron
+function duoStatus(text) {
+  console.log(text);
+  const statusEl = $("karaokeStatus");
+  if (statusEl) statusEl.textContent = text;
+}
+
+function clearFinalizeWatchdog() {
+  if (karaokeFinalizeTimeout) {
+    clearTimeout(karaokeFinalizeTimeout);
+    karaokeFinalizeTimeout = null;
+  }
+}
+
+// En dúo, la vista previa final se publica cuando AMBOS recorders entregaron
 // su blob; ahí se combinan con balance automático y ese combinado es lo que
-// luego usa mixKaraoke (que no necesita cambios).
+// luego usa mixKaraoke. Si P2 nunca arrancó, se publica P1 para no perderlo.
 async function tryFinalizeDuoVoice() {
   if (!karaokeDuoSplitMode) return;
   if (karaokeMediaRecorder || karaokeMediaRecorder2) return;
-  if (!karaokeRecordedBlob || !karaokeRecordedBlob2) return;
+  if (!karaokeRecordedBlob) return;
+  if (!karaokeDuoP2Active || !karaokeRecordedBlob2) {
+    // P2 no aportó audio: se publica P1 con aviso en vez de silencio total.
+    clearFinalizeWatchdog();
+    karaokeDuoCombined = true;
+    duoStatus(`⚠️ Solo llegó la voz P1 (${karaokeRecordedBlob.size} bytes). Revisa el mic 2 en Config. Escúchala abajo.`);
+    publishVoicePreview(karaokeRecordedBlob);
+    releaseKaraokeCaptureStreams();
+    return;
+  }
   try {
     const combinado = await combineDuoVoiceBlobs(karaokeRecordedBlob, karaokeRecordedBlob2);
     karaokeRecordedBlob = combinado;
-    console.log("🎤🎤 Voces del dúo combinadas:", combinado.size, "bytes");
+    karaokeDuoCombined = true;
+    clearFinalizeWatchdog();
+    duoStatus(`✅ Dúo listo: P1+P2 combinadas (${combinado.size} bytes). Escucha tu voz abajo.`);
     publishVoicePreview(combinado);
   } catch (err) {
     console.error("No se pudieron combinar las voces del dúo:", err);
+    karaokeDuoCombined = true;
+    clearFinalizeWatchdog();
+    duoStatus(`⚠️ No se pudieron combinar; se publica la voz P1 (${karaokeRecordedBlob.size} bytes).`);
     publishVoicePreview(karaokeRecordedBlob);
   }
   releaseKaraokeCaptureStreams();
+}
+
+// Watchdog: si tras Detener un onstop no llega (navegador/timing), publicar
+// lo que haya en vez de dejar al usuario sin voz y sin mensaje.
+function scheduleFinalizeWatchdog() {
+  clearFinalizeWatchdog();
+  if (!karaokeDuoSplitMode) return;
+  karaokeFinalizeTimeout = setTimeout(() => {
+    karaokeFinalizeTimeout = null;
+    if (karaokeDuoCombined) return;
+    if (karaokeMediaRecorder || karaokeMediaRecorder2) return;
+    if (karaokeRecordedBlob && !karaokeRecordedBlob2) {
+      karaokeDuoCombined = true;
+      duoStatus(`⚠️ Solo llegó la voz P1 (${karaokeRecordedBlob.size} bytes). Escúchala abajo; revisa el mic 2.`);
+      publishVoicePreview(karaokeRecordedBlob);
+      releaseKaraokeCaptureStreams();
+    } else if (!karaokeRecordedBlob) {
+      duoStatus("❌ No llegó ninguna voz (0 chunks). Abre F12 → Consola, filtra 🎤 y envíame lo que salga.");
+      releaseKaraokeCaptureStreams();
+    }
+  }, 8000);
+}
+
+function logStreamInfo(tag, stream) {
+  try {
+    const tracks = (stream?.getAudioTracks() || []).map(t => ({
+      label: t.label, readyState: t.readyState, muted: t.muted, enabled: t.enabled
+    }));
+    console.log(`🎤 ${tag}:`, JSON.stringify(tracks));
+  } catch (e) {
+    console.warn(`🎤 ${tag}: no se pudo inspeccionar el stream.`);
+  }
 }
 
 export async function startKaraokeRecording() {
@@ -552,6 +616,9 @@ export async function startKaraokeRecording() {
     karaokeRecordedBlob = null;
     karaokeRecordedBlob2 = null;
     duoPitchTurn = 0;
+    karaokeDuoP2Active = false;
+    karaokeDuoCombined = false;
+    clearFinalizeWatchdog();
 
     // Durante una grabación nueva no hay voz lista; se habilita "Mezclar"
     // recién cuando el onstop construye el blob (FIX #18).
@@ -604,10 +671,12 @@ export async function startKaraokeRecording() {
     }
 
     karaokeStream = await requestMicStream(mic1);
+    logStreamInfo("Mic 1 abierto", karaokeStream);
 
     if (karaokeDuoSplitMode) {
       try {
         karaokeStream2 = await requestMicStream(mic2);
+        logStreamInfo("Mic 2 abierto", karaokeStream2);
       } catch (err2) {
         console.error("No se pudo abrir el segundo micrófono:", err2);
         if (karaokeStream) { karaokeStream.getTracks().forEach(t => t.stop()); karaokeStream = null; }
@@ -657,12 +726,17 @@ const pitchInputGain2 = karaokePitchDetectionAudioCtx.createGain();
       karaokeChunks = [];
       karaokeChunks2 = [];
       karaokeRecordedBlob2 = null;
+      karaokeDuoP2Active = false;
+      karaokeDuoCombined = false;
       const sessionChunks = karaokeChunks;
       karaokeMediaRecorder = new MediaRecorder(karaokeStream);
       window.karaokeMediaRecorder = karaokeMediaRecorder;
       const recorder = karaokeMediaRecorder;
       karaokeMediaRecorder.ondataavailable = (e) => {
         if (e.data && e.data.size > 0) sessionChunks.push(e.data);
+      };
+      karaokeMediaRecorder.onerror = (e) => {
+        console.error("🎤 Error en MediaRecorder P1:", e?.error || e);
       };
       karaokeMediaRecorder.onstop = () => {
         // FIX #18: el blob de la voz solo está completo AQUÍ (evento async
@@ -680,6 +754,11 @@ const pitchInputGain2 = karaokePitchDetectionAudioCtx.createGain();
             publishVoicePreview(karaokeRecordedBlob);
             releaseKaraokeCaptureStreams();
           } else {
+            // Vista previa temporal de P1 (sin habilitar Mezclar): si P2
+            // falla, el usuario al menos escucha esta voz con su aviso.
+            publishVoicePreview(karaokeRecordedBlob, false);
+            const statusEl = $("karaokeStatus");
+            if (statusEl) statusEl.textContent = "🎤 Voz P1 lista… esperando la voz P2 para combinar.";
             tryFinalizeDuoVoice();
           }
         } else {
@@ -697,31 +776,47 @@ const pitchInputGain2 = karaokePitchDetectionAudioCtx.createGain();
       // Dúo: recorder independiente para el mic 2. Cada mic se codifica con
       // su propio reloj (USB, 3.5mm o mixto) y se combinan al final con
       // balance automático; así ningún mic queda fuera de la mezcla.
+      // Va en try/catch PROPIO: si P2 falla al construir, P1 sigue grabando
+      // y al final se publica P1 con aviso (nunca silencio total).
       if (karaokeDuoSplitMode && karaokeStream2) {
-        const sessionChunksB = karaokeChunks2;
-        karaokeChunks2 = sessionChunksB;
-        karaokeMediaRecorder2 = new MediaRecorder(karaokeStream2);
-        const recorderB = karaokeMediaRecorder2;
-        karaokeMediaRecorder2.ondataavailable = (e) => {
-          if (e.data && e.data.size > 0) sessionChunksB.push(e.data);
-        };
-        karaokeMediaRecorder2.onstop = () => {
-          if (karaokeMediaRecorder2 !== recorderB) return;
-          if (sessionChunksB.length) {
-            karaokeRecordedBlob2 = new Blob(sessionChunksB, { type: recorderB.mimeType || "audio/webm" });
-            console.log("🎤 Voz P2 finalizada:", sessionChunksB.length, "chunks,", karaokeRecordedBlob2.size, "bytes, mime:", recorderB.mimeType || "audio/webm");
-          } else {
-            console.warn("🎤 No se capturaron chunks de voz P2.");
-          }
+        try {
+          const liveTracks = karaokeStream2.getAudioTracks().filter(t => t.readyState === "live");
+          if (!liveTracks.length) throw new Error("El stream del mic 2 no tiene pistas de audio activas.");
+          karaokeMediaRecorder2 = new MediaRecorder(karaokeStream2);
+          const recorderB = karaokeMediaRecorder2;
+          const sessionChunksB = karaokeChunks2;
+          karaokeMediaRecorder2.ondataavailable = (e) => {
+            if (e.data && e.data.size > 0) sessionChunksB.push(e.data);
+          };
+          karaokeMediaRecorder2.onerror = (e) => {
+            console.error("🎤 Error en MediaRecorder P2:", e?.error || e);
+          };
+          karaokeMediaRecorder2.onstop = () => {
+            if (karaokeMediaRecorder2 !== recorderB) return;
+            if (sessionChunksB.length) {
+              karaokeRecordedBlob2 = new Blob(sessionChunksB, { type: recorderB.mimeType || "audio/webm" });
+              console.log("🎤 Voz P2 finalizada:", sessionChunksB.length, "chunks,", karaokeRecordedBlob2.size, "bytes, mime:", recorderB.mimeType || "audio/webm");
+            } else {
+              console.warn("🎤 No se capturaron chunks de voz P2.");
+            }
+            karaokeMediaRecorder2 = null;
+            tryFinalizeDuoVoice();
+          };
+          karaokeMediaRecorder2.start(500);
+          karaokeDuoP2Active = true;
+        } catch (errRec2) {
+          console.error("🎤 No se pudo grabar el mic 2, se continúa solo con P1:", errRec2);
           karaokeMediaRecorder2 = null;
-          tryFinalizeDuoVoice();
-        };
-        karaokeMediaRecorder2.start(500);
+          karaokeDuoP2Active = false;
+          const statusEl = $("karaokeStatus");
+          if (statusEl) statusEl.textContent = "⚠️ El mic 2 no pudo grabarse; se graba solo P1. Revisa Config.";
+        }
       }
     } catch (e) {
       console.warn("MediaRecorder no disponible en este navegador:", e);
       karaokeMediaRecorder = null;
       karaokeMediaRecorder2 = null;
+      karaokeDuoP2Active = false;
       window.karaokeMediaRecorder = null;
     }
 
@@ -898,6 +993,9 @@ export function stopKaraokeRecording() {
   const pendingB = recorderB && recorderB.state !== "inactive";
   if (!pendingA && !pendingB) {
     releaseKaraokeCaptureStreams();
+  } else if (karaokeDuoSplitMode) {
+    // Watchdog por si algún onstop no llega: publica lo que haya.
+    scheduleFinalizeWatchdog();
   }
 
   if (karaokePitchDetectionAudioCtx && karaokePitchDetectionAudioCtx.state !== "closed") {
@@ -959,6 +1057,9 @@ export async function restartKaraokeRecording() {
   karaokeChunks2 = [];
   karaokeRecordedBlob = null;
   karaokeRecordedBlob2 = null;
+  karaokeDuoP2Active = false;
+  karaokeDuoCombined = false;
+  clearFinalizeWatchdog();
 
   const statusEl = $("karaokeStatus");
   if (statusEl) statusEl.textContent = "Estado: Reiniciando grabación...";
@@ -1465,6 +1566,18 @@ export async function mixKaraoke() {
     stopKaraokeRecording();
     for (let i = 0; i < 10 && !karaokeRecordedBlob; i++) {
       await new Promise(r => setTimeout(r, 150));
+    }
+  }
+
+  // Dúo: esperar a que P1+P2 se combinen antes de mezclar. Sin esta espera,
+  // "Mezclar" podía usar la vista previa temporal de P1 y dejar fuera a P2.
+  if (karaokeDuoSplitMode && karaokeDuoP2Active && !karaokeDuoCombined) {
+    for (let i = 0; i < 40 && !karaokeDuoCombined; i++) {
+      await new Promise(r => setTimeout(r, 250));
+    }
+    if (!karaokeDuoCombined) {
+      alert("⚠️ Aún se están combinando las voces del dúo. Espera unos segundos y vuelve a pulsar Mezclar.");
+      return;
     }
   }
 
