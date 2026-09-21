@@ -1802,9 +1802,8 @@ export async function mixKaraoke() {
     trackCompressor.release.value = 0.2;
 
     const trackGain = offlineCtx.createGain();
-    // FIX #20: equilibrio fijo voz/pista sin procesador vocal: la voz suena un
-    // poquito más fuerte que la pista (~55/45). Queda a ~0.45/0.55.
-    trackGain.gain.value = 0.45;
+    // Voz al frente (~65/38): la pista acompaña sin tapar las notas suaves.
+    trackGain.gain.value = 0.38;
     const trackSource = offlineCtx.createBufferSource();
     trackSource.buffer = trackBuffer;
     trackSource.connect(trackCompressor);
@@ -1820,22 +1819,26 @@ export async function mixKaraoke() {
     voiceCompressor.attack.value = 0.003;
     voiceCompressor.release.value = 0.25;
 
-    const voiceGain = offlineCtx.createGain();
-    // FIX #20: la voz queda un poco por encima de la pista (55% vs 45%).
-    // Maquillaje automático: si la voz llega bajita (mics flojos, Windows
-    // bajo), se sube hasta un RMS objetivo antes del compresor (máx +20 dB).
-    // Sin esto, una voz a -55 dBFS pasa el compresor sin tocarla e inaudible.
+    // Maquillaje ANTES del compresor: levanta las notas suaves hasta el rango
+    // de trabajo del compresor (que luego controla los picos). Así lo suave
+    // no se tapa con la pista y lo fuerte no clipea.
     const voiceSingRms = singingRmsOfBuffer(voiceBuffer);
-    const voiceMakeup = (voiceSingRms > 0.0008 && voiceSingRms < 0.09)
-      ? Math.min(10, 0.09 / voiceSingRms)
+    const voiceMakeup = (voiceSingRms > 0.0008 && voiceSingRms < 0.11)
+      ? Math.min(12, 0.11 / voiceSingRms)
       : 1;
     if (voiceMakeup > 1) console.log(`🎤 Maquillaje de voz en mezcla: rms=${voiceSingRms.toFixed(4)} x${voiceMakeup.toFixed(1)}`);
-    voiceGain.gain.value = 0.55 * voiceMakeup;
+    const makeupGain = offlineCtx.createGain();
+    makeupGain.gain.value = voiceMakeup;
+
+    const voiceLevel = offlineCtx.createGain();
+    // Voz al frente de la mezcla.
+    voiceLevel.gain.value = 0.65;
     const voiceSource = offlineCtx.createBufferSource();
     voiceSource.buffer = voiceBuffer;
-    voiceSource.connect(voiceCompressor);
-    voiceCompressor.connect(voiceGain);
-    voiceGain.connect(offlineCtx.destination);
+    voiceSource.connect(makeupGain);
+    makeupGain.connect(voiceCompressor);
+    voiceCompressor.connect(voiceLevel);
+    voiceLevel.connect(offlineCtx.destination);
 
     trackSource.start(0);
     voiceSource.start(0);
