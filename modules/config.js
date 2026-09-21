@@ -706,10 +706,10 @@ export async function testMicrophone(micNumber) {
   try {
     const state = micTestState[micNumber];
     
-    // Sin procesamiento del navegador para que el test muestre el nivel real
-    // (igual que en karaoke: el AEC/NS/AGC recorta y deja bajo el mic 2).
+    // Igual que en karaoke: sin AEC/NS (recortan al segundo cantante) pero
+    // con AGC (sin él muchos mics quedan en ~-55 dBFS, inaudibles).
     state.stream = await navigator.mediaDevices.getUserMedia({
-      audio: { deviceId: { exact: select.value }, echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+      audio: { deviceId: { exact: select.value }, echoCancellation: false, noiseSuppression: false, autoGainControl: true }
     });
 
     state.audioContext = new AudioContext();
