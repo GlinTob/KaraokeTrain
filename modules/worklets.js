@@ -50,10 +50,13 @@ const _addModuleCache = new WeakMap();
 function resolveWorkletUrl(globalKey, relativePath) {
   const globalUrl = typeof window !== "undefined" ? window[globalKey] : null;
   if (globalUrl && typeof globalUrl === "string" && globalUrl.trim()) {
-    // Si es una URL absoluta (http://, https://, /) úsala tal cual
-    if (/^(https?:)?\/\//i.test(globalUrl) || globalUrl.startsWith("/")) {
-      return globalUrl;
+    const trimmed = globalUrl.trim();
+    // Absoluta (http/https///) tal cual; relativa se resuelve contra este
+    // módulo (antes se descartaba y se perdía el ?v= del cache-busting).
+    if (/^(https?:)?\/\//i.test(trimmed) || trimmed.startsWith("/")) {
+      return trimmed;
     }
+    return new URL(trimmed, import.meta.url).href;
   }
   return new URL(relativePath, import.meta.url).href;
 }
@@ -86,12 +89,22 @@ async function addModuleOnce(audioContext, url, processorName) {
 
   console.log(`🔧 [worklets] Cargando ${processorName} desde ${url}`);
 
-  const loadPromise = audioContext.audioWorklet
-    .addModule(url)
+  // Timeout: en Safari con MIME/CORS malo addModule puede no resolverse nunca
+  // y bloquear karaoke/cambiar-tono sin mensaje.
+  const timeoutMs = 15000;
+  let timeoutId = null;
+  const loadPromise = Promise.race([
+    audioContext.audioWorklet.addModule(url),
+    new Promise((_, reject) => {
+      timeoutId = setTimeout(() => reject(new Error(`Tiempo agotado cargando ${processorName} (${timeoutMs}ms). Revisa MIME/CORS del worklet.`)), timeoutMs);
+    })
+  ])
     .then(() => {
+      if (timeoutId) clearTimeout(timeoutId);
       console.log(`✅ [worklets] ${processorName} registrado.`);
     })
     .catch((err) => {
+      if (timeoutId) clearTimeout(timeoutId);
       // Si falla, eliminamos la entrada cacheada para permitir reintento.
       perContextCache.delete(url);
       console.warn(`❌ [worklets] Error cargando ${processorName}:`, err);
@@ -134,11 +147,13 @@ export async function loadVocalGateProcessor(audioContext) {
  * @returns {AudioWorkletNode}
  */
 export function createVocalGateNode(audioContext, channels) {
+  const ch = Number.isInteger(channels) && channels >= 1 && channels <= 32 ? channels : 2;
   return new AudioWorkletNode(audioContext, PROCESSOR_NAMES.vocalGate, {
     numberOfInputs: 1,
     numberOfOutputs: 1,
-    outputChannelCount: [channels],
-    channelCount: channels,
-    channelCountMode: "explicit"
+    outputChannelCount: [ch],
+    channelCount: ch,
+    channelCountMode: "explicit",
+    channelInterpretation: "speakers"
   });
 }
