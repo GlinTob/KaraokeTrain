@@ -53,19 +53,32 @@ class VocalGateProcessor extends AudioWorkletProcessor {
 
     const blockSize = output[0] ? output[0].length : 128;
 
-    // 1. RMS del bloque (usamos canal 0; la forma de onda es la misma en mono)
+    // 1. RMS del bloque sobre TODOS los canales (antes solo canal 0: una voz
+    // paneada a R con L en silencio cerraba el gate por error). Se toman
+    // hasta blockSize muestras por canal y se ignoran no-finitos para que un
+    // NaN no envenene la envolvente y cierre el gate ~0.8 s.
     let sum = 0;
-    const ch0 = input[0];
-    for (let i = 0; i < blockSize; i++) {
-      const s = ch0[i];
-      sum += s * s;
+    let count = 0;
+    for (let c = 0; c < input.length; c++) {
+      const ch = input[c];
+      if (!ch) continue;
+      const n = Math.min(ch.length, blockSize);
+      for (let i = 0; i < n; i++) {
+        const s = ch[i];
+        if (!Number.isFinite(s)) continue;
+        sum += s * s;
+        count++;
+      }
     }
-    const rms = Math.sqrt(sum / blockSize);
+    const rms = count > 0 ? Math.sqrt(sum / count) : 0;
 
-    // 2. Envolvente de nivel en dB (attack rápido, release lento)
+    // 2. Envolvente de nivel en dB (attack rápido, release lento). Si el rms
+    // no es finito se conserva la envolvente previa en vez de caer a -100.
     const rmsDb = rms > 0 ? 20 * Math.log10(rms) : -100;
-    const coef = rmsDb > this._envDb ? this._attackCoef : this._releaseCoef;
-    this._envDb += (rmsDb - this._envDb) * coef;
+    if (Number.isFinite(rmsDb)) {
+      const coef = rmsDb > this._envDb ? this._attackCoef : this._releaseCoef;
+      this._envDb += (rmsDb - this._envDb) * coef;
+    }
 
     // 3. Ganancia objetivo según curva gate/expansor
     let targetG;
@@ -78,7 +91,10 @@ class VocalGateProcessor extends AudioWorkletProcessor {
       targetG = Math.pow(10, gDb / 20);
     }
 
-    // 4. Aplico la ganancia con suavizado por muestra (sin clicks)
+    // 4. Aplico la ganancia con suavizado por muestra (sin clicks).
+    // Se itera sobre el mínimo de longitudes y se rellena con 0: longitudes
+    // dispares daban undefined*gain = NaN en la salida.
+    if (!Number.isFinite(this._gain)) this._gain = 1;
     const gCoef = targetG > this._gain ? this._gAttackCoef : this._gReleaseCoef;
     const outCount = output.length;
     const firstIn = input[0] === undefined ? output[0] : input[0];
@@ -87,7 +103,8 @@ class VocalGateProcessor extends AudioWorkletProcessor {
       this._gain += (targetG - this._gain) * gCoef;
       for (let c = 0; c < outCount; c++) {
         const src = c < input.length ? input[c] : firstIn;
-        output[c][i] = src[i] * this._gain;
+        const v = src && i < src.length ? src[i] : 0;
+        output[c][i] = Number.isFinite(v) ? v * this._gain : 0;
       }
     }
 
