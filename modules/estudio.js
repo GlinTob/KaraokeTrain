@@ -36,6 +36,9 @@ let tapSyncTimestamps = [];
 let tapSyncCurrentIndex = 0;
 let currentTapPart = "P1";
 let tapSyncParts = [];
+// Token de sesión: si el usuario cancela durante los await de arranque, el
+// resolve tardío no debe hacer play() ni re-enganchar el teclado.
+let tapSyncSession = 0;
 
 
 export function initEstudio() {
@@ -768,6 +771,7 @@ export async function startTapSync() {
   tapSyncParts = [];
   currentTapPart = "P1";
   tapSyncMode = true;
+  const session = ++tapSyncSession;
 
   updateTapPartButtonsUI();
 
@@ -783,7 +787,9 @@ export async function startTapSync() {
   }
 
   if (tapSyncLines.length === 0) {
+    tapSyncMode = false;
     alert("⚠️ No hay elementos de texto válidos para sincronizar.");
+    restoreTapSyncButtons();
     return;
   }
 
@@ -792,39 +798,53 @@ export async function startTapSync() {
 
   console.log('⏳ Esperando a que el audio cargue en segundo plano...');
 
-  await new Promise((resolve, reject) => {
-    if (activePlayer.readyState >= 3) {
-      window.activeTapPlayer = activePlayer;
-      resolve();
-      return;
-    }
-
-    const timeout = setTimeout(() => reject(new Error('Audio load timeout (60s)')), 60000);
-
-    activePlayer.addEventListener('canplay', () => {
-      clearTimeout(timeout);
-      window.activeTapPlayer = activePlayer;
-      resolve();
-    }, { once: true });
-
-    activePlayer.addEventListener('error', () => {
-      clearTimeout(timeout);
-      const mediaError = activePlayer.error;
-      reject(new Error('Audio error: ' + (mediaError ? getMediaErrorDesc(mediaError.code) : "Desconocido")));
-    }, { once: true });
-
-    activePlayer.load();
-  });
-
   try {
+    await new Promise((resolve, reject) => {
+      if (activePlayer.readyState >= 3) {
+        window.activeTapPlayer = activePlayer;
+        resolve();
+        return;
+      }
+
+      const timeout = setTimeout(() => reject(new Error('Audio load timeout (60s)')), 60000);
+
+      activePlayer.addEventListener('canplay', () => {
+        clearTimeout(timeout);
+        window.activeTapPlayer = activePlayer;
+        resolve();
+      }, { once: true });
+
+      activePlayer.addEventListener('error', () => {
+        clearTimeout(timeout);
+        const mediaError = activePlayer.error;
+        reject(new Error('Audio error: ' + (mediaError ? getMediaErrorDesc(mediaError.code) : "Desconocido")));
+      }, { once: true });
+
+      activePlayer.load();
+    });
+
+    // Si se canceló durante la espera, no hacer play ni enganchar teclado.
+    if (!tapSyncMode || session !== tapSyncSession) return;
+
     await activePlayer.play();
   } catch (e) {
+    tapSyncMode = false;
     alert('❌ No se pudo reproducir el audio de taps: ' + e.message);
+    restoreTapSyncButtons();
     return;
   }
 
+  if (!tapSyncMode || session !== tapSyncSession) return;
+
   document.removeEventListener("keydown", handleTapSyncKeypress, { capture: true });
   document.addEventListener("keydown", handleTapSyncKeypress, { capture: true });
+}
+
+// Restaura los botones de tap-sync sin borrar el progreso (taps e índice).
+function restoreTapSyncButtons() {
+  if ($("startTapSyncBtn")) $("startTapSyncBtn").style.display = "inline-block";
+  if ($("cancelTapSyncBtn")) $("cancelTapSyncBtn").style.display = "none";
+  if ($("tapSyncActive")) $("tapSyncActive").style.display = "none";
 }
 
 export function handleTapSyncKeypress(e) {
@@ -832,6 +852,15 @@ export function handleTapSyncKeypress(e) {
 
   const key = e.key;
   const code = e.code;
+  const isEscape = code === "Escape" || key === "Escape";
+
+  // No robar teclas mientras se escribe en campos de texto (el espacio en el
+  // editor de letra registraba taps fantasmas). Escape siempre funciona.
+  if (!isEscape) {
+    const t = e.target;
+    if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
+    if (t && t.tagName === "BUTTON" && t.id !== "tapBeatBtn") return;
+  }
 
   if (code === "Space" || key === " ") {
     e.preventDefault();
@@ -860,7 +889,7 @@ export function handleTapSyncKeypress(e) {
     return;
   }
 
-  if (code === "Escape" || key === "Escape") {
+  if (isEscape) {
     e.preventDefault();
     cancelTapSync();
   }
@@ -868,6 +897,7 @@ export function handleTapSyncKeypress(e) {
 
 export function cancelTapSync() {
   tapSyncMode = false;
+  tapSyncSession++;
   const player = window.activeTapPlayer || $("selectedVoicePlayer") || $("player");
   if (player) {
     try {
@@ -880,6 +910,28 @@ export function cancelTapSync() {
   if ($("cancelTapSyncBtn")) $("cancelTapSyncBtn").style.display = "none";
   if ($("tapSyncActive")) $("tapSyncActive").style.display = "none";
   console.log("⏹️ Sesión de marcación de taps cancelada.");
+}
+
+// Vuelve a la sesión de taps en curso sin borrar el progreso (taps, índice,
+// parte). Se usa al responder "No" en el confirm o cuando falta el currentId.
+export function resumeTapSync() {
+  tapSyncMode = true;
+  tapSyncSession++;
+  updateTapSyncDisplay();
+  if ($("tapSyncActive")) $("tapSyncActive").style.display = "block";
+  if ($("tapSyncResult")) $("tapSyncResult").style.display = "none";
+  if ($("cancelTapSyncBtn")) $("cancelTapSyncBtn").style.display = "inline-block";
+  if ($("startTapSyncBtn")) $("startTapSyncBtn").style.display = "none";
+  document.removeEventListener("keydown", handleTapSyncKeypress, { capture: true });
+  document.addEventListener("keydown", handleTapSyncKeypress, { capture: true });
+  const player = window.activeTapPlayer || $("selectedVoicePlayer") || $("player");
+  if (player && player.src) {
+    try {
+      const p = player.play();
+      if (p && typeof p.catch === "function") p.catch(() => {});
+    } catch (e) {}
+  }
+  console.log("▶️ Sesión de taps reanudada sin perder el progreso.");
 }
 
 export function setCurrentTapPart(part) {
@@ -903,6 +955,13 @@ export function recordTap() {
 
   const currentTime = Number(player.currentTime);
   if (!Number.isFinite(currentTime) || currentTime < 0) return;
+
+  // Taps monótonos con intervalo mínimo: los dobles taps accidentales
+  // generaban palabras de duración 0 o solapadas.
+  const last = tapSyncTimestamps.length ? tapSyncTimestamps[tapSyncTimestamps.length - 1] : -1;
+  const dur = Number(player.duration);
+  if (currentTime < last + 0.05) return;
+  if (Number.isFinite(dur) && dur > 0 && currentTime > dur) return;
 
   tapSyncTimestamps.push(currentTime);
   tapSyncParts.push(currentTapPart);
@@ -965,7 +1024,8 @@ export async function finishTapSync() {
       `Actualmente: ${tapSyncTimestamps.length} / ${tapSyncLines.length} ${tipoUnidad}\n\n` +
       `¿Deseas aplicar de todos modos?`
     )) {
-      cancelTapSync();
+      // "No" = seguir donde iba (sin borrar taps), no cancelar todo.
+      resumeTapSync();
       return;
     }
   }
@@ -982,6 +1042,18 @@ export async function finishTapSync() {
   if ($("cancelTapSyncBtn")) $("cancelTapSyncBtn").style.display = "none";
   if ($("startTapSyncBtn")) $("startTapSyncBtn").style.display = "inline-block";
 
+  const currentId = selectedVoiceId || selectedTextId;
+  if (!currentId) {
+    // Flujo válido (letra pegada + pista, sin exportar desde Biblioteca):
+    // antes moría en silencio. Avisar qué falta sin borrar los taps.
+    const statusId = selectedVoiceId ? "selectedVoiceStatus" : "selectedTextStatus";
+    const status = $(statusId);
+    if (status) status.textContent = "Estado: ⚠️ guarda la letra/voz en Biblioteca y vuelve a cargar para sincronizar.";
+    alert("⚠️ Para terminar la sincronización, la voz o la letra deben venir de la Biblioteca (cárgalas en el Estudio y repite los taps). Tus taps se conservan.");
+    resumeTapSync();
+    return;
+  }
+
   const statusId = selectedVoiceId ? "selectedVoiceStatus" : "selectedTextStatus";
   const status = $(statusId);
   if (status) {
@@ -992,9 +1064,6 @@ export async function finishTapSync() {
   const avgInterval = tapSyncTimestamps.length >= 2
     ? (tapSyncTimestamps[tapSyncTimestamps.length - 1] - tapSyncTimestamps[0]) / (tapSyncTimestamps.length - 1)
     : (audioDuration || 3.0);
-
-  const currentId = selectedVoiceId || selectedTextId;
-  if (!currentId) return;
 
   try {
     const item = await getLibraryItemsByIdFromSupabase(currentId);
