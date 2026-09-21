@@ -638,6 +638,18 @@ export async function loadAvailableMics() {
     populateMicSelect(mic1Select, "karaokeTrain_mic1");
     populateMicSelect(mic2Select, "karaokeTrain_mic2");
 
+    // Dúo agnóstico al hardware: por defecto Mic 1 ≠ Mic 2 cuando hay 2+
+    // dispositivos (USB, 3.5mm o mixto). Si ambos quedan iguales, el dúo
+    // falla o duplica el mismo hardware.
+    if (mic1Select && mic2Select && mics.length > 1 && mic1Select.value && mic1Select.value === mic2Select.value) {
+      const otro = mics.find((m) => m.deviceId !== mic1Select.value);
+      if (otro) {
+        mic2Select.value = otro.deviceId;
+        localStorage.setItem("karaokeTrain_mic2", otro.deviceId);
+        console.log("🎙️ Mic 2 ajustado a un dispositivo distinto para el dúo:", otro.label || otro.deviceId);
+      }
+    }
+
     console.log("🎙️ Micrófonos detectados y sincronizados:", mics.length);
   } catch (error) {
     console.error("Error crítico al enumerar los micrófonos del sistema:", error);
@@ -670,6 +682,10 @@ export function saveMicSelection(micNumber) {
   if (!select) return;
 
   localStorage.setItem(storageKey, select.value);
+  const otroSelect = $(micNumber === 1 ? "mic2Select" : "mic1Select");
+  if (otroSelect && otroSelect.value && otroSelect.value === select.value) {
+    console.warn("⚠️ Mic 1 y Mic 2 son el mismo dispositivo: el dúo necesita dos micrófonos distintos.");
+  }
   showSaveNotification();
 }
 
@@ -690,8 +706,10 @@ export async function testMicrophone(micNumber) {
   try {
     const state = micTestState[micNumber];
     
+    // Sin procesamiento del navegador para que el test muestre el nivel real
+    // (igual que en karaoke: el AEC/NS/AGC recorta y deja bajo el mic 2).
     state.stream = await navigator.mediaDevices.getUserMedia({
-      audio: { deviceId: { exact: select.value } }
+      audio: { deviceId: { exact: select.value }, echoCancellation: false, noiseSuppression: false, autoGainControl: false }
     });
 
     state.audioContext = new AudioContext();
