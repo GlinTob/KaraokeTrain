@@ -2,6 +2,7 @@ import { $ } from "./utils.js";
 import { getLibraryItemsByTypeFromSupabase, getLibraryItemsByIdFromSupabase, renderLibrary } from "./biblioteca.js?v=4";
 import { loadKaraokeSong } from "./karaoke.js?v=18";
 import { loadPitchShifterProcessor } from "./worklets.js?v=5";
+import { getAudioController } from "./audio-controller.js";
 
 /**
  * MÃ“DULO CAMBIAR TONO â€” Modulador de frecuencia por semitonos en archivos de audio decodificados
@@ -394,9 +395,16 @@ export async function savePitchShiftedToLibrary() {
       return;
     }
     if (status) status.textContent = "Estado: 💾 codificando WAV…";
-    // Ceder un frame para que el estado pinte antes del bucle pesado.
+    // Ceder un frame para que el estado pinte antes del trabajo pesado.
     await new Promise(r => setTimeout(r, 30));
-    const wavBlob = audioBufferToWavBlob(renderedBuffer);
+    // Codificar en el worker (no bloquea la UI como el bucle manual).
+    let wavBlob;
+    try {
+      wavBlob = await getAudioController().encodeWavToBlob(renderedBuffer);
+    } catch (encodeErr) {
+      console.warn("Encode en worker falló, usando codificador local:", encodeErr);
+      wavBlob = audioBufferToWavBlob(renderedBuffer);
+    }
     if (status) status.textContent = `Estado: ☁️ subiendo a la nube (${(wavBlob.size / 1048576).toFixed(1)} MB, puede tardar)…`;
 
     const nameInput = $("pitchSaveName");
