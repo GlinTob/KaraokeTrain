@@ -173,7 +173,9 @@ class PitchShifterProcessor extends AudioWorkletProcessor {
       if (peakIndexShifted > magLen) break;
 
       let startIndex = 0;
-      let endIndex = this.N;
+      // Tope en Nyquist (magLen): más allá solo hay espejo conjugado; sin
+      // tope ese contenido se pliega al rango audible como aspereza metálica.
+      let endIndex = magLen;
       if (i > 0) {
         const peakIndexBefore = this.peakIndexes[i - 1];
         startIndex = peakIndex - Math.floor((peakIndex - peakIndexBefore) / 2);
@@ -255,7 +257,10 @@ class PitchShifterProcessor extends AudioWorkletProcessor {
       ola[i] += (re[i] / N) * this.hann[i] * (BOOST / NB_OVERLAPS);
     }
 
-    this.timeCursor += HOP_SIZE;
+    // NOTA: timeCursor NO avanza aquí. Todos los canales comparten el mismo
+    // cursor temporal; avanzarlo por canal (2×HOP por bloque en estéreo)
+    // rompía la corrección de fase e^{j·Δω·timeCursor} y el estéreo sonaba
+    // entrecortado/vibrante. Avanza una vez por frame en process().
   }
 
   process(inputs, outputs, parameters) {
@@ -291,9 +296,12 @@ class PitchShifterProcessor extends AudioWorkletProcessor {
     const headIn = this.headIn + block;
     this.headIn = headIn;
 
-    // 2. Procesar frames completos (hop = block de Web Audio)
+    // 2. Procesar frames completos (hop = block de Web Audio).
+    // timeCursor avanza UNA vez por frame (no por canal): todos los canales
+    // comparten la misma referencia temporal para la corrección de fase.
     while (this.frameStart + this.N <= headIn) {
       for (let c = 0; c < numCh; c++) this._processFrame(c, ratio);
+      this.timeCursor += HOP_SIZE;
       this.frameStart += HOP_SIZE;
     }
 
