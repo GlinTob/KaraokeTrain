@@ -6,7 +6,7 @@ import { getLibraryItemsByIdFromSupabase, getLibraryItemsByTypeFromSupabase, sav
 // El encode WAV ahora corre en el worker (encodeWavToBlob) para no bloquear
 // el hilo principal con mezclas largas.
 import { getAudioController } from "./audio-controller.js";
-import { getSelectedMicId } from "./config.js?v=8";
+import { getSelectedMicId } from "./config.js?v=9";
 import { midiToNoteName } from "./afinador.js?v=1";
 
 let textSegments = [];
@@ -428,11 +428,13 @@ function updateDuoLevels() {
   setBarWidth("karaokeDuoMic2Level", karaokeSplitAnalyser2);
 }
 
-// Constraints agnósticos al hardware (USB / 3.5mm / mixto): sin
-// procesamiento del navegador. El AEC/NS/AGC por defecto toma al segundo
-// cantante como "eco/ruido" y lo deja bajo y entrecortado.
+// Constraints agnósticos al hardware (USB / 3.5mm / mixto): SIN cancelación
+// de eco ni supresión de ruido (el AEC/NS toma al segundo cantante como
+// "eco/ruido" y lo deja bajo y entrecortado), pero CON control automático
+// de ganancia: sin AGC el nivel crudo de muchos mics queda en ~-55 dBFS
+// (inaudible) y ningún balance posterior lo rescata.
 function buildMicConstraints(micId) {
-  const base = { echoCancellation: false, noiseSuppression: false, autoGainControl: false };
+  const base = { echoCancellation: false, noiseSuppression: false, autoGainControl: true };
   if (micId) return { audio: { ...base, deviceId: { exact: micId } } };
   return { audio: { ...base } };
 }
@@ -460,6 +462,25 @@ function rmsOfAudioBuffer(buffer) {
   return Math.sqrt(sum / data.length);
 }
 
+// RMS robusto (percentil 90 por ventanas de 100 ms): las pausas entre frases
+// no diluyen la medida, así el balance y la normalización usan el nivel REAL
+// del canto y no el silencio. Agnóstico al hardware.
+function singingRmsOfBuffer(buffer) {
+  if (!buffer || !buffer.length) return 0;
+  const data = buffer.getChannelData(0);
+  const win = Math.max(1, Math.floor(buffer.sampleRate / 10));
+  const rmsList = [];
+  for (let start = 0; start < data.length; start += win) {
+    const end = Math.min(data.length, start + win);
+    let sum = 0;
+    for (let i = start; i < end; i++) sum += data[i] * data[i];
+    rmsList.push(Math.sqrt(sum / (end - start)));
+  }
+  if (!rmsList.length) return 0;
+  rmsList.sort((a, b) => a - b);
+  return rmsList[Math.min(rmsList.length - 1, Math.floor(rmsList.length * 0.9))];
+}
+
 // Mezcla las dos voces del dúo en un solo blob WAV con balance automático
 // de niveles: el mic más bajito (p.ej. 3.5mm frente a USB) se sube hasta
 // +12 dB para igualarlo al más fuerte. Así el fix no depende del hardware.
@@ -470,15 +491,31 @@ async function combineDuoVoiceBlobs(blob1, blob2) {
       decodeCtx.decodeAudioData((await blob1.arrayBuffer()).slice(0)),
       decodeCtx.decodeAudioData((await blob2.arrayBuffer()).slice(0))
     ]);
-    const rms1 = rmsOfAudioBuffer(buf1);
-    const rms2 = rmsOfAudioBuffer(buf2);
-    const SILENCE_FLOOR = 0.005;
+    const rms1 = singingRmsOfBuffer(buf1);
+    const rms2 = singingRmsOfBuffer(buf2);
+    // Piso de silencio realista: los mics loguearon RMS ~0.001 cantando flojo.
+    const SILENCE_FLOOR = 0.0008;
+    const VOICE_TARGET = 0.07;
     let g1 = 1, g2 = 1;
-    if (rms1 > SILENCE_FLOOR && rms2 > SILENCE_FLOOR) {
-      if (rms1 >= rms2) g2 = Math.min(4, rms1 / rms2);
-      else g1 = Math.min(4, rms2 / rms1);
+    const audible1 = rms1 > SILENCE_FLOOR;
+    const audible2 = rms2 > SILENCE_FLOOR;
+    if (audible1 && audible2) {
+      // Igualar el mic bajito al fuerte (hasta +18 dB) y luego llevar el
+      // conjunto al nivel objetivo (hasta +23 dB extra).
+      if (rms1 >= rms2) g2 = Math.min(8, rms1 / rms2);
+      else g1 = Math.min(8, rms2 / rms1);
+      const master = Math.min(20, VOICE_TARGET / Math.max(rms1 * g1, rms2 * g2));
+      g1 *= master;
+      g2 *= master;
+    } else if (audible1 || audible2) {
+      const loud = Math.max(rms1, rms2);
+      const master = Math.min(20, VOICE_TARGET / loud);
+      g1 *= master;
+      g2 *= master;
+    } else {
+      console.warn("🎤🎤 Ambas voces bajo el piso de silencio: acerca los mics y sube el volumen de entrada en Windows.");
     }
-    const HEADROOM = 0.8;
+    const HEADROOM = 0.9;
     const sampleRate = buf1.sampleRate;
     const length = Math.max(buf1.length, buf2.length);
     const offline = new OfflineAudioContext(1, length, sampleRate);
@@ -1682,7 +1719,15 @@ export async function mixKaraoke() {
 
     const voiceGain = offlineCtx.createGain();
     // FIX #20: la voz queda un poco por encima de la pista (55% vs 45%).
-    voiceGain.gain.value = 0.55;
+    // Maquillaje automático: si la voz llega bajita (mics flojos, Windows
+    // bajo), se sube hasta un RMS objetivo antes del compresor (máx +20 dB).
+    // Sin esto, una voz a -55 dBFS pasa el compresor sin tocarla e inaudible.
+    const voiceSingRms = singingRmsOfBuffer(voiceBuffer);
+    const voiceMakeup = (voiceSingRms > 0.0008 && voiceSingRms < 0.09)
+      ? Math.min(10, 0.09 / voiceSingRms)
+      : 1;
+    if (voiceMakeup > 1) console.log(`🎤 Maquillaje de voz en mezcla: rms=${voiceSingRms.toFixed(4)} x${voiceMakeup.toFixed(1)}`);
+    voiceGain.gain.value = 0.55 * voiceMakeup;
     const voiceSource = offlineCtx.createBufferSource();
     voiceSource.buffer = voiceBuffer;
     voiceSource.connect(voiceCompressor);
