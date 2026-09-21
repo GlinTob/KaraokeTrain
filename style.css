@@ -1361,10 +1361,10 @@ body[data-theme="otono"] {
 }
 
 .theme-preview.oscuro .pv-sidebar,
-.theme-preview.oscuro .pv-content { background: #0f172a; }
-.theme-preview.oscuro .pv-sidebar .pv-bar { background: #1e293b; }
-.theme-preview.oscuro .pv-content .pv-line { background: #334155; }
-.theme-preview.oscuro .pv-block { background: #22c55e; }
+.theme-preview.oscuro .pv-content { background: #d9a3f7; }
+.theme-preview.oscuro .pv-sidebar .pv-bar { background: #eebcf7; }
+.theme-preview.oscuro .pv-content .pv-line { background: #f3daf7; }
+.theme-preview.oscuro .pv-block { background: #f4e4f7; }
 
 .theme-preview.claro .pv-sidebar,
 .theme-preview.claro .pv-content { background: #ffffff; }
