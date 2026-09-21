@@ -20,6 +20,7 @@ export function initCambiarTono() {
 }
 
 export function destroyCambiarTono() {
+  pitchRenderSession++;
   stopPitchShifted();
 
   if (pitchAudioContext && pitchAudioContext.state !== "closed") {
@@ -51,6 +52,9 @@ let pitchGainNode = null;
 let pitchIsPlaying = false;
 let pitchStartPending = false;
 let pitchLastSavedId = null;
+// Token anti-zombi: si el usuario cambia de tab a mitad del render offline,
+// el save continúa en segundo plano. Se invalida en destroyCambiarTono.
+let pitchRenderSession = 0;
 
 function getNetSemitones() {
   const up = parseInt(($("pitchUpSelect")?.value) || "0", 10);
@@ -372,6 +376,7 @@ export async function savePitchShiftedToLibrary() {
 
     // FIX: Bypass si no hay cambio de tono (|semitones| < 0.5)
     // Evita procesamiento innecesario y preserva la calidad original.
+    const renderSession = pitchRenderSession;
     let renderedBuffer;
     if (Math.abs(semitones) < 0.5) {
       renderedBuffer = pitchAudioBuffer;
@@ -381,6 +386,12 @@ export async function savePitchShiftedToLibrary() {
       renderedBuffer = await renderPitchShiftOffline(pitchAudioBuffer, semitones, (p) => {
         if (status) status.textContent = `Estado: 🔄 procesando audio con el nuevo tono… ${Math.round(p * 100)}%`;
       });
+    }
+    // Si se cambió de tab durante el render, no seguir (ni codificar ni subir).
+    if (renderSession !== pitchRenderSession) {
+      console.log("🧹 Render de tono descartado: se cambió de pestaña.");
+      if (status) status.textContent = "Estado: cancelado (cambiaste de pestaña).";
+      return;
     }
     if (status) status.textContent = "Estado: 💾 codificando WAV…";
     // Ceder un frame para que el estado pinte antes del bucle pesado.
