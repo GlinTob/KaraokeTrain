@@ -11,9 +11,12 @@ import { getAudioController } from "./audio-controller.js";
 export function initCambiarTono() {
   console.log("ðŸŽ¼ [cambiar-tono.js] Inicializado con Ã©xito");
 
+  const semiSelect = $("pitchSemitones");
+  // Compatibilidad con la UI anterior de dos selectores (ya retirada).
   const upSelect = $("pitchUpSelect");
   const downSelect = $("pitchDownSelect");
 
+  if (semiSelect) semiSelect.onchange = onPitchSelectsChange;
   if (upSelect) upSelect.onchange = onPitchSelectsChange;
   if (downSelect) downSelect.onchange = onPitchSelectsChange;
 
@@ -37,8 +40,10 @@ export function destroyCambiarTono() {
   pitchLastSavedId = null;
 
   // Limpiar handlers del DOM
+  const semiSelect = $("pitchSemitones");
   const upSelect = $("pitchUpSelect");
   const downSelect = $("pitchDownSelect");
+  if (semiSelect) semiSelect.onchange = null;
   if (upSelect) upSelect.onchange = null;
   if (downSelect) downSelect.onchange = null;
 }
@@ -58,6 +63,13 @@ let pitchLastSavedId = null;
 let pitchRenderSession = 0;
 
 function getNetSemitones() {
+  // Control único -12…+12. Se mantiene lectura de los selectores viejos por
+  // compatibilidad (si existieran, se suman como antes).
+  const single = $("pitchSemitones");
+  if (single) {
+    const v = parseInt(single.value || "0", 10);
+    return Number.isFinite(v) ? Math.max(-12, Math.min(12, v)) : 0;
+  }
   const up = parseInt(($("pitchUpSelect")?.value) || "0", 10);
   const down = parseInt(($("pitchDownSelect")?.value) || "0", 10);
   return up - down;
