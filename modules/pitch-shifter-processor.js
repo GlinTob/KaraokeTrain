@@ -282,15 +282,22 @@ class PitchShifterProcessor extends AudioWorkletProcessor {
         const dst = output[c];
         for (let i = 0; i < block; i++) dst[i] = src[i] || 0;
       }
+      // Purga: al volver a ratio!=1 la cola vieja del OLA sonaría como burst.
+      for (let c = 0; c < this.outBuf.length; c++) {
+        if (this.outBuf[c]) this.outBuf[c].fill(0);
+      }
       return true;
     }
 
-    // 1. Append de entrada al anillo
+    // 1. Append de entrada al anillo. Se filtra Infinity (truthy y envenena
+    // la FFT y el acumulador OLA para siempre vía copyWithin); NaN ya lo
+    // tragaba el || 0.
     for (let c = 0; c < numCh; c++) {
       const src = input && input[c] ? input[c] : null;
       const ring = this.inRing[c];
       for (let i = 0; i < block; i++) {
-        ring[(this.headIn + i) % RING_IN] = src ? src[i] || 0 : 0;
+        const v = src ? src[i] : 0;
+        ring[(this.headIn + i) % RING_IN] = Number.isFinite(v) ? v : 0;
       }
     }
     const headIn = this.headIn + block;
