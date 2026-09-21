@@ -110,7 +110,11 @@ export class AfinadorVisual {
     this.maxAxisSparks = 200;
 
     this.burstParticles = [];
+    this.maxBurstParticles = 160;
     this.ripples = [];
+    // Tope de ondas: sin tope, sostener la nota acumula ondas con shadowBlur
+    // y el RAF se ralentiza hasta casi congelarse.
+    this.maxRipples = 12;
 
     this.particleAccum = 0;
     this.rippleAccum = 0;
@@ -203,10 +207,12 @@ export class AfinadorVisual {
     const isTuned = Math.abs(this.cents) <= this.maxCents * 0.35;
 
     if (isTuned) {
-      if (!this.wasTuned && this.rippleCooldown <= 0) {
+      if ((!this.wasTuned || this.rippleCooldown <= 0)) {
         this.triggerTunedExplosion();
         this.triggerRipple();
-        this.rippleCooldown = 0.8;
+        // Re-disparo cada 2 s (antes 0.8 s): con ondas de ~5 s de vida ya no
+        // se acumulan decenas a la vez mientras se sostiene la nota.
+        this.rippleCooldown = 2.0;
       }
       this.wasTuned = true;
 
@@ -237,8 +243,8 @@ export class AfinadorVisual {
     const cx = this.width / 2;
     const cy = this.height * 0.55;
 
-    for (let i = 0; i < 60; i++) {
-      const angle = (Math.PI * 2 * i) / 60 + Math.random() * 0.12;
+    for (let i = 0; i < 45; i++) {
+      const angle = (Math.PI * 2 * i) / 45 + Math.random() * 0.12;
       const speed = 100 + Math.random() * 300;
       const color = Math.random() > 0.35 ? this.colors.marker : this.colors.axis;
 
@@ -253,6 +259,11 @@ export class AfinadorVisual {
         alpha: 1,
         color
       });
+    }
+    // Tope: la voz real oscila en el borde del umbral y re-dispara la
+    // explosión a cada re-entrada; sin tope las partículas crecen sin cota.
+    if (this.burstParticles.length > this.maxBurstParticles) {
+      this.burstParticles.splice(0, this.burstParticles.length - this.maxBurstParticles);
     }
   }
 
@@ -273,8 +284,12 @@ export class AfinadorVisual {
         baseAlpha: 0.85 - i * 0.08,
         lineWidth: 4 - i * 0.5,
         maxRadius: maxRadius * 1.3,
-        speed: 35 + Math.random() * 25
+        // Más rápidas (vida ~4-5 s en vez de ~8-9 s): menos ondas vivas a la vez.
+        speed: 70 + Math.random() * 40
       });
+    }
+    if (this.ripples.length > this.maxRipples) {
+      this.ripples.splice(0, this.ripples.length - this.maxRipples);
     }
   }
 
@@ -430,17 +445,20 @@ export class AfinadorVisual {
     ctx.fillStyle = 'rgba(148, 163, 184, 0.45)';
     ctx.fillRect(cx - 38, cy - 10, 76, 20);
 
-    // Ondas tipo agua
+    // Ondas tipo agua. Sin shadowBlur: la sombra por onda es lo más caro del
+    // frame y con ondas acumuladas congelaba el RAF al sostener la nota. El
+    // brillo se finge con un segundo trazo ancho de baja alfa (barato).
     this.ripples.forEach(r => {
-      ctx.save();
-      ctx.strokeStyle = `rgba(34, 197, 94, ${r.alpha})`;
-      ctx.lineWidth = r.lineWidth;
-      ctx.shadowColor = 'rgba(34, 197, 94, 0.55)';
-      ctx.shadowBlur = 14;
+      ctx.strokeStyle = `rgba(34, 197, 94, ${r.alpha * 0.3})`;
+      ctx.lineWidth = r.lineWidth + 6;
       ctx.beginPath();
       ctx.arc(r.x, r.y, r.radius, 0, Math.PI * 2);
       ctx.stroke();
-      ctx.restore();
+      ctx.strokeStyle = `rgba(34, 197, 94, ${r.alpha})`;
+      ctx.lineWidth = r.lineWidth;
+      ctx.beginPath();
+      ctx.arc(r.x, r.y, r.radius, 0, Math.PI * 2);
+      ctx.stroke();
     });
 
     // Chispas del eje
