@@ -4,7 +4,19 @@
 bower_components
 node_modules
 .env
+.env.*.local
+.dev.vars
 
 # Generated files
 .psci
 output
+
+# Herramientas y despliegue
+.wrangler/
+.vercel/
+separador/.venv/
+*.log
+
+# Sistema
+Thumbs.db
+.DS_Store
