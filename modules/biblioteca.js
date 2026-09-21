@@ -1,13 +1,13 @@
 import { $ } from "./utils.js"; 
 
 /** 
- * MÓDULO BIBLIOTECA — Gestor de Almacenamiento Remoto, Sincronización Supabase y Cargas R2
+ * MÃ“DULO BIBLIOTECA â€” Gestor de Almacenamiento Remoto, SincronizaciÃ³n Supabase y Cargas R2
  */
 
 let db = null; 
 
 export function initBiblioteca() {
-  console.log("📚 [biblioteca.js] Inicializado con éxito");
+  console.log("ðŸ“š [biblioteca.js] Inicializado con Ã©xito");
 
   const fileInput = $("libraryFileInput");
   const selectBtn = $("selectLibraryFileBtn");
@@ -44,16 +44,16 @@ export function initBiblioteca() {
 }
 
 // ============================================
-// ☁️ INTERACCIONES DIRECTAS CON SUPABASE Y R2
+// â˜ï¸ INTERACCIONES DIRECTAS CON SUPABASE Y R2
 // ============================================ 
 
 export async function initSupabase() {
   if (typeof window.supabaseApp !== "undefined" || typeof window.getSupabaseClient === "function") {
     db = window.getSupabaseClient ? window.getSupabaseClient() : window.supabaseApp;
-    console.log("🚀 Base de datos Supabase conectada en Biblioteca");
+    console.log("ðŸš€ Base de datos Supabase conectada en Biblioteca");
     return db;
   } else {
-    console.error("❌ Error: No se encontró la configuración de Supabase.");
+    console.error("âŒ Error: No se encontrÃ³ la configuraciÃ³n de Supabase.");
     throw new Error("Supabase configuration missing");
   }
 } 
@@ -62,8 +62,8 @@ export async function getAllLibraryItemsFromSupabase() {
   if (!db) await initSupabase();
   try {
     const { data, error } = await db.from('library').select('*');
-    if (error) throw new Error(`❌ Error al leer la Biblioteca: ${error.message}`);
-    console.log(`✅ Se recuperaron ${data.length} elementos desde Supabase.`);
+    if (error) throw new Error(`âŒ Error al leer la Biblioteca: ${error.message}`);
+    console.log(`âœ… Se recuperaron ${data.length} elementos desde Supabase.`);
     return data;
   } catch (error) {
     console.error(error.message);
@@ -81,9 +81,9 @@ export async function updateLibraryItemsFromSupabase(id, changes) {
       .select(); 
 
     if (error) throw new Error(error.message);
-    if (!data || data.length === 0) throw new Error(`❌ No se encontró el ítem con ID: ${id}`);
+    if (!data || data.length === 0) throw new Error(`âŒ No se encontrÃ³ el Ã­tem con ID: ${id}`);
 
-    console.log("✅ Registro actualizado con éxito en Supabase");
+    console.log("âœ… Registro actualizado con Ã©xito en Supabase");
     return data[0];
 
   } catch (error) {
@@ -101,12 +101,12 @@ export async function deleteLibraryItemsFromSupabase(id) {
     // 1. Eliminar primero el registro en la base de datos de Supabase
     const { error } = await db.from('library').delete().eq('id', id);
     if (error) throw new Error(error.message);
-    console.log(`✅ Registro con ID ${id} eliminado de Supabase.`);
+    console.log(`âœ… Registro con ID ${id} eliminado de Supabase.`);
 
-    // 2. ✅ VALIDACIÓN EXPLICITA: Si r2Key es null, undefined, vacío o la cadena "null", 
-    // significa que era un texto plano. Terminamos la función aquí sin llamar a R2.
+    // 2. âœ… VALIDACIÃ“N EXPLICITA: Si r2Key es null, undefined, vacÃ­o o la cadena "null", 
+    // significa que era un texto plano. Terminamos la funciÃ³n aquÃ­ sin llamar a R2.
     if (!r2Key || r2Key === "null") {
-      console.log("📄 Archivo de texto plano local eliminado correctamente (sin interacción con R2).");
+      console.log("ðŸ“„ Archivo de texto plano local eliminado correctamente (sin interacciÃ³n con R2).");
       return; 
     }
 
@@ -114,14 +114,14 @@ export async function deleteLibraryItemsFromSupabase(id) {
     if (typeof window !== 'undefined' && window.CloudflareStorage) {
       try {
         await window.CloudflareStorage.deleteFileFromCloudflare(r2Key);
-        console.log(`☁️ Archivo binario eliminado de Cloudflare R2: ${r2Key}`);
+        console.log(`â˜ï¸ Archivo binario eliminado de Cloudflare R2: ${r2Key}`);
       } catch (e) {
         console.warn('No se pudo eliminar de R2:', e);
       }
     }
 
   } catch (error) {
-    console.error("❌ Error al eliminar el registro:", error.message);
+    console.error("âŒ Error al eliminar el registro:", error.message);
     throw error;
   }
 }
@@ -129,7 +129,7 @@ export async function deleteLibraryItemsFromSupabase(id) {
 export async function getLibraryItemsByTypeFromSupabase(type) {
   if (!db) await initSupabase();
   try {
-    // ✅ PERMISOS FLEXIBLES: Si el frontend pide "texto", buscamos tanto "texto" como "letra" en Supabase
+    // âœ… PERMISOS FLEXIBLES: Si el frontend pide "texto", buscamos tanto "texto" como "letra" en Supabase
     let query = db.from('library').select('*');
     
     if (type === "texto" || type === "letra" || type === "letras") {
@@ -139,9 +139,9 @@ export async function getLibraryItemsByTypeFromSupabase(type) {
     }
 
     const { data, error } = await query;
-    if (error) throw new Error(`❌ Error de Supabase: ${error.message}`);
+    if (error) throw new Error(`âŒ Error de Supabase: ${error.message}`);
     
-    console.log(`🔍 Buscando '${type}': se encontraron ${data.length} coincidencias.`);
+    console.log(`ðŸ” Buscando '${type}': se encontraron ${data.length} coincidencias.`);
     return data;
   } catch (error) {
     console.error(error.message);
@@ -154,7 +154,7 @@ export async function getLibraryItemsByIdFromSupabase(id) {
   try {
     const { data, error } = await db.from('library').select('*').eq('id', id).single();
     if (error) throw new Error(error.message);
-    if (!data) throw new Error(`❌ No se encontró ningún elemento con el ID: ${id}`);
+    if (!data) throw new Error(`âŒ No se encontrÃ³ ningÃºn elemento con el ID: ${id}`);
     return data;
   } catch (error) {
     console.error(error.message);
@@ -167,7 +167,7 @@ export async function saveLibraryItemToSupabase({ name, type, blob, transcriptio
 
   const mimeType = blob.type || "application/octet-stream";
   
-  // 1. Obtener extensión correcta basada en el MIME Type
+  // 1. Obtener extensiÃ³n correcta basada en el MIME Type
   const extension = mimeType.includes("wav") ? "wav" 
     : mimeType.includes("mpeg") || mimeType.includes("mp3") ? "mp3" 
     : mimeType.includes("webm") ? "webm" 
@@ -175,12 +175,12 @@ export async function saveLibraryItemToSupabase({ name, type, blob, transcriptio
     : mimeType.includes("mp4") || mimeType.includes("m4a") ? "m4a" 
     : "bin"; 
 
-  // 2. Quitar la extensión original si el nombre ya la incluye (ej: "pista.mp3" -> "pista")
+  // 2. Quitar la extensiÃ³n original si el nombre ya la incluye (ej: "pista.mp3" -> "pista")
   let baseName = name;
   if (name.toLowerCase().endsWith(`.${extension}`)) {
     baseName = name.substring(0, name.length - (extension.length + 1));
   } else if (name.match(/\.[a-zA-Z0-9]{3,4}$/)) {
-    // Por si trae otra extensión diferente (ej: .mpeg o .txt), se la removemos también
+    // Por si trae otra extensiÃ³n diferente (ej: .mpeg o .txt), se la removemos tambiÃ©n
     baseName = name.substring(0, name.lastIndexOf('.'));
   }
 
@@ -188,12 +188,12 @@ export async function saveLibraryItemToSupabase({ name, type, blob, transcriptio
   let cleanName = baseName
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-zA-Z0-9_]/g, "_") // Reemplazar caracteres inválidos por underscore
+    .replace(/[^a-zA-Z0-9_]/g, "_") // Reemplazar caracteres invÃ¡lidos por underscore
     .replace(/_+/g, "_"); 
 
-  // 4. Unir el nombre limpio con la extensión final una sola vez
+  // 4. Unir el nombre limpio con la extensiÃ³n final una sola vez
   const fileName = `${cleanName}.${extension}`;
-  console.log(`📤 Generando archivo seguro: ${fileName}`);
+  console.log(`ðŸ“¤ Generando archivo seguro: ${fileName}`);
 
   const { filePath, fileUrl } = await window.CloudflareStorage.uploadFileToCloudflare(blob, fileName, mimeType, type); 
 
@@ -201,7 +201,7 @@ export async function saveLibraryItemToSupabase({ name, type, blob, transcriptio
     .from("library")
     .insert([
       {
-        name: baseName, // Guardamos el nombre limpio sin extensión en la BD
+        name: baseName, // Guardamos el nombre limpio sin extensiÃ³n en la BD
         type,
         file_path: filePath,
         file_url: fileUrl,
@@ -218,7 +218,7 @@ export async function saveLibraryItemToSupabase({ name, type, blob, transcriptio
 
 export async function saveToLibrary(blob, options = {}) {
   if (!blob) {
-    console.error("❌ No hay audio para guardar");
+    console.error("âŒ No hay audio para guardar");
     return;
   } 
 
@@ -231,7 +231,7 @@ export async function saveToLibrary(blob, options = {}) {
       metadata: { textoPlano: options.textoPlano || null }
     }); 
 
-        console.log("✅ Guardado en biblioteca correctamente (Supabase + Cloudflare R2)");
+        console.log("âœ… Guardado en biblioteca correctamente (Supabase + Cloudflare R2)");
 
     const filtroActual = options.type || 'todos';
     await renderLibrary(filtroActual);
@@ -239,12 +239,12 @@ export async function saveToLibrary(blob, options = {}) {
 
   } catch (error) {
     console.error("Error detallado:", error);
-    alert("❌ No se pudo guardar en la nube: " + error.message);
+    alert("âŒ No se pudo guardar en la nube: " + error.message);
   }
 } 
 
 // ============================================
-// 🎨 RENDERIZADO Dinámico de la Interfaz
+// ðŸŽ¨ RENDERIZADO DinÃ¡mico de la Interfaz
 // ============================================ 
 
 export async function renderLibrary(filter = "todos") {
@@ -265,7 +265,7 @@ export async function renderLibrary(filter = "todos") {
 
   try {
     const library = await getAllLibraryItemsFromSupabase();
-    // ✅ CORRECCIÓN DE FILTRO: Mapeamos los filtros visuales con los datos reales
+    // âœ… CORRECCIÃ“N DE FILTRO: Mapeamos los filtros visuales con los datos reales
     const filteredItems = library.filter(item => {
       if (filter === "todos") return true;
   
@@ -287,28 +287,28 @@ export async function renderLibrary(filter = "todos") {
       return item.type === filter;
     });
 
-    // ✅ CONTADOR: Refleja el número de archivos según la carpeta activa
+    // âœ… CONTADOR: Refleja el nÃºmero de archivos segÃºn la carpeta activa
     const countEl = document.getElementById("libraryCount");
     if (countEl) countEl.textContent = String(filteredItems.length);
     
     filteredItems.forEach(item => {
       const div = document.createElement("div");
-      div.className = "library-item"; // Conserva tus estilos neón oscuros
+      div.className = "library-item"; // Conserva tus estilos neÃ³n oscuros
   
-      // 1. Selección visual del icono según tu interfaz
-      let iconoVisual = "🎵";
+      // 1. SelecciÃ³n visual del icono segÃºn tu interfaz
+      let iconoVisual = "ðŸŽµ";
       if (item.type === "letra" || item.type === "texto" || item.type === "texto_plano") {
-        iconoVisual = "📄";
+        iconoVisual = "ðŸ“„";
       } else if (item.type === "karaoke" || item.isSincronizada) {
-        iconoVisual = "🎤";
+        iconoVisual = "ðŸŽ¤";
       }
 
-      // 2. ✅ COMPROBACIÓN CRÍTICA: Si el archivo ya está sincronizado por Taps, 
-      // preparamos el botón rosa de exportación al monitor de canto
+      // 2. âœ… COMPROBACIÃ“N CRÃTICA: Si el archivo ya estÃ¡ sincronizado por Taps, 
+      // preparamos el botÃ³n rosa de exportaciÃ³n al monitor de canto
       let botonCantarHTML = "";
         if (item.isSincronizada || item.type === "karaoke" || filter === "karaoke") {
           botonCantarHTML = `
-          <button class="send-to-monitor-btn" data-id="${item.id}">↪️🎤 Cantar</button>
+          <button class="send-to-monitor-btn" data-id="${item.id}">â†ªï¸ðŸŽ¤ Cantar</button>
         `;
       }
 
@@ -320,20 +320,20 @@ export async function renderLibrary(filter = "todos") {
         </div>
         <div class="item-actions">
           ${botonCantarHTML}
-          <button class="delete-library-btn" data-id="${item.id}">🗑️</button>
+          <button class="delete-library-btn" data-id="${item.id}">ðŸ—‘ï¸</button>
         </div>
       `;
 
-      // 4. ✅ CAPTURAR EL CLIC DEL BOTÓN ROSA DE EXPORTACIÓN
+      // 4. âœ… CAPTURAR EL CLIC DEL BOTÃ“N ROSA DE EXPORTACIÃ“N
       if (item.isSincronizada || item.type === "karaoke" || filter === "karaoke") {
         const btnCantar = div.querySelector(".send-to-monitor-btn");
         if (btnCantar) {
           btnCantar.addEventListener("click", async (e) => {
             e.stopPropagation(); // Evita interferencias con otros clics de la tarjeta
-            console.log(`🚀 [Biblioteca] Exportando al Monitor Karaoke: ${item.name}`);
+            console.log(`ðŸš€ [Biblioteca] Exportando al Monitor Karaoke: ${item.name}`);
         
             try {
-              // LLAMAMOS AL PROCESO DE REDIRECCIÓN AUTOMÁTICA
+              // LLAMAMOS AL PROCESO DE REDIRECCIÃ“N AUTOMÃTICA
               await enviarAlMonitorKaraoke(item);
             } catch (err) {
               console.error("Error al exportar:", err);
@@ -345,12 +345,12 @@ export async function renderLibrary(filter = "todos") {
       container.appendChild(div);
     });
 
-    // Volver a enlazar los eventos de eliminación a los nuevos botones creados
+    // Volver a enlazar los eventos de eliminaciÃ³n a los nuevos botones creados
     asignarEventosBiblioteca(filter);
     
   } catch (err) {
     console.error("Error al renderizar biblioteca:", err);
-    container.innerHTML = "❌ Error al cargar los elementos de la biblioteca.";
+    container.innerHTML = "âŒ Error al cargar los elementos de la biblioteca.";
   }
 }
 
@@ -358,7 +358,7 @@ export function asignarEventosBiblioteca(filter) {
   document.querySelectorAll(".delete-library-btn").forEach((btn) => {
     btn.removeEventListener("click", btn._handler);
     btn._handler = async () => {
-      if (confirm("¿Estás seguro de eliminar este archivo?")) {
+      if (confirm("Â¿EstÃ¡s seguro de eliminar este archivo?")) {
         const id = btn.dataset.id;
         await deleteLibraryItem(id, filter);
       }
@@ -371,10 +371,10 @@ export async function deleteLibraryItem(id, currentFilter = 'todos') {
   try {
     await deleteLibraryItemsFromSupabase(id);
     await renderLibrary(currentFilter);
-    console.log(`✅ Archivo ${id} eliminado correctamente.`);
+    console.log(`âœ… Archivo ${id} eliminado correctamente.`);
   } catch (error) {
     console.error("Error al eliminar:", error);
-    alert("❌ No se pudo eliminar el archivo. Inténtalo de nuevo.");
+    alert("âŒ No se pudo eliminar el archivo. IntÃ©ntalo de nuevo.");
   }
 }
 
@@ -386,14 +386,14 @@ export async function saveManualFileToLibrary() {
   const type = typeSelect?.value || "audio";
 
   if (!files || files.length === 0) {
-    alert(type === "texto" || type === "texto_plano" || type === "ultrastar_txt" ? "⚠️ Selecciona un .txt" : "⚠️ Selecciona al menos un archivo");
+    alert(type === "texto" || type === "texto_plano" || type === "ultrastar_txt" ? "âš ï¸ Selecciona un .txt" : "âš ï¸ Selecciona al menos un archivo");
     return;
   }
 
-  // ✅ CORRECCIÓN 1: Homologar los tipos de texto para que coincidan con la validación
+  // âœ… CORRECCIÃ“N 1: Homologar los tipos de texto para que coincidan con la validaciÃ³n
   const validation = validateFilesForUpload(files, type);
   if (!validation.valid) {
-    alert("❌ " + validation.error);
+    alert("âŒ " + validation.error);
     return;
   }
 
@@ -403,17 +403,17 @@ export async function saveManualFileToLibrary() {
       await import("./estudio.js");
     }
   } catch (e) {
-    console.warn("⚠️ No se pudo pre-cargar estudio.js:", e);
+    console.warn("âš ï¸ No se pudo pre-cargar estudio.js:", e);
   }
 
   if (!window.CloudflareStorage?.getCloudflareConfig) {
-    showStatus("❌ Cloudflare R2 no está configurado. Define VITE_CLOUDFLARE_R2_BASE_URL en .env y reinicia el servidor.", "error");
+    showStatus("âŒ Cloudflare R2 no estÃ¡ configurado. Define VITE_CLOUDFLARE_R2_BASE_URL en .env y reinicia el servidor.", "error");
     return;
   }
 
   const r2Config = window.CloudflareStorage.getCloudflareConfig();
   if (!r2Config) {
-    showStatus("❌ Cloudflare R2 no configurado. Verifica VITE_CLOUDFLARE_R2_BASE_URL en .env y reinicia el servidor (npm run dev).", "error");
+    showStatus("âŒ Cloudflare R2 no configurado. Verifica VITE_CLOUDFLARE_R2_BASE_URL en .env y reinicia el servidor (npm run dev).", "error");
     return;
   }
 
@@ -432,7 +432,7 @@ export async function saveManualFileToLibrary() {
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      // ✅ CORRECCIÓN 2: Pasar el índice 'i' para evitar conflictos de ID duplicados
+      // âœ… CORRECCIÃ“N 2: Pasar el Ã­ndice 'i' para evitar conflictos de ID duplicados
       updateUploadProgress(uploadedCount, totalFiles, file.name);
       addFileToUploadList(uploadFilesList, file.name, "pending", i);
 
@@ -441,7 +441,7 @@ export async function saveManualFileToLibrary() {
         let saveResult = null;
         if (isTextType) {
           const text = await file.text();
-          console.log(`📝 Guardando archivo de texto: ${file.name}`);
+          console.log(`ðŸ“ Guardando archivo de texto: ${file.name}`);
           saveResult = await window.CloudflareStorage.saveLibraryItemToCloudflare({
             name: file.name,
             type,
@@ -451,7 +451,7 @@ export async function saveManualFileToLibrary() {
             metadata: {}
           });
         } else {
-          console.log(`🎵 Subiendo audio: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+          console.log(`ðŸŽµ Subiendo audio: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
           saveResult = await window.CloudflareStorage.saveLibraryItemToCloudflare({
             name: file.name,
             type,
@@ -464,14 +464,14 @@ export async function saveManualFileToLibrary() {
         updateFileStatus(file.name, "success", "", i);
         uploadedCount++;
 
-        // 🔄 AUTO-CARGA EN ESTUDIO: refrescar y cargar el ítem recién guardado
+        // ðŸ”„ AUTO-CARGA EN ESTUDIO: refrescar y cargar el Ã­tem reciÃ©n guardado
         try {
           const estudio = await import("./estudio.js");
           if (typeof estudio.autoLoadSelectedInEstudio === "function") {
             await estudio.autoLoadSelectedInEstudio(type, saveResult?.id);
           }
         } catch (autoErr) {
-          console.warn("⚠️ No se pudo auto-cargar en Estudio:", autoErr);
+          console.warn("âš ï¸ No se pudo auto-cargar en Estudio:", autoErr);
         }
 
         await new Promise(r => setTimeout(r, 200));
@@ -485,14 +485,14 @@ export async function saveManualFileToLibrary() {
     await renderLibrary("todos");
 
     if (uploadedCount > 0) {
-      showStatus(`✅ ${uploadedCount}/${totalFiles} archivo(s) guardado(s) correctamente`, "success");
+      showStatus(`âœ… ${uploadedCount}/${totalFiles} archivo(s) guardado(s) correctamente`, "success");
     }
     if (uploadedCount < totalFiles) {
-      showStatus(`⚠️ ${totalFiles - uploadedCount} archivo(s) fallaron`, "warning");
+      showStatus(`âš ï¸ ${totalFiles - uploadedCount} archivo(s) fallaron`, "warning");
     }
   } catch (error) {
     console.error("Error general:", error);
-    showStatus("❌ Error: " + error.message, "error");
+    showStatus("âŒ Error: " + error.message, "error");
   } finally {
     if (saveBtn) saveBtn.disabled = false;
     if (clearBtn) clearBtn.style.display = "none";
@@ -512,7 +512,7 @@ function validateFilesForUpload(files, type) {
   const maxSize = 500 * 1024 * 1024; // 500 MB
 
   for (const file of files) {
-    // 1. Validar tamaño máximo
+    // 1. Validar tamaÃ±o mÃ¡ximo
     if (file.size > maxSize) {
       return {
         valid: false,
@@ -590,8 +590,8 @@ function handleFileSelection(e) {
       div.className = "upload-file-item";
       div.id = `file-${i}-${file.name.replace(/[^a-zA-Z0-9]/g, "-")}`;
       div.innerHTML = `
-        <span class="file-name">📄 ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)</span>
-        <span class="file-status status-pending">⏳ Listo para subir</span>
+        <span class="file-name">ðŸ“„ ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)</span>
+        <span class="file-status status-pending">â³ Listo para subir</span>
       `;
       uploadFilesList.appendChild(div);
     }
@@ -604,14 +604,14 @@ function handleFileSelection(e) {
 }
 
 // ============================================
-// 📊 COMPONENTES DE SEGUIMIENTO DE PROGRESO
+// ðŸ“Š COMPONENTES DE SEGUIMIENTO DE PROGRESO
 // ============================================ 
 
 export function addFileToUploadList(container, fileName, status, index = 0) {
-  // Nota: Esta función ya no duplica elementos porque handleFileSelection limpia el contenedor al inicio
+  // Nota: Esta funciÃ³n ya no duplica elementos porque handleFileSelection limpia el contenedor al inicio
   if (!container) return;
   
-  // Si por alguna razón el elemento no existe en la vista previa previa, lo añade de respaldo
+  // Si por alguna razÃ³n el elemento no existe en la vista previa previa, lo aÃ±ade de respaldo
   const existingEl = document.getElementById(`file-${index}-${fileName.replace(/[^a-zA-Z0-9]/g, "-")}`);
   if (!existingEl) {
     const div = document.createElement("div");
@@ -619,7 +619,7 @@ export function addFileToUploadList(container, fileName, status, index = 0) {
     div.id = `file-${index}-${fileName.replace(/[^a-zA-Z0-9]/g, "-")}`;
     div.innerHTML = `
       <span class="file-name">${fileName}</span>
-      <span class="file-status status-${status}">⏳ Pendiente</span>
+      <span class="file-status status-${status}">â³ Pendiente</span>
     `;
     container.appendChild(div);
   }
@@ -631,7 +631,7 @@ export function updateFileStatus(fileName, status, errorMsg = "", index = 0) {
     const statusEl = el.querySelector(".file-status");
     if (statusEl) {
       statusEl.className = "upload-status status-" + status;
-      statusEl.textContent = status === "success" ? "✅ Listo" : status === "error" ? "❌ " + errorMsg : "⏳ Pendiente";
+      statusEl.textContent = status === "success" ? "âœ… Listo" : status === "error" ? "âŒ " + errorMsg : "â³ Pendiente";
     }
   }
 }
@@ -654,7 +654,7 @@ export function showStatus(message, type) {
     el.style.display = "block";
   }
 
-  // ✅ Auto-ocultar la confirmación de éxito tras unos segundos
+  // âœ… Auto-ocultar la confirmaciÃ³n de Ã©xito tras unos segundos
   clearTimeout(window.__uploadStatusTimer);
   if (type === "success") {
     window.__uploadStatusTimer = setTimeout(() => {
@@ -677,7 +677,7 @@ export async function enviarAlMonitorKaraoke(karaokeItem) {
         track.dataset.karaokeId = String(karaokeItem.id);
         track.load();
     
-        const { setKaraokeData } = await import("./karaoke.js?v=13");
+        const { setKaraokeData } = await import("./karaoke.js?v=16");
         setKaraokeData(
             karaokeItem.transcription || [],
             karaokeItem.name,
@@ -716,7 +716,7 @@ export function clearUploadSelection() {
   if (uploadProgressText) uploadProgressText.textContent = "";
   if (uploadOptions) uploadOptions.style.display = "none";
   if (typeSelect) typeSelect.value = "pista";
-  if (chosenText) chosenText.textContent = "Ningún archivo seleccionado";
+  if (chosenText) chosenText.textContent = "NingÃºn archivo seleccionado";
 
   if (statusEl) {
     statusEl.style.display = "none";
@@ -724,5 +724,5 @@ export function clearUploadSelection() {
     statusEl.textContent = "";
   }
 
-  console.log("🧼 Interfaz de carga reiniciada de forma segura.");
+  console.log("ðŸ§¼ Interfaz de carga reiniciada de forma segura.");
 }
