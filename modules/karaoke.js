@@ -103,28 +103,37 @@ export function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2) {
   ctx.fillStyle = paleta.fondo;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+  // Rastros con marca de tiempo: ventana de ~2 s independiente del framerate
+  // (a 120 Hz el rastro duraba la mitad que a 60 Hz con el tope de 80 muestras).
+  const now = performance.now();
+  const pushPitch = (hist, f) => {
+    hist.push({ f: f > 0 ? f : null, t: now });
+    while (hist.length && (now - hist[0].t) > 2200) hist.shift();
+    if (hist.length > 400) hist.splice(0, hist.length - 400);
+  };
+
   if (karaokeDuoSplitMode) {
     const TELE_H = 100;
     const GAP = 20;
     const regionH = (canvas.height - TELE_H - 40 - GAP) / 2;
 
-    pitchHistoryP1.push(currentFreq > 0 ? currentFreq : null);
-    if (pitchHistoryP1.length > 80) pitchHistoryP1.shift();
-    pitchHistoryP2.push(currentFreq2 > 0 ? currentFreq2 : null);
-    if (pitchHistoryP2.length > 80) pitchHistoryP2.shift();
+    pushPitch(pitchHistoryP1, currentFreq);
+    pushPitch(pitchHistoryP2, currentFreq2);
 
-    drawRegion(20, 20 + regionH, karaokePitchP1, pitchHistoryP1, "P1", "P1", paleta, currentTime, canvas, AVATAR_BLOCK_W);
-    drawRegion(20 + regionH + GAP, 20 + regionH * 2 + GAP, karaokePitchP2, pitchHistoryP2, "P2", "P2", paleta, currentTime, canvas, AVATAR_BLOCK_W);
+    drawRegion(20, 20 + regionH, karaokePitchP1, pitchHistoryP1, "P1", "P1", paleta, currentTime, canvas, AVATAR_BLOCK_W, "#38bdf8", now);
+    drawRegion(20 + regionH + GAP, 20 + regionH * 2 + GAP, karaokePitchP2, pitchHistoryP2, "P2", "P2", paleta, currentTime, canvas, AVATAR_BLOCK_W, "#fb923c", now);
   } else {
-    pitchHistory.push(currentFreq > 0 ? currentFreq : null);
-    if (pitchHistory.length > 80) pitchHistory.shift();
-    drawRegion(20, canvas.height - 122, karaokePitchP1, pitchHistory, null, null, paleta, currentTime, canvas, 0);
+    pushPitch(pitchHistory, currentFreq);
+    drawRegion(20, canvas.height - 122, karaokePitchP1, pitchHistory, null, null, paleta, currentTime, canvas, 0, "#facc15", now);
   }
 
   drawLyricsBar(canvas, ctx, currentTime);
 }
 
-function drawRegion(pTop, pBottom, pVal, pHist, filtro, etiqueta, paleta, currentTime, canvas, avatarBlockW) {
+function drawRegion(pTop, pBottom, pVal, pHist, filtro, etiqueta, paleta, currentTime, canvas, avatarBlockW, trailColor, now) {
+  const TRAIL = trailColor || "#facc15";
+  const PX_PER_MS = 0.18; // ~180 px/s: el rastro cubre ~2 s hacia la izquierda
+  const DOT_R = 9;
   const ctx = canvas.getContext("2d");
   const pHeight = pBottom - pTop;
   const pixelsPerSecond = (canvas.width - 150) / 7;
@@ -228,28 +237,40 @@ function drawRegion(pTop, pBottom, pVal, pHist, filtro, etiqueta, paleta, curren
     });
   }
 
-  if (pVal > 0) {
-    const userMidi = Math.round(12 * Math.log2(pVal / 440) + 69);
-    const userY = midiToY(userMidi);
-
+  // Rastro: se pinta siempre desde el historial (en silencio se desvanece
+  // hacia la izquierda en vez de desaparecer de golpe). Se corta el trazo
+  // en los huecos para no dibujar diagonales falsas entre frases.
+  if (Array.isArray(pHist) && pHist.length) {
+    const tNow = now || performance.now();
     ctx.beginPath();
-    ctx.strokeStyle = "rgba(250, 204, 21, 0.5)";
+    ctx.strokeStyle = TRAIL;
+    ctx.globalAlpha = 0.75;
     ctx.lineWidth = 4;
     let started = false;
-    (pHist || []).forEach((f, i) => {
-      if (f && f > 0) {
-        const x = dynLineX - (pHist.length - i) * 3;
-        if (x < pentagramStartX) return;
-        const yPos = midiToY(Math.round(12 * Math.log2(f / 440) + 69));
-        if (!started) { ctx.moveTo(x, yPos); started = true; }
-        else { ctx.lineTo(x, yPos); }
-      }
-    });
+    for (let i = 0; i < pHist.length; i++) {
+      const entry = pHist[i];
+      const f = entry && typeof entry === "object" ? entry.f : entry;
+      if (!(f && f > 0)) { started = false; continue; }
+      const age = tNow - (entry && typeof entry === "object" && entry.t ? entry.t : tNow);
+      if (age > 2000) continue;
+      const x = dynLineX - age * PX_PER_MS;
+      if (x < pentagramStartX) break;
+      const yPos = midiToY(Math.round(12 * Math.log2(f / 440) + 69));
+      if (!started) { ctx.moveTo(x, yPos); started = true; }
+      else { ctx.lineTo(x, yPos); }
+    }
     ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  // Punto actual: solo con pitch válido y sujeto dentro de la región.
+  if (pVal > 0) {
+    const userMidi = Math.round(12 * Math.log2(pVal / 440) + 69);
+    const userY = Math.min(pBottom - DOT_R, Math.max(pTop + DOT_R, midiToY(userMidi)));
 
     ctx.beginPath();
-    ctx.fillStyle = "#facc15";
-    ctx.arc(dynLineX, userY, 9, 0, Math.PI * 2);
+    ctx.fillStyle = TRAIL;
+    ctx.arc(dynLineX, userY, DOT_R, 0, Math.PI * 2);
     ctx.fill();
     ctx.strokeStyle = "white";
     ctx.lineWidth = 2;
