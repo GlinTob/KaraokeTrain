@@ -39,6 +39,10 @@ export class AudioProcessorController {
     this.worker.onerror = (error) => {
       console.error("Audio Worker Error:", error);
       this.rejectAllPending(new Error("El audio worker falló."));
+      // El worker queda en estado roto: marcarlo terminado para que el
+      // próximo getAudioController() cree uno sano en vez de colgarse.
+      try { this.worker.terminate(); } catch (e) {}
+      this.isTerminated = true;
     };
 
     this.worker.onmessageerror = (error) => {
@@ -60,14 +64,25 @@ export class AudioProcessorController {
    * @param {object} data - Payload que puede contener Float32Array.
    * @param {ArrayBuffer[]} [transferables] - Lista de ArrayBuffers a transferir (zero-copy).
    */
-  async execute(command, data = {}, transferables = []) {
+  // Timeout por comando: sin esto, un worker roto/silencioso deja la promesa
+  // colgada para siempre (toda la UI que espera mix/encodeWav queda frita).
+  // El encodeWav de canciones largas tarda: 60 s de margen.
+  async execute(command, data = {}, transferables = [], timeoutMs = 60000) {
     if (this.isTerminated) {
       throw new Error("El audio controller fue terminado y no puede procesar más comandos.");
     }
 
     return new Promise((resolve, reject) => {
       const id = this.requestId++;
-      this.pendingRequests.set(id, { resolve, reject });
+      const timer = setTimeout(() => {
+        if (this.pendingRequests.has(id)) {
+          this.pendingRequests.delete(id);
+          reject(new Error(`El audio worker no respondió al comando "${command}" (${timeoutMs}ms). Reintenta.`));
+        }
+      }, timeoutMs);
+      const wrappedResolve = (v) => { clearTimeout(timer); resolve(v); };
+      const wrappedReject = (e) => { clearTimeout(timer); reject(e); };
+      this.pendingRequests.set(id, { resolve: wrappedResolve, reject: wrappedReject });
 
       // FIX #16: si el worker se destruye mientras la promesa está pendiente,
       // onmessage ya habrá llamado reject con "Audio worker terminado".
@@ -76,6 +91,7 @@ export class AudioProcessorController {
       try {
         this.worker.postMessage({ command, data, id }, transferables);
       } catch (error) {
+        clearTimeout(timer);
         this.pendingRequests.delete(id);
         reject(error);
       }
@@ -184,6 +200,7 @@ export class AudioProcessorController {
   async detectSilence(buffer, threshold = 0.01) {
     if (!buffer) throw new Error("detectSilence requiere un buffer válido.");
 
+    // OJO: transferir el buffer de entrada lo DETACHA en el hilo principal.
     const floatBuffer = buffer instanceof Float32Array ? buffer : new Float32Array(buffer);
 
     return await this.execute("detectSilence", {
