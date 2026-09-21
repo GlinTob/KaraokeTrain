@@ -28,6 +28,12 @@ const allKaraokeThemes = ["theme-clasico", "theme-moderno", "theme-disco", "them
 // seguirían vivos en segundo plano (grabación karaoke, mic del afinador,
 // guía sonando, render offline de tono, test de mics).
 let currentTabId = null;
+// Puerta anti-carreras: clics rápidos a tabs disparan showTab concurrentes;
+// el init tardío de un tab anterior no debe ejecutarse sobre el tab actual.
+let navSeq = 0;
+// Inits que registran listeners: una sola vez (re-entrar duplicaba handlers).
+const tabsIniciados = new Set();
+window.supabaseReady = false;
 
 async function cleanupTab(tabId) {
   try {
@@ -69,6 +75,7 @@ export async function showTab(tabId) {
     await cleanupTab(currentTabId);
   }
   currentTabId = normalizedTabId;
+  const navAhora = ++navSeq;
 
   document.querySelectorAll(".sidebar button").forEach(btn => btn.classList.remove("active"));
 
@@ -84,32 +91,48 @@ export async function showTab(tabId) {
   const activeBtn = document.getElementById(btnMap[normalizedTabId]);
   if (activeBtn) activeBtn.classList.add("active");
 
+  // Si durante la limpieza arrancó otra navegación, abortar: el init tardío
+  // no debe ejecutarse sobre el tab nuevo.
+  if (navAhora !== navSeq) return;
+
+  // Inits con listeners: una sola vez por sesión (re-entrar duplicaba handlers).
+  const initUnaVez = (tab) => {
+    if (tabsIniciados.has(tab)) return false;
+    tabsIniciados.add(tab);
+    return true;
+  };
+
   try {
     if (normalizedTabId === "config") {
       console.log("âš™ï¸ [Lazy Load] Cargando configuraciones de hardware...");
       const { initSettings, loadAvailableMics } = await import("./modules/config.js?v=9");
+      if (navAhora !== navSeq) return;
       if (typeof initSettings === "function") initSettings();
       if (typeof loadAvailableMics === "function") await loadAvailableMics();
     } else if (normalizedTabId === "biblioteca") {
       console.log("ðŸ“ [Lazy Load] Cargando visor de Base de Datos...");
       const { initBiblioteca, renderLibrary } = await import("./modules/biblioteca.js?v=4");
-      if (typeof initBiblioteca === "function") {
+      if (navAhora !== navSeq) return;
+      if (typeof initBiblioteca === "function" && initUnaVez("biblioteca")) {
         initBiblioteca();
       }
       } else if (normalizedTabId === "estudio") {
       console.log("ðŸŽ§ [Lazy Load] Cargando entorno de sincronizaciÃ³n y listados...");
       const { initEstudio } = await import("./modules/estudio.js");
-      if (typeof initEstudio === "function") {
+      if (navAhora !== navSeq) return;
+      if (typeof initEstudio === "function" && initUnaVez("estudio")) {
         await initEstudio();
       }
     } else if (normalizedTabId === "afinador") {
       console.log("ðŸŽµ [Lazy Load] MÃ³dulo Afinador Vocal listo.");
       const { initAfinadorUI } = await import("./modules/afinador.js?v=1");
+      if (navAhora !== navSeq) return;
       if (typeof initAfinadorUI === "function") initAfinadorUI();
     } else if (normalizedTabId === "cambiar-tono") {
       console.log("ðŸŽ¼ [Lazy Load] MÃ³dulo Cambiar Tono listo.");
       const { initCambiarTono, loadPitchKaraokeOptions } = await import("./modules/cambiar-tono.js?v=6");
-      if (typeof initCambiarTono === "function") initCambiarTono();
+      if (navAhora !== navSeq) return;
+      if (typeof initCambiarTono === "function" && initUnaVez("cambiar-tono")) initCambiarTono();
       if (typeof loadPitchKaraokeOptions === "function") await loadPitchKaraokeOptions();
     } else if (normalizedTabId === "karaoke") {
       console.log("ðŸŽ¤ [Lazy Load] Inicializando Canvas e HistÃ³ricos de Canto...");
@@ -159,7 +182,7 @@ function iniciarAplicacion() {
 // ============================================
 document.addEventListener("DOMContentLoaded", async () => {
   // --- INICIALIZACIÃ“N DE SUPABASE CON RETRY ---
-  const initSupabaseWithRetry = async (retries = 5, delay = 500) => {
+  const initSupabaseWithRetry = async (retries = 8, delay = 500) => {
     for (let i = 0; i < retries; i++) {
       if (window.supabase) {
         try {
@@ -167,16 +190,20 @@ document.addEventListener("DOMContentLoaded", async () => {
           if (typeof initSupabase === "function") {
             await initSupabase();
             console.log("âœ… Supabase inicializado correctamente.");
+            window.supabaseReady = true;
             return true;
           }
         } catch (err) {
           console.warn(`âš ï¸ Intento ${i + 1} de inicializar Supabase fallÃ³:`, err);
         }
       }
-      console.log(`â³ Esperando a Supabase... (intento ${i + 1})`);
+      console.log(`â³ Esperando a Supabase... (intento ${i + 1}/${retries})`);
       await new Promise(resolve => setTimeout(resolve, delay));
+      delay = Math.min(delay * 1.5, 3000);
     }
     console.error("âŒ No se pudo inicializar Supabase tras varios intentos.");
+    window.supabaseReady = false;
+    alert("âš ï¸ No se pudo conectar con la base de datos (Supabase/CDN). Revisa tu conexiÃ³n y recarga. La biblioteca no mostrarÃ¡ archivos.");
     return false;
   };
 
