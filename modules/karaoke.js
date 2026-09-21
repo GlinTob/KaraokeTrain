@@ -1150,6 +1150,21 @@ export function stopKaraokeRecording() {
   console.log("🛑 Grabación de karaoke detenida.");
 }
 
+// Limpieza al salir del tab: si hay grabación activa se finaliza (así el
+// onstop publica la voz) y la pista se pausa. Sin esto, mic, pista, RAF y
+// AudioContext seguían vivos en otras pestañas.
+export function destroyKaraoke() {
+  const track = $("karaokeTrack") || $("karaokeAudio") || $("audioKaraoke") || $("trackPlayer");
+  const recA = karaokeMediaRecorder && karaokeMediaRecorder.state !== "inactive";
+  const recB = karaokeMediaRecorder2 && karaokeMediaRecorder2.state !== "inactive";
+  if (karaokeRecordingActive || recA || recB) {
+    console.log("🧹 Saliendo de karaoke a mitad de grabación: deteniendo.");
+    stopKaraokeRecording();
+  } else if (track && !track.paused) {
+    try { track.pause(); } catch (e) {}
+  }
+}
+
 export async function restartKaraokeRecording() {
   const track = $("karaokeTrack") || $("karaokeAudio") || $("trackPlayer");
   if (track) {
