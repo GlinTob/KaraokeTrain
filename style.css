@@ -1120,17 +1120,17 @@ audio {
 ========================================== */
 
 [data-theme="claro"] {
-  --bg-main: #eef2f7;
-  --bg-sidebar: #ffffff;
-  --bg-card: #ffffff;
-  --text-main: #0f172a;
+  --bg-main: #e9bbf2;
+  --bg-sidebar: #f5d9fa;
+  --bg-card: #f5d9fa;
+  --text-main: #b2f7da;
   --text-muted: #475569;
-  --accent: #2563eb;
-  --accent-hover: #1d4ed8;
-  --danger: #dc2626;
-  --border: #cbd5e1;
-  --accent-secondary: #2563eb;
-  --accent-secondary-hover: #1d4ed8;
+  --accent: #f7efa1;
+  --accent-hover: #9b90b0;
+  --danger: #f7b7b7;
+  --border: #f7458f;
+  --accent-secondary: #c8f7ed;
+  --accent-secondary-hover: #88baa9;
   --accent-secondary-border: rgba(37, 99, 235, 0.22);
   --accent-secondary-shadow: rgba(37, 99, 235, 0.2);
 }
@@ -1142,20 +1142,20 @@ body[data-theme="claro"] {
 }
 
 [data-theme="claro"] .sidebar button {
-  background: linear-gradient(180deg, #f1f5f9 0%, #e2e8f0 100%);
+  background: linear-gradient(180deg, #f7fcae 0%, #e2e8f0 100%);
   border: 1px solid #cbd5e1;
   color: #1e293b;
   box-shadow: 0 4px 0 #94a3b8, 0 6px 12px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.8);
 }
 
 [data-theme="claro"] .sidebar button:hover {
-  background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
+  background: linear-gradient(180deg, #cbd8f5 0%, #f1fad4 100%);
   color: #ffffff;
 }
 
 [data-theme="claro"] .sidebar button.active {
-  background: linear-gradient(180deg, #22c55e 0%, #15803d 100%);
-  color: #ffffff;
+  background: linear-gradient(180deg, #cffadf 0%, #eafcbd 100%);
+  color: #fadede;
 }
 
 [data-theme="neon"] {
