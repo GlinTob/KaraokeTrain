@@ -6,7 +6,7 @@ import { getLibraryItemsByIdFromSupabase, getLibraryItemsByTypeFromSupabase, sav
 // El encode WAV ahora corre en el worker (encodeWavToBlob) para no bloquear
 // el hilo principal con mezclas largas.
 import { getAudioController } from "./audio-controller.js";
-import { getSelectedMicId } from "./config.js?v=7";
+import { getSelectedMicId } from "./config.js?v=8";
 import { midiToNoteName } from "./afinador.js?v=1";
 
 let textSegments = [];
@@ -26,6 +26,12 @@ let karaokeStream2 = null;
 let karaokeChunks = [];
 let karaokeRecordedBlob = null;
 let karaokeMediaRecorder = null;
+// Dúo: segundo micrófono con recorder propio (agnóstico al hardware:
+// USB, 3.5mm o mixto; cada mic conserva su reloj y su encoding).
+let karaokeChunks2 = [];
+let karaokeRecordedBlob2 = null;
+let karaokeMediaRecorder2 = null;
+let duoPitchTurn = 0;
 let karaokePitchDetectionAudioCtx = null;
 let karaokePitchDetectionAnalyser = null;
 let karaokeSplitAnalyser2 = null;
@@ -39,80 +45,7 @@ let karaokeLoadedItem = null;
 let avatarCache = { P1: null, P2: null }; 
 let avatarImageCache = { P1: null, P2: null };
 
-const TRAIL_HOLD_MS = 1200;
-let trailLastPitchP1 = -1;
-let trailLastTimeP1 = 0;
-let trailLastPitchP2 = -1;
-let trailLastTimeP2 = 0;
-
 window.karaokeMediaRecorder = null;
-
-// Rastreador de pitch para el monitor: suaviza el temblor (mediana de 5) y
-// retiene la última nota hasta 1s ante cortes del micrófono (consonantes,
-// silencios, respiraciones) para que el punto no caiga al suelo.
-//
-// Guarda anti-ruido: si una nueva lectura difiere >20% del lastGood
-// (típico de ruido/breath 60-80 Hz), se acumulan lecturas consistentes
-// (±8% entre sí, tolerancia a flotantes) antes de aceptar el cambio.
-// Cambios de nota reales (±1-2 semitonos ~6-12%) pasan sin bloqueo.
-function createPitchTracker() {
-  const history = [];
-  const MAX_HISTORY = 5;
-  const HOLD_MS = 1000;
-  const MIN_FREQ = 82;
-  const MAX_FREQ = 800;
-  const JUMP_TOLERANCE = 0.20;
-  const JUMP_CANDIDATE_WINDOW = 0.08;
-  const JUMP_REQUIRED = 2;
-  let lastGood = -1;
-  let lastGoodTime = 0;
-  let jumpCandidate = -1;
-  let jumpCount = 0;
-
-  function median(arr) {
-    const s = [...arr].sort((a, b) => a - b);
-    const m = s.length >> 1;
-    return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
-  }
-
-  return {
-    advance(raw, now) {
-      const t = now || performance.now();
-      if (raw > MIN_FREQ && raw < MAX_FREQ) {
-        if (lastGood > 0 && Math.abs(raw - lastGood) / lastGood > JUMP_TOLERANCE) {
-          if (jumpCandidate > 0 && Math.abs(raw - jumpCandidate) / jumpCandidate < JUMP_CANDIDATE_WINDOW) {
-            jumpCount++;
-          } else {
-            jumpCandidate = raw;
-            jumpCount = 1;
-          }
-          if (jumpCount < JUMP_REQUIRED) {
-            if (t - lastGoodTime < HOLD_MS) return lastGood;
-            return lastGood > 0 ? lastGood : -1;
-          }
-        }
-        jumpCandidate = -1;
-        jumpCount = 0;
-        history.push(raw);
-        if (history.length > MAX_HISTORY) history.shift();
-        lastGood = median(history);
-        lastGoodTime = t;
-      }
-      if (lastGood > 0 && t - lastGoodTime < HOLD_MS) return lastGood;
-      return lastGood > 0 ? lastGood : -1;
-    },
-    reset() {
-      history.length = 0;
-      lastGood = -1;
-      lastGoodTime = 0;
-      jumpCandidate = -1;
-      jumpCount = 0;
-    }
-  };
-}
-
-const pitchTrackerP1 = createPitchTracker();
-const pitchTrackerP2 = createPitchTracker();
 
 export function toggleKaraokeDuoSplitMode() {
   karaokeDuoSplitMode = !karaokeDuoSplitMode;
@@ -131,12 +64,6 @@ export function toggleKaraokeDuoSplitMode() {
   pitchHistoryP2 = [];
   karaokePitchP1 = -1;
   karaokePitchP2 = -1;
-  pitchTrackerP1.reset();
-  pitchTrackerP2.reset();
-  trailLastPitchP1 = -1;
-  trailLastTimeP1 = 0;
-  trailLastPitchP2 = -1;
-  trailLastTimeP2 = 0;
 
   drawKaraokeMonitor(0, -1, -1);
 
@@ -162,8 +89,8 @@ export function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2) {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
 
-  if (typeof currentFreq === "number" && currentFreq > 0) karaokePitchP1 = currentFreq;
-  if (typeof currentFreq2 === "number" && currentFreq2 > 0) karaokePitchP2 = currentFreq2;
+  if (typeof currentFreq === "number") karaokePitchP1 = currentFreq;
+  if (typeof currentFreq2 === "number") karaokePitchP2 = currentFreq2;
 
   const paleta = obtenerPaleta(Math.floor((currentTime || 0) * 50) % 360);
   const AVATAR_BLOCK_W = karaokeDuoSplitMode ? 110 : 0;
@@ -171,34 +98,20 @@ export function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2) {
   ctx.fillStyle = paleta.fondo;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  const now = performance.now();
-
-  if (karaokePitchP1 > 0) {
-    trailLastPitchP1 = karaokePitchP1;
-    trailLastTimeP1 = now;
-  }
-  if (karaokePitchP2 > 0) {
-    trailLastPitchP2 = karaokePitchP2;
-    trailLastTimeP2 = now;
-  }
-
   if (karaokeDuoSplitMode) {
     const TELE_H = 100;
     const GAP = 20;
     const regionH = (canvas.height - TELE_H - 40 - GAP) / 2;
 
-    const p1ForTrail = (karaokePitchP1 > 0) || (trailLastPitchP1 > 0 && now - trailLastTimeP1 < TRAIL_HOLD_MS);
-    pitchHistoryP1.push(p1ForTrail ? (karaokePitchP1 > 0 ? karaokePitchP1 : trailLastPitchP1) : null);
+    pitchHistoryP1.push(currentFreq > 0 ? currentFreq : null);
     if (pitchHistoryP1.length > 80) pitchHistoryP1.shift();
-    const p2ForTrail = (karaokePitchP2 > 0) || (trailLastPitchP2 > 0 && now - trailLastTimeP2 < TRAIL_HOLD_MS);
-    pitchHistoryP2.push(p2ForTrail ? (karaokePitchP2 > 0 ? karaokePitchP2 : trailLastPitchP2) : null);
+    pitchHistoryP2.push(currentFreq2 > 0 ? currentFreq2 : null);
     if (pitchHistoryP2.length > 80) pitchHistoryP2.shift();
 
     drawRegion(20, 20 + regionH, karaokePitchP1, pitchHistoryP1, "P1", "P1", paleta, currentTime, canvas, AVATAR_BLOCK_W);
     drawRegion(20 + regionH + GAP, 20 + regionH * 2 + GAP, karaokePitchP2, pitchHistoryP2, "P2", "P2", paleta, currentTime, canvas, AVATAR_BLOCK_W);
   } else {
-    const p1ForTrailSolo = (karaokePitchP1 > 0) || (trailLastPitchP1 > 0 && now - trailLastTimeP1 < TRAIL_HOLD_MS);
-    pitchHistory.push(p1ForTrailSolo ? (karaokePitchP1 > 0 ? karaokePitchP1 : trailLastPitchP1) : null);
+    pitchHistory.push(currentFreq > 0 ? currentFreq : null);
     if (pitchHistory.length > 80) pitchHistory.shift();
     drawRegion(20, canvas.height - 122, karaokePitchP1, pitchHistory, null, null, paleta, currentTime, canvas, 0);
   }
@@ -310,24 +223,25 @@ function drawRegion(pTop, pBottom, pVal, pHist, filtro, etiqueta, paleta, curren
     });
   }
 
-  const points = (pHist || []).filter(f => f && f > 0);
-  let started = false;
-  if (points.length > 1) {
+  if (pVal > 0) {
+    const userMidi = Math.round(12 * Math.log2(pVal / 440) + 69);
+    const userY = midiToY(userMidi);
+
     ctx.beginPath();
     ctx.strokeStyle = "rgba(250, 204, 21, 0.5)";
     ctx.lineWidth = 4;
-    for (let i = 0; i < points.length; i++) {
-      const x = dynLineX - (points.length - i) * 3;
-      if (x < pentagramStartX) continue;
-      const yPos = midiToY(Math.round(12 * Math.log2(points[i] / 440) + 69));
-      if (!started) { ctx.moveTo(x, yPos); started = true; }
-      else { ctx.lineTo(x, yPos); }
-    }
+    let started = false;
+    (pHist || []).forEach((f, i) => {
+      if (f && f > 0) {
+        const x = dynLineX - (pHist.length - i) * 3;
+        if (x < pentagramStartX) return;
+        const yPos = midiToY(Math.round(12 * Math.log2(f / 440) + 69));
+        if (!started) { ctx.moveTo(x, yPos); started = true; }
+        else { ctx.lineTo(x, yPos); }
+      }
+    });
     ctx.stroke();
-  }
 
-  if (pVal > 0) {
-    const userY = midiToY(Math.round(12 * Math.log2(pVal / 440) + 69));
     ctx.beginPath();
     ctx.fillStyle = "#facc15";
     ctx.arc(dynLineX, userY, 9, 0, Math.PI * 2);
@@ -509,6 +423,111 @@ function updateDuoLevels() {
   setBarWidth("karaokeDuoMic2Level", karaokeSplitAnalyser2);
 }
 
+// Constraints agnósticos al hardware (USB / 3.5mm / mixto): sin
+// procesamiento del navegador. El AEC/NS/AGC por defecto toma al segundo
+// cantante como "eco/ruido" y lo deja bajo y entrecortado.
+function buildMicConstraints(micId) {
+  const base = { echoCancellation: false, noiseSuppression: false, autoGainControl: false };
+  if (micId) return { audio: { ...base, deviceId: { exact: micId } } };
+  return { audio: { ...base } };
+}
+
+async function requestMicStream(micId) {
+  try {
+    return await navigator.mediaDevices.getUserMedia(buildMicConstraints(micId));
+  } catch (err) {
+    // Fallback agnóstico: si el deviceId exacto falla (dispositivo ocupado,
+    // mismo hardware elegido dos veces, jack 3.5 compartido), reintentar sin
+    // deviceId pero manteniendo el procesamiento desactivado.
+    if (micId && (err?.name === "OverconstrainedError" || err?.name === "NotFoundError")) {
+      console.warn("Reintentando micrófono sin deviceId exacto:", err?.message || err);
+      return await navigator.mediaDevices.getUserMedia(buildMicConstraints(null));
+    }
+    throw err;
+  }
+}
+
+function rmsOfAudioBuffer(buffer) {
+  if (!buffer || !buffer.length) return 0;
+  const data = buffer.getChannelData(0);
+  let sum = 0;
+  for (let i = 0; i < data.length; i++) sum += data[i] * data[i];
+  return Math.sqrt(sum / data.length);
+}
+
+// Mezcla las dos voces del dúo en un solo blob WAV con balance automático
+// de niveles: el mic más bajito (p.ej. 3.5mm frente a USB) se sube hasta
+// +12 dB para igualarlo al más fuerte. Así el fix no depende del hardware.
+async function combineDuoVoiceBlobs(blob1, blob2) {
+  const decodeCtx = new (window.AudioContext || window.webkitAudioContext)();
+  try {
+    const [buf1, buf2] = await Promise.all([
+      decodeCtx.decodeAudioData((await blob1.arrayBuffer()).slice(0)),
+      decodeCtx.decodeAudioData((await blob2.arrayBuffer()).slice(0))
+    ]);
+    const rms1 = rmsOfAudioBuffer(buf1);
+    const rms2 = rmsOfAudioBuffer(buf2);
+    const SILENCE_FLOOR = 0.005;
+    let g1 = 1, g2 = 1;
+    if (rms1 > SILENCE_FLOOR && rms2 > SILENCE_FLOOR) {
+      if (rms1 >= rms2) g2 = Math.min(4, rms1 / rms2);
+      else g1 = Math.min(4, rms2 / rms1);
+    }
+    const HEADROOM = 0.8;
+    const sampleRate = buf1.sampleRate;
+    const length = Math.max(buf1.length, buf2.length);
+    const offline = new OfflineAudioContext(1, length, sampleRate);
+    const src1 = offline.createBufferSource();
+    src1.buffer = buf1;
+    const gain1 = offline.createGain();
+    gain1.gain.value = g1 * HEADROOM;
+    src1.connect(gain1);
+    gain1.connect(offline.destination);
+    const src2 = offline.createBufferSource();
+    src2.buffer = buf2;
+    const gain2 = offline.createGain();
+    gain2.gain.value = g2 * HEADROOM;
+    src2.connect(gain2);
+    gain2.connect(offline.destination);
+    src1.start(0);
+    src2.start(0);
+    const rendered = await offline.startRendering();
+    console.log(`🎤🎤 Dúo balanceado: rms1=${rms1.toFixed(4)} g1=${g1.toFixed(2)}, rms2=${rms2.toFixed(4)} g2=${g2.toFixed(2)}`);
+    return await getAudioController().encodeWavToBlob(rendered);
+  } finally {
+    try { await decodeCtx.close(); } catch (e) {}
+  }
+}
+
+function publishVoicePreview(blob) {
+  const voicePlayer = $("karaokeVoicePlayer");
+  if (voicePlayer) {
+    voicePlayer.src = URL.createObjectURL(blob);
+    voicePlayer.controls = true;
+  }
+  const mixBtn = $("karaokeMixBtn");
+  if (mixBtn) mixBtn.disabled = false;
+}
+
+// En dúo, la vista previa solo se publica cuando AMBOS recorders entregaron
+// su blob; ahí se combinan con balance automático y ese combinado es lo que
+// luego usa mixKaraoke (que no necesita cambios).
+async function tryFinalizeDuoVoice() {
+  if (!karaokeDuoSplitMode) return;
+  if (karaokeMediaRecorder || karaokeMediaRecorder2) return;
+  if (!karaokeRecordedBlob || !karaokeRecordedBlob2) return;
+  try {
+    const combinado = await combineDuoVoiceBlobs(karaokeRecordedBlob, karaokeRecordedBlob2);
+    karaokeRecordedBlob = combinado;
+    console.log("🎤🎤 Voces del dúo combinadas:", combinado.size, "bytes");
+    publishVoicePreview(combinado);
+  } catch (err) {
+    console.error("No se pudieron combinar las voces del dúo:", err);
+    publishVoicePreview(karaokeRecordedBlob);
+  }
+  releaseKaraokeCaptureStreams();
+}
+
 export async function startKaraokeRecording() {
   try {
     const track = $("karaokeTrack") || $("karaokeAudio") || $("audioKaraoke") || $("trackPlayer");
@@ -523,8 +542,16 @@ export async function startKaraokeRecording() {
       karaokeMediaRecorder.onstop = null;
       try { karaokeMediaRecorder.stop(); } catch (e) {}
     }
+    if (karaokeMediaRecorder2 && karaokeMediaRecorder2.state !== "inactive") {
+      karaokeMediaRecorder2.onstop = null;
+      try { karaokeMediaRecorder2.stop(); } catch (e) {}
+    }
+    karaokeMediaRecorder2 = null;
     karaokeChunks = [];
+    karaokeChunks2 = [];
     karaokeRecordedBlob = null;
+    karaokeRecordedBlob2 = null;
+    duoPitchTurn = 0;
 
     // Durante una grabación nueva no hay voz lista; se habilita "Mezclar"
     // recién cuando el onstop construye el blob (FIX #18).
@@ -559,16 +586,40 @@ export async function startKaraokeRecording() {
       await karaokePitchDetectionAudioCtx.resume();
     }
 
-    let constraints1 = { audio: true };
     const mic1 = getSelectedMicId(1);
-    if (mic1) constraints1 = { audio: { deviceId: { exact: mic1 } } };
-    karaokeStream = await navigator.mediaDevices.getUserMedia(constraints1);
+    const mic2 = karaokeDuoSplitMode ? getSelectedMicId(2) : null;
+
+    // En dúo hay que elegir dos micrófonos distintos en Config. Con el mismo
+    // hardware (típico con jacks 3.5 compartidos) el segundo getUserMedia
+    // falla o devuelve el mismo dispositivo duplicado.
+    if (karaokeDuoSplitMode && mic1 && mic2 && mic1 === mic2) {
+      if (track) { try { track.pause(); } catch (e) {} }
+      try { karaokePitchDetectionAudioCtx && await karaokePitchDetectionAudioCtx.close(); } catch (e) {}
+      karaokePitchDetectionAudioCtx = null;
+      const statusEl = $("karaokeStatus");
+      if (statusEl) statusEl.textContent = "⚠️ Elige dos micrófonos distintos en Config (Mic 1 ≠ Mic 2) para el dúo.";
+      alert("⚠️ Para el dúo elige dos micrófonos distintos en Config (Mic 1 ≠ Mic 2).");
+      karaokeRecordingActive = false;
+      return;
+    }
+
+    karaokeStream = await requestMicStream(mic1);
 
     if (karaokeDuoSplitMode) {
-      let constraints2 = { audio: true };
-      const mic2 = getSelectedMicId(2);
-      if (mic2) constraints2 = { audio: { deviceId: { exact: mic2 } } };
-      karaokeStream2 = await navigator.mediaDevices.getUserMedia(constraints2);
+      try {
+        karaokeStream2 = await requestMicStream(mic2);
+      } catch (err2) {
+        console.error("No se pudo abrir el segundo micrófono:", err2);
+        if (karaokeStream) { karaokeStream.getTracks().forEach(t => t.stop()); karaokeStream = null; }
+        if (track) { try { track.pause(); } catch (e) {} }
+        try { karaokePitchDetectionAudioCtx && await karaokePitchDetectionAudioCtx.close(); } catch (e) {}
+        karaokePitchDetectionAudioCtx = null;
+        const statusEl = $("karaokeStatus");
+        if (statusEl) statusEl.textContent = "❌ No se pudo abrir el micrófono 2. Revisa Config y los permisos.";
+        alert("❌ No se pudo abrir el micrófono 2. Revisa en Config que esté conectado y permitido.");
+        karaokeRecordingActive = false;
+        return;
+      }
     }
 
     const source1 = karaokePitchDetectionAudioCtx.createMediaStreamSource(karaokeStream);
@@ -583,7 +634,7 @@ export async function startKaraokeRecording() {
     // detectPitch. Aplicamos una ganancia fija SOLO en la ruta de análisis;
     // la grabación sigue usando el micrófono en crudo.
     const pitchInputGain = karaokePitchDetectionAudioCtx.createGain();
-    pitchInputGain.gain.value = 2;
+    pitchInputGain.gain.value = 1;
     source1.connect(pitchInputGain);
     pitchInputGain.connect(karaokePitchDetectionAnalyser);
 
@@ -591,10 +642,10 @@ export async function startKaraokeRecording() {
       const source2 = karaokePitchDetectionAudioCtx.createMediaStreamSource(karaokeStream2);
       karaokeSplitAnalyser2 = karaokePitchDetectionAudioCtx.createAnalyser();
       karaokeSplitAnalyser2.fftSize = 2048;
-      const pitchInputGain2 = karaokePitchDetectionAudioCtx.createGain();
-      pitchInputGain2.gain.value = 2;
-      source2.connect(pitchInputGain2);
-      pitchInputGain2.connect(karaokeSplitAnalyser2);
+const pitchInputGain2 = karaokePitchDetectionAudioCtx.createGain();
+    pitchInputGain2.gain.value = 1;
+    source2.connect(pitchInputGain2);
+    pitchInputGain2.connect(karaokeSplitAnalyser2);
     }
 
     karaokeAudioController = getAudioController();
@@ -604,6 +655,8 @@ export async function startKaraokeRecording() {
       // "Volver a intentar") dispara su onstop DESPUÉS de iniciar una sesión
       // nueva, no debe leer ni mezclarse con los chunks de la sesión nueva.
       karaokeChunks = [];
+      karaokeChunks2 = [];
+      karaokeRecordedBlob2 = null;
       const sessionChunks = karaokeChunks;
       karaokeMediaRecorder = new MediaRecorder(karaokeStream);
       window.karaokeMediaRecorder = karaokeMediaRecorder;
@@ -622,27 +675,53 @@ export async function startKaraokeRecording() {
         if (karaokeMediaRecorder !== recorder) return;
         if (sessionChunks.length) {
           karaokeRecordedBlob = new Blob(sessionChunks, { type: recorder.mimeType || "audio/webm" });
-          console.log("🎤 Voz finalizada:", sessionChunks.length, "chunks,", karaokeRecordedBlob.size, "bytes, mime:", recorder.mimeType || "audio/webm");
-          const voicePlayer = $("karaokeVoicePlayer");
-          if (voicePlayer) {
-            voicePlayer.src = URL.createObjectURL(karaokeRecordedBlob);
-            voicePlayer.controls = true;
+          console.log("🎤 Voz P1 finalizada:", sessionChunks.length, "chunks,", karaokeRecordedBlob.size, "bytes, mime:", recorder.mimeType || "audio/webm");
+          if (!karaokeDuoSplitMode) {
+            publishVoicePreview(karaokeRecordedBlob);
+            releaseKaraokeCaptureStreams();
+          } else {
+            tryFinalizeDuoVoice();
           }
-          const mixBtn = $("karaokeMixBtn");
-          if (mixBtn) mixBtn.disabled = false;
         } else {
-          console.warn("🎤 No se capturaron chunks de voz (grabación muy corta o chunk final vacío).");
+          console.warn("🎤 No se capturaron chunks de voz P1 (grabación muy corta o chunk final vacío).");
         }
         karaokeMediaRecorder = null;
         window.karaokeMediaRecorder = null;
-        releaseKaraokeCaptureStreams();
+        if (!karaokeDuoSplitMode) releaseKaraokeCaptureStreams();
+        else tryFinalizeDuoVoice();
       };
       // timeslice: entrega los chunks en intervalos; si el chunk final se
       // perdiera por cualquier razón, la grabación conserva los anteriores.
       karaokeMediaRecorder.start(500);
+
+      // Dúo: recorder independiente para el mic 2. Cada mic se codifica con
+      // su propio reloj (USB, 3.5mm o mixto) y se combinan al final con
+      // balance automático; así ningún mic queda fuera de la mezcla.
+      if (karaokeDuoSplitMode && karaokeStream2) {
+        const sessionChunksB = karaokeChunks2;
+        karaokeChunks2 = sessionChunksB;
+        karaokeMediaRecorder2 = new MediaRecorder(karaokeStream2);
+        const recorderB = karaokeMediaRecorder2;
+        karaokeMediaRecorder2.ondataavailable = (e) => {
+          if (e.data && e.data.size > 0) sessionChunksB.push(e.data);
+        };
+        karaokeMediaRecorder2.onstop = () => {
+          if (karaokeMediaRecorder2 !== recorderB) return;
+          if (sessionChunksB.length) {
+            karaokeRecordedBlob2 = new Blob(sessionChunksB, { type: recorderB.mimeType || "audio/webm" });
+            console.log("🎤 Voz P2 finalizada:", sessionChunksB.length, "chunks,", karaokeRecordedBlob2.size, "bytes, mime:", recorderB.mimeType || "audio/webm");
+          } else {
+            console.warn("🎤 No se capturaron chunks de voz P2.");
+          }
+          karaokeMediaRecorder2 = null;
+          tryFinalizeDuoVoice();
+        };
+        karaokeMediaRecorder2.start(500);
+      }
     } catch (e) {
       console.warn("MediaRecorder no disponible en este navegador:", e);
       karaokeMediaRecorder = null;
+      karaokeMediaRecorder2 = null;
       window.karaokeMediaRecorder = null;
     }
 
@@ -701,7 +780,7 @@ async function loop() {
   try {
     const track = $("karaokeTrack") || $("karaokeAudio") || $("audioKaraoke") || $("trackPlayer");
     const currentTime = track ? track.currentTime : 0;
-    const isRecording = !!(karaokeMediaRecorder && karaokeMediaRecorder.state === "recording");
+    const isRecording = !!((karaokeMediaRecorder && karaokeMediaRecorder.state === "recording") || (karaokeMediaRecorder2 && karaokeMediaRecorder2.state === "recording"));
     const trackEnded = !!(track && track.ended);
     // FIX #19: si el usuario "detiene la pista" (pausa o termina el audio),
     // hay que FINALIZAR la grabación aquí mismo. Antes solo se finalizaba en
@@ -722,39 +801,43 @@ async function loop() {
     loopTick ^= 1;
     const heavyFrame = (loopTick & 1) === 0;
 
-    let pitch = -1;
-    let pitch2 = -1;
+    // Dúo: ping-pong de pitch (un mic por heavy-frame). Detectar P1+P2 en el
+    // mismo frame duplicaba la carga del worker y agravaba el entrecortado
+    // del MediaRecorder; alternando se mantiene ~30fps visual con la mitad
+    // de trabajo pesado. Agnóstico al hardware.
+    const detectP1ThisFrame = !karaokeDuoSplitMode || (duoPitchTurn & 1) === 0;
+    const detectP2ThisFrame = karaokeDuoSplitMode && (duoPitchTurn & 1) === 1;
+    if (heavyFrame && karaokeDuoSplitMode) duoPitchTurn ^= 1;
 
-    if (heavyFrame && karaokePitchDetectionAnalyser && karaokePitchDetectionAudioCtx && karaokeAudioController) {
+    if (heavyFrame && detectP1ThisFrame && karaokePitchDetectionAnalyser && karaokePitchDetectionAudioCtx && karaokeAudioController) {
       try {
         const buffer = new Float32Array(karaokePitchDetectionAnalyser.fftSize);
         karaokePitchDetectionAnalyser.getFloatTimeDomainData(buffer);
-        pitch = await karaokeAudioController.detectPitch(buffer, karaokePitchDetectionAudioCtx.sampleRate);
+        karaokePitchP1 = await karaokeAudioController.detectPitch(buffer, karaokePitchDetectionAudioCtx.sampleRate);
       } catch (error) {
         console.error("Error detectando pitch P1 en karaoke:", error);
-        pitch = -1;
+        karaokePitchP1 = -1;
       }
     }
 
-    if (heavyFrame && karaokeDuoSplitMode && karaokeSplitAnalyser2 && karaokePitchDetectionAudioCtx && karaokeAudioController) {
+    if (heavyFrame && detectP2ThisFrame && karaokeSplitAnalyser2 && karaokePitchDetectionAudioCtx && karaokeAudioController) {
       try {
         const buf2 = new Float32Array(karaokeSplitAnalyser2.fftSize);
         karaokeSplitAnalyser2.getFloatTimeDomainData(buf2);
-        pitch2 = await karaokeAudioController.detectPitch(buf2, karaokePitchDetectionAudioCtx.sampleRate);
+        karaokePitchP2 = await karaokeAudioController.detectPitch(buf2, karaokePitchDetectionAudioCtx.sampleRate);
       } catch (error) {
-        pitch2 = -1;
+        karaokePitchP2 = -1;
       }
     }
 
     if (heavyFrame) {
-      karaokePitchP1 = pitchTrackerP1.advance(pitch);
-      karaokePitchP2 = karaokeDuoSplitMode ? pitchTrackerP2.advance(pitch2) : -1;
+      if (!karaokeDuoSplitMode) karaokePitchP2 = -1;
 
       if (karaokeDuoSplitMode) updateDuoLevels();
       else setBarWidth("karaokeMic1Level", karaokePitchDetectionAnalyser);
-
-      drawKaraokeMonitor(currentTime, karaokePitchP1, karaokePitchP2);
     }
+
+    drawKaraokeMonitor(currentTime, karaokePitchP1, karaokePitchP2);
 
     if (!isRecording || shouldFinalize) {
       karaokePitchLoopRafId = null;
@@ -798,12 +881,22 @@ export function stopKaraokeRecording() {
       console.warn("No se pudo detener MediaRecorder:", e);
     }
   }
+  const recorderB = karaokeMediaRecorder2;
+  if (recorderB && recorderB.state !== "inactive") {
+    try {
+      recorderB.stop();
+    } catch (e) {
+      console.warn("No se pudo detener MediaRecorder P2:", e);
+    }
+  }
   window.karaokeMediaRecorder = null;
 
-  // Si el recorder está pending (stop() pedido), su onstop construirá el
+  // Si algún recorder está pending (stop() pedido), su onstop construirá el
   // blob Y liberará los tracks (FIX #18: no parar el mic antes de que el
   // blob finalice, o el chunk final llega vacío y la voz "no se graba").
-  if (!recorder || recorder.state === "inactive") {
+  const pendingA = recorder && recorder.state !== "inactive";
+  const pendingB = recorderB && recorderB.state !== "inactive";
+  if (!pendingA && !pendingB) {
     releaseKaraokeCaptureStreams();
   }
 
@@ -863,7 +956,9 @@ export async function restartKaraokeRecording() {
   const voicePlayer = $("karaokeVoicePlayer");
   if (voicePlayer) voicePlayer.src = "";
   karaokeChunks = [];
+  karaokeChunks2 = [];
   karaokeRecordedBlob = null;
+  karaokeRecordedBlob2 = null;
 
   const statusEl = $("karaokeStatus");
   if (statusEl) statusEl.textContent = "Estado: Reiniciando grabación...";
@@ -929,12 +1024,6 @@ export function setKaraokeData(lyrics, name, fileUrl) {
   pitchHistoryP2 = [];
   karaokePitchP1 = -1;
   karaokePitchP2 = -1;
-  pitchTrackerP1.reset();
-  pitchTrackerP2.reset();
-  trailLastPitchP1 = -1;
-  trailLastTimeP1 = 0;
-  trailLastPitchP2 = -1;
-  trailLastTimeP2 = 0;
 
   cargarLetrasEnMonitor();
 
@@ -1294,7 +1383,7 @@ export async function loadKaraokeSong(id) {
       track.dataset.objectUrl = "";
       track.dataset.karaokeId = String(item.id);
       track.dataset.karaokeLoaded = "1";
-      track.volume = 0.4;
+      track.volume = 0.5;
       track.load();
 
 track.onloadedmetadata = () => {
@@ -1462,7 +1551,7 @@ export async function mixKaraoke() {
     const trackGain = offlineCtx.createGain();
     // FIX #20: equilibrio fijo voz/pista sin procesador vocal: la voz suena un
     // poquito más fuerte que la pista (~55/45). Queda a ~0.45/0.55.
-    trackGain.gain.value = 0.40;
+    trackGain.gain.value = 0.45;
     const trackSource = offlineCtx.createBufferSource();
     trackSource.buffer = trackBuffer;
     trackSource.connect(trackCompressor);
@@ -1480,7 +1569,7 @@ export async function mixKaraoke() {
 
     const voiceGain = offlineCtx.createGain();
     // FIX #20: la voz queda un poco por encima de la pista (55% vs 45%).
-    voiceGain.gain.value = 0.60;
+    voiceGain.gain.value = 0.55;
     const voiceSource = offlineCtx.createBufferSource();
     voiceSource.buffer = voiceBuffer;
     voiceSource.connect(voiceCompressor);
@@ -1543,8 +1632,6 @@ function limpiarVariablesMonitor() {
   karaokePitchP1 = -1;
   karaokePitchP2 = -1;
   karaokeLoadedLyrics = [];
-  pitchTrackerP1.reset();
-  pitchTrackerP2.reset();
 }
 
 window.syncKaraokeMonitor = syncKaraokeMonitor;
