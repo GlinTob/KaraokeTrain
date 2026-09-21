@@ -139,12 +139,14 @@ export class AudioProcessorController {
     }
 
     const floatBuffer = buffer instanceof Float32Array ? buffer : new Float32Array(buffer);
-    
-    // Transferir el buffer de entrada (zero-copy)
+
+    // Sin transferencia zero-copy a propósito: transferir DETACHA el buffer y
+    // los llamadores (karaoke) reutilizan el suyo entre frames. Clonar 8 KB
+    // por llamada es despreciable frente al costo de la autocorrelación.
     const result = await this.execute("detectPitch", {
       buffer: floatBuffer,
       sampleRate
-    }, [floatBuffer.buffer]);
+    });
 
     return result;
   }
