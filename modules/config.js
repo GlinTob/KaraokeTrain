@@ -146,6 +146,9 @@ export function showSaveNotification() {
 export function applyAppTheme(theme) {
   const safeTheme = theme || "oscuro";
   document.documentElement.setAttribute("data-theme", safeTheme);
+  // El CSS usa selectores body[data-theme=...]: sin esto el tema solo se
+  // aplicaba al recargar (que sí ponía el atributo en body).
+  if (document.body) document.body.setAttribute("data-theme", safeTheme);
   syncAppThemeCard(safeTheme);
   console.log("🎨 Tema aplicado de forma nativa:", safeTheme);
 }
