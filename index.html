@@ -213,7 +213,7 @@
                   </div>
                   <div style="text-align: center; padding: 20px; background: var(--bg-main); border-radius: 8px; margin-bottom: 15px;">
                     <p style="font-size: 15px; color: var(--text-muted); margin: 0 0 10px 0;">Elemento actual:</p>
-                    <p id="tapCurrentLine" style="font-size: 20px; font-weight: bold; color: #26213d; margin: 0 0 15px 0;">---</p>
+                    <p id="tapCurrentLine" style="font-size: 20px; font-weight: bold; color: #facc15; margin: 0 0 15px 0;">---</p>
                     <p style="font-size: 14px; color: var(--text-muted); margin: 0 0 5px 0;">Progreso:</p>
                     <p id="tapProgress" style="font-size: 16px; color: #22c55e; margin: 0;">0 / 0 elementos</p>
                   </div>
@@ -552,9 +552,21 @@
             <h3>ðŸŽ›ï¸ 2. Ajusta el tono (semitonos)</h3>
             <div style="display: flex; gap: 20px; flex-wrap: wrap;">
               <div style="flex: 1; min-width: 180px;">
-                <label for="pitchUpSelect">â¬†ï¸ Subir tono</label>
-                <select id="pitchUpSelect">
-                  <option value="0" selected>0 semitonos</option>
+                <label for="pitchSemitones">Semitonos (-12 a +12)</label>
+                <select id="pitchSemitones">
+                  <option value="-12">-12 (una octava abajo)</option>
+                  <option value="-11">-11</option>
+                  <option value="-10">-10</option>
+                  <option value="-9">-9</option>
+                  <option value="-8">-8</option>
+                  <option value="-7">-7</option>
+                  <option value="-6">-6</option>
+                  <option value="-5">-5</option>
+                  <option value="-4">-4</option>
+                  <option value="-3">-3</option>
+                  <option value="-2">-2</option>
+                  <option value="-1">-1</option>
+                  <option value="0" selected>0 (original)</option>
                   <option value="1">+1</option>
                   <option value="2">+2</option>
                   <option value="3">+3</option>
@@ -566,25 +578,7 @@
                   <option value="9">+9</option>
                   <option value="10">+10</option>
                   <option value="11">+11</option>
-                  <option value="12">+12</option>
-                </select>
-              </div>
-              <div style="flex: 1; min-width: 180px;">
-                <label for="pitchDownSelect">â¬‡ï¸ Bajar tono</label>
-                <select id="pitchDownSelect">
-                  <option value="0" selected>0 semitonos</option>
-                  <option value="1">-1</option>
-                  <option value="2">-2</option>
-                  <option value="3">-3</option>
-                  <option value="4">-4</option>
-                  <option value="5">-5</option>
-                  <option value="6">-6</option>
-                  <option value="7">-7</option>
-                  <option value="8">-8</option>
-                  <option value="9">-9</option>
-                  <option value="10">-10</option>
-                  <option value="11">-11</option>
-                  <option value="12">-12</option>
+                  <option value="12">+12 (una octava arriba)</option>
                 </select>
               </div>
             </div>
