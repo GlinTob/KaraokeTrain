@@ -74,6 +74,8 @@ export async function showTab(tabId) {
       }
     } else if (normalizedTabId === "afinador") {
       console.log("ðŸŽµ [Lazy Load] MÃ³dulo Afinador Vocal listo.");
+      const { initAfinadorUI } = await import("./modules/afinador.js?v=1");
+      if (typeof initAfinadorUI === "function") initAfinadorUI();
     } else if (normalizedTabId === "cambiar-tono") {
       console.log("ðŸŽ¼ [Lazy Load] MÃ³dulo Cambiar Tono listo.");
       const { initCambiarTono, loadPitchKaraokeOptions } = await import("./modules/cambiar-tono.js?v=6");
