@@ -317,7 +317,8 @@ export async function initSettings() {
   const settings = {
     micCount: "karaokeTrain_micCount",
     difficultyLevel: "karaokeTrain_difficulty",
-    karaokeDifficultyLevel: "karaokeTrain_karaoke_difficulty"
+    karaokeDifficultyLevel: "karaokeTrain_karaoke_difficulty",
+    pentagramDifficulty: "karaokeTrain_pentagram"
   };
 
   Object.entries(settings).forEach(([id, storageKey]) => {
@@ -672,6 +673,30 @@ export function getSelectedMicId(micNumber) {
   const selectId = micNumber === 1 ? "mic1Select" : "mic2Select";
   const select = $(selectId);
   return select ? select.value : null;
+}
+
+// Dificultad del pentagrama (karaoke): tolerancia en semitonos para que la
+// nota cuente como afinada. Fácil ±3, Medio ±2, Difícil ±1.
+export function getPentagramTolerance() {
+  try {
+    const level = localStorage.getItem("karaokeTrain_pentagram") || "medio";
+    if (level === "facil") return 3;
+    if (level === "dificil") return 1;
+    return 2;
+  } catch (e) {
+    return 2;
+  }
+}
+
+export function getPentagramDifficultyLabel() {
+  try {
+    const level = localStorage.getItem("karaokeTrain_pentagram") || "medio";
+    if (level === "facil") return "Fácil";
+    if (level === "dificil") return "Difícil";
+    return "Medio";
+  } catch (e) {
+    return "Medio";
+  }
 }
 
 export function saveMicSelection(micNumber) {
