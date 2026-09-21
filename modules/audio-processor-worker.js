@@ -21,29 +21,41 @@ class AudioProcessor {
       throw new Error("No audio buffers to mix");
     }
 
-    const maxLength = Math.max(...buffers.map((b) => b.length || 0));
+    let maxLength = 0;
+    for (let b = 0; b < buffers.length; b++) {
+      const l = (buffers[b] && buffers[b].length) || 0;
+      if (l > maxLength) maxLength = l;
+    }
     if (maxLength === 0) {
       return new Float32Array(0);
     }
 
     const mixed = new Float32Array(maxLength);
-    let max = 0;
 
     buffers.forEach((buffer, index) => {
       if (!buffer) return;
 
-      const gain =
+      let gain =
         gains && gains[index] !== undefined
           ? gains[index]
           : 1;
+      // Un gain NaN/Infinito contaminaría todo el mix sin que ningún max lo
+      // detecte (NaN > max siempre es falso).
+      if (!Number.isFinite(gain)) gain = 1;
 
       for (let i = 0; i < buffer.length; i++) {
-        const val = buffer[i] * gain;
-        mixed[i] += val;
-        const abs = val >= 0 ? val : -val; // Math.abs inline
-        if (abs > max) max = abs;
+        const v = buffer[i];
+        mixed[i] += Number.isFinite(v) ? v * gain : 0;
       }
     });
+
+    // Pico del MIX (no por fuente): dos voces a 0.6 suman 1.2 y clipean
+    // aunque cada una mida 0.6. Segunda pasada dedicada.
+    let max = 0;
+    for (let i = 0; i < mixed.length; i++) {
+      const abs = mixed[i] >= 0 ? mixed[i] : -mixed[i];
+      if (abs > max) max = abs;
+    }
 
     // Normalize to prevent clipping (solo si max > 1)
     if (max > 1) {
@@ -273,6 +285,9 @@ class AudioProcessor {
    */
   normalizeAudio(buffer, targetLevel = 0.9) {
     if (!buffer) throw new Error("Invalid buffer");
+    if (!Number.isFinite(targetLevel) || targetLevel <= 0) {
+      throw new Error("normalizeAudio requiere targetLevel finito y positivo.");
+    }
 
     let max = 0;
     for (let i = 0; i < buffer.length; i++) {
@@ -305,7 +320,20 @@ class AudioProcessor {
 
     const requestedChannels = Math.max(1, numberOfChannels | 0);
     const numChannels = requestedChannels >= 2 ? 2 : 1;
-    const numSamples = channels[0].length || 0;
+    // Validar longitudes: antes se usaba solo channels[0] y el resto se
+    // rellenaba en silencio (o se cortaba a 2ch sin aviso).
+    for (let c = 0; c < channels.length; c++) {
+      const ch = channels[c];
+      if (!(ch instanceof Float32Array) || ch.length === 0 || ch.byteLength === 0) {
+        throw new Error(`encodeWav: canal ${c} vacío o detached.`);
+      }
+    }
+    const numSamples = channels[0].length;
+    for (let c = 1; c < channels.length; c++) {
+      if (channels[c].length !== numSamples) {
+        throw new Error(`encodeWav: canales con longitudes distintas (${numSamples} vs ${channels[c].length}).`);
+      }
+    }
     const bytesPerSample = 2;
     const blockAlign = numChannels * bytesPerSample;
     const byteRate = sampleRate * blockAlign;
