@@ -865,9 +865,28 @@ export function initAfinadorUI() {
   bindAfinadorSelectors();
 }
 
+export function destroyAfinador() {
+  if (!state.isRecording && !afinadorVisual) return;
+  console.log("🧹 Saliendo del afinador: deteniendo mic y guía.");
+  state.isRecording = false;
+  recordingSession++;
+  const btn = $('recordBtn');
+  const btnText = btn?.querySelector('.btn-text');
+  if (btnText) btnText.textContent = 'Iniciar';
+  btn?.classList.remove('recording');
+  btn?.setAttribute('aria-pressed', 'false');
+  stopAfinador();
+  resetAfinadorUI();
+}
+
 function stopAfinador() {
   resetSustain();
   stopGuideTone();
+  // Suspender (no cerrar) el contexto de efectos para que la guía no siga
+  // sonando en otra pestaña y quede reusable al volver.
+  if (sfxCtx && sfxCtx.state === 'running') {
+    sfxCtx.suspend().catch(() => {});
+  }
   if (pitchLoopTimeout) {
     clearTimeout(pitchLoopTimeout);
     pitchLoopTimeout = null;
