@@ -376,9 +376,17 @@ export async function savePitchShiftedToLibrary() {
     if (Math.abs(semitones) < 0.5) {
       renderedBuffer = pitchAudioBuffer;
     } else {
-      renderedBuffer = await renderPitchShiftOffline(pitchAudioBuffer, semitones);
+      // Progreso real del render (el phase-vocoder offline tarda minutos en
+      // canciones largas: avisa el % para no parecer colgado).
+      renderedBuffer = await renderPitchShiftOffline(pitchAudioBuffer, semitones, (p) => {
+        if (status) status.textContent = `Estado: 🔄 procesando audio con el nuevo tono… ${Math.round(p * 100)}%`;
+      });
     }
+    if (status) status.textContent = "Estado: 💾 codificando WAV…";
+    // Ceder un frame para que el estado pinte antes del bucle pesado.
+    await new Promise(r => setTimeout(r, 30));
     const wavBlob = audioBufferToWavBlob(renderedBuffer);
+    if (status) status.textContent = `Estado: ☁️ subiendo a la nube (${(wavBlob.size / 1048576).toFixed(1)} MB, puede tardar)…`;
 
     const nameInput = $("pitchSaveName");
     const signo = semitones > 0 ? "+" : "";
@@ -444,7 +452,7 @@ export async function sendPitchShiftedToKaraokeMonitor() {
   }
 }
 
-export async function renderPitchShiftOffline(audioBuffer, semitones) {
+export async function renderPitchShiftOffline(audioBuffer, semitones, onProgress) {
   if (!audioBuffer) {
     throw new Error("renderPitchShiftOffline requiere un audioBuffer vÃ¡lido.");
   }
@@ -485,7 +493,26 @@ export async function renderPitchShiftOffline(audioBuffer, semitones) {
   worklet.connect(offlineCtx.destination);
   source.start();
 
+  // Suspensiones programadas para reportar %: el render corre en otro hilo
+  // pero suspend() permite actualizar la UI entre tramos.
+  if (typeof onProgress === "function") {
+    try {
+      const totalSec = outputLength / audioBuffer.sampleRate;
+      const steps = 10;
+      for (let k = 1; k < steps; k++) {
+        const t = (totalSec * k) / steps;
+        offlineCtx.suspend(t).then(() => {
+          try { onProgress(k / steps); } catch (e) {}
+          offlineCtx.resume();
+        }).catch(() => {});
+      }
+    } catch (e) {}
+  }
+
   const rendered = await offlineCtx.startRendering();
+  if (typeof onProgress === "function") {
+    try { onProgress(1); } catch (e) {}
+  }
 
   try { source.disconnect(); } catch (e) {}
   try { worklet.disconnect(); } catch (e) {}
