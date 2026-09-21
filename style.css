@@ -1121,42 +1121,55 @@ audio {
 ========================================== */
 
 [data-theme="claro"] {
-  --bg-main: #eef2f7;
-  --bg-sidebar: #ffffff;
+  --bg-main: #ddf2f0;
+  --bg-sidebar: #eaf7f5;
   --bg-card: #ffffff;
-  --text-main: #0f172a;
-  --text-muted: #475569;
-  --accent: #2563eb;
-  --accent-hover: #1d4ed8;
-  --danger: #dc2626;
-  --border: #cbd5e1;
-  --accent-secondary: #2563eb;
-  --accent-secondary-hover: #1d4ed8;
-  --accent-secondary-border: rgba(37, 99, 235, 0.22);
-  --accent-secondary-shadow: rgba(37, 99, 235, 0.2);
+  --text-main: #111111;
+  --text-muted: #111111;
+  --accent: #8c73b9;
+  --accent-hover: #7a5fa8;
+  --danger: #e97f96;
+  --border: #c9bce3;
+  --accent-secondary: #e97f96;
+  --accent-secondary-hover: #d96482;
+  --accent-secondary-border: rgba(233, 127, 150, 0.35);
+  --accent-secondary-shadow: rgba(140, 115, 185, 0.25);
 }
 
 [data-theme="claro"] body,
 body[data-theme="claro"] {
   background: var(--bg-main);
-  color: var(--text-main);
+  color: #111111;
+}
+
+[data-theme="claro"] h1,
+[data-theme="claro"] h2,
+[data-theme="claro"] h3,
+[data-theme="claro"] p,
+[data-theme="claro"] span,
+[data-theme="claro"] label,
+[data-theme="claro"] small,
+[data-theme="claro"] .card,
+[data-theme="claro"] .config-subtitle,
+[data-theme="claro"] .section-desc {
+  color: #111111;
 }
 
 [data-theme="claro"] .sidebar button {
-  background: linear-gradient(180deg, #f1f5f9 0%, #e2e8f0 100%);
-  border: 1px solid #cbd5e1;
-  color: #1e293b;
-  box-shadow: 0 4px 0 #94a3b8, 0 6px 12px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.8);
+  background: linear-gradient(180deg, #f4f2cf 0%, #e7e25e 100%);
+  border: 1px solid #c9c45a;
+  color: #111111;
+  box-shadow: 0 4px 0 #a8a34e, 0 6px 12px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.8);
 }
 
 [data-theme="claro"] .sidebar button:hover {
-  background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
-  color: #ffffff;
+  background: linear-gradient(180deg, #e97f96 0%, #d96482 100%);
+  color: #111111;
 }
 
 [data-theme="claro"] .sidebar button.active {
-  background: linear-gradient(180deg, #22c55e 0%, #15803d 100%);
-  color: #ffffff;
+  background: linear-gradient(180deg, #8c73b9 0%, #7a5fa8 100%);
+  color: #111111;
 }
 
 [data-theme="neon"] {
