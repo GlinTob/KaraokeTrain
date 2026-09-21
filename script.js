@@ -5,7 +5,7 @@ export function safeAdd(id, event, handler) {
   if (el) {
     el.addEventListener(event, handler);
   } else {
-    console.warn(`⚠️ No se encontró el elemento con ID: ${id} para registrar el evento [${event}]`);
+    console.warn(`âš ï¸ No se encontrÃ³ el elemento con ID: ${id} para registrar el evento [${event}]`);
   }
 }
 
@@ -28,7 +28,7 @@ export async function showTab(tabId) {
   const originalTabId = String(tabId);
   const normalizedTabId = originalTabId.toLowerCase();
 
-  console.log(`⚠️ [Navegación] Solicitando cambio a la pestaña: [${normalizedTabId.toUpperCase()}]`);
+  console.log(`\nðŸ“Œ [NavegaciÃ³n] Solicitando cambio a la pestaÃ±a: [${normalizedTabId.toUpperCase()}]`);
 
   document.querySelectorAll(".tab").forEach(tab => tab.classList.remove("active"));
 
@@ -36,7 +36,7 @@ export async function showTab(tabId) {
   if (target) {
     target.classList.add("active");
   } else {
-    console.warn(`⚠️ No se encontró la pestaña con ID: ${normalizedTabId}`);
+    console.warn(`âš ï¸ No se encontrÃ³ la pestaÃ±a con ID: ${normalizedTabId}`);
     return;
   }
 
@@ -56,18 +56,18 @@ export async function showTab(tabId) {
 
   try {
     if (normalizedTabId === "config") {
-      console.log(`⚠️ [Lazy Load] Cargando configuraciones de hardware..."`);
+      console.log("âš™ï¸ [Lazy Load] Cargando configuraciones de hardware...");
       const { initSettings, loadAvailableMics } = await import("./modules/config.js?v=8");
       if (typeof initSettings === "function") initSettings();
       if (typeof loadAvailableMics === "function") await loadAvailableMics();
     } else if (normalizedTabId === "biblioteca") {
-      console.log(`⚠️ [Lazy Load] Cargando visor de Base de Datos..."`);
+      console.log("ðŸ“ [Lazy Load] Cargando visor de Base de Datos...");
       const { initBiblioteca, renderLibrary } = await import("./modules/biblioteca.js?v=4");
       if (typeof initBiblioteca === "function") {
         initBiblioteca();
       }
       } else if (normalizedTabId === "estudio") {
-      console.log(`⚠️ [Lazy Load] Cargando entorno de sincronización y listados..."`);
+      console.log("ðŸŽ§ [Lazy Load] Cargando entorno de sincronizaciÃ³n y listados...");
       const { initEstudio } = await import("./modules/estudio.js");
       if (typeof initEstudio === "function") {
         await initEstudio();
@@ -81,7 +81,7 @@ export async function showTab(tabId) {
       if (typeof loadPitchKaraokeOptions === "function") await loadPitchKaraokeOptions();
     } else if (normalizedTabId === "karaoke") {
       console.log("ðŸŽ¤ [Lazy Load] Inicializando Canvas e HistÃ³ricos de Canto...");
-      const { loadTrackOptionsInKaraoke, loadKaraokeSong } = await import("./modules/karaoke.js?v=16");
+      const { loadTrackOptionsInKaraoke, loadKaraokeSong } = await import("./modules/karaoke.js?v=17");
       const { inicializarEscenarioDesdeMemoria } = await import("./modules/config.js?v=8");
 
       if (typeof inicializarEscenarioDesdeMemoria === "function") inicializarEscenarioDesdeMemoria();
@@ -109,7 +109,7 @@ export async function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2 
 
   // Cachear la referencia al renderizador para evitar un import dinÃ¡mico por cada repintado
   if (!_karaokeRenderPincel) {
-    const { drawKaraokeMonitor: renderPincel } = await import('./modules/karaoke.js?v=16');
+    const { drawKaraokeMonitor: renderPincel } = await import('./modules/karaoke.js?v=17');
     _karaokeRenderPincel = renderPincel;
   }
   if (typeof _karaokeRenderPincel === "function") {
@@ -326,28 +326,28 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // --- EVENTOS KARAOKE ---
   safeAdd("karaokeTrackSelect", "change", async () => {
-    const { loadKaraokeSong } = await import("./modules/karaoke.js?v=16");
+    const { loadKaraokeSong } = await import("./modules/karaoke.js?v=17");
     const id = $("karaokeTrackSelect")?.value;
     if (id && typeof loadKaraokeSong === "function") loadKaraokeSong(id);
   });
   safeAdd("karaokeDuoSplitToggleBtn", "click", async () => {
-    const { toggleKaraokeDuoSplitMode } = await import("./modules/karaoke.js?v=16");
+    const { toggleKaraokeDuoSplitMode } = await import("./modules/karaoke.js?v=17");
     if (typeof toggleKaraokeDuoSplitMode === "function") toggleKaraokeDuoSplitMode();
   });
   safeAdd("karaokeStartBtn", "click", async () => {
-    const { startKaraokeRecording } = await import("./modules/karaoke.js?v=16");
+    const { startKaraokeRecording } = await import("./modules/karaoke.js?v=17");
     if (typeof startKaraokeRecording === "function") startKaraokeRecording();
   });
   safeAdd("karaokeStopBtn", "click", async () => {
-    const { stopKaraokeRecording } = await import("./modules/karaoke.js?v=16");
+    const { stopKaraokeRecording } = await import("./modules/karaoke.js?v=17");
     if (typeof stopKaraokeRecording === "function") stopKaraokeRecording();
   });
   safeAdd("karaokeRestartBtn", "click", async () => {
-    const { restartKaraokeRecording } = await import("./modules/karaoke.js?v=16");
+    const { restartKaraokeRecording } = await import("./modules/karaoke.js?v=17");
     if (typeof restartKaraokeRecording === "function") restartKaraokeRecording();
   });
   safeAdd("karaokeMixBtn", "click", async () => {
-    const { mixKaraoke } = await import("./modules/karaoke.js?v=16");
+    const { mixKaraoke } = await import("./modules/karaoke.js?v=17");
     if (typeof mixKaraoke === "function") mixKaraoke();
   });
 
