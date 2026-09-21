@@ -987,33 +987,37 @@ async function runPitchDetectionLoop(pitchBuffer) {
       const targetFreq = noteToFrequency(targetNoteName);
       const cents = frequencyToCentsOff(displayFreq, targetFreq);
 
+      const difficultyEl = $('afinadorDifficulty');
+      const level = difficultyEl?.value || 'medio';
+      const tolerances = { facil: 50, medio: 30, dificil: 15, experto: 5 };
+      const tolerance = tolerances[level] || 30;
+      // Clases alineadas con style.css: state-on (afinado), state-flat
+      // (grave: subir la voz), state-sharp (agudo: bajar la voz).
+      const tuned = Math.abs(cents) <= tolerance * 0.35;
+      const dir = cents < 0 ? 'flat' : 'sharp';
+
       if (noteDisplay) {
         noteDisplay.textContent = detectedNote;
-        noteDisplay.className = 'current-note state-active';
+        noteDisplay.className = tuned ? 'current-note state-on' : `current-note state-${dir}`;
       }
 
       if (centsDisplay) {
         const rounded = Math.round(cents);
         const sign = rounded > 0 ? '+' : '';
         centsDisplay.textContent = `${sign}${rounded}¢`;
-        centsDisplay.className = 'cents-display';
+        centsDisplay.className = tuned ? 'cents-display visible cents-on' : `cents-display visible cents-${dir}`;
       }
 
       if (guideText) {
-        const difficultyEl = $('afinadorDifficulty');
-        const level = difficultyEl?.value || 'medio';
-        const tolerances = { facil: 50, medio: 30, dificil: 15, experto: 5 };
-        const tolerance = tolerances[level] || 30;
-
-        if (Math.abs(cents) <= tolerance * 0.35) {
+        if (tuned) {
           guideText.textContent = '✅ Afinado';
-          guideText.className = 'guide-text state-good';
+          guideText.className = 'guide-text state-on';
         } else if (cents < 0) {
           guideText.textContent = '⬆️ Sube la voz';
-          guideText.className = 'guide-text state-low';
+          guideText.className = 'guide-text state-flat';
         } else {
           guideText.textContent = '⬇️ Baja la voz';
-          guideText.className = 'guide-text state-high';
+          guideText.className = 'guide-text state-sharp';
         }
       }
     } else {
