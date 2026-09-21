@@ -28,6 +28,8 @@ let karaokeRecordedBlob = null;
 let karaokeMediaRecorder = null;
 // Dúo: segundo micrófono con recorder propio (agnóstico al hardware:
 // USB, 3.5mm o mixto; cada mic conserva su reloj y su encoding).
+let karaokePitchBuf1 = null;
+let karaokePitchBuf2 = null;
 let karaokeChunks2 = [];
 let karaokeRecordedBlob2 = null;
 let karaokeMediaRecorder2 = null;
@@ -358,7 +360,7 @@ function drawAvatarBlock(pTop, pBottom, parte, avatarBlockW, ctx) {
     ? info.userName
     : (info && info.avatar && info.avatar.name
         ? info.avatar.name
-        : (isP1 ? "Wen-dolyne" : "To-bonito"));
+        : (isP1 ? "Usuario 1" : "Usuario 2"));
   const emoji1 = info && info.emoji1 ? info.emoji1 : (isP1 ? "⚛️" : "🐱");
   const emoji2 = info && info.emoji2 ? info.emoji2 : (isP1 ? "🤖" : "🤔");
 
@@ -609,10 +611,22 @@ async function combineDuoVoiceBlobs(blob1, blob2) {
   }
 }
 
+let karaokePreviewUrl = null;
+let karaokeMixUrl = null;
+
+function revokePreviewUrl() {
+  if (karaokePreviewUrl) {
+    try { URL.revokeObjectURL(karaokePreviewUrl); } catch (e) {}
+    karaokePreviewUrl = null;
+  }
+}
+
 function publishVoicePreview(blob, enableMix = true) {
+  revokePreviewUrl();
   const voicePlayer = $("karaokeVoicePlayer");
   if (voicePlayer) {
-    voicePlayer.src = URL.createObjectURL(blob);
+    karaokePreviewUrl = URL.createObjectURL(blob);
+    voicePlayer.src = karaokePreviewUrl;
     voicePlayer.controls = true;
   }
   const mixBtn = $("karaokeMixBtn");
@@ -1009,11 +1023,14 @@ async function loop() {
     const detectP2ThisFrame = karaokeDuoSplitMode && (duoPitchTurn & 1) === 1;
     if (heavyFrame && karaokeDuoSplitMode) duoPitchTurn ^= 1;
 
+    // Buffers reutilizados: antes se alocaba un Float32Array(2048) por frame
+    // (~30/s) presionando al GC y agravando el entrecortado del FIX #20.
     if (heavyFrame && detectP1ThisFrame && karaokePitchDetectionAnalyser && karaokePitchDetectionAudioCtx && karaokeAudioController) {
       try {
-        const buffer = new Float32Array(karaokePitchDetectionAnalyser.fftSize);
-        karaokePitchDetectionAnalyser.getFloatTimeDomainData(buffer);
-        karaokePitchP1 = await karaokeAudioController.detectPitch(buffer, karaokePitchDetectionAudioCtx.sampleRate);
+        const size = karaokePitchDetectionAnalyser.fftSize;
+        if (!karaokePitchBuf1 || karaokePitchBuf1.length !== size) karaokePitchBuf1 = new Float32Array(size);
+        karaokePitchDetectionAnalyser.getFloatTimeDomainData(karaokePitchBuf1);
+        karaokePitchP1 = await karaokeAudioController.detectPitch(karaokePitchBuf1, karaokePitchDetectionAudioCtx.sampleRate);
       } catch (error) {
         console.error("Error detectando pitch P1 en karaoke:", error);
         karaokePitchP1 = -1;
@@ -1022,9 +1039,10 @@ async function loop() {
 
     if (heavyFrame && detectP2ThisFrame && karaokeSplitAnalyser2 && karaokePitchDetectionAudioCtx && karaokeAudioController) {
       try {
-        const buf2 = new Float32Array(karaokeSplitAnalyser2.fftSize);
-        karaokeSplitAnalyser2.getFloatTimeDomainData(buf2);
-        karaokePitchP2 = await karaokeAudioController.detectPitch(buf2, karaokePitchDetectionAudioCtx.sampleRate);
+        const size2 = karaokeSplitAnalyser2.fftSize;
+        if (!karaokePitchBuf2 || karaokePitchBuf2.length !== size2) karaokePitchBuf2 = new Float32Array(size2);
+        karaokeSplitAnalyser2.getFloatTimeDomainData(karaokePitchBuf2);
+        karaokePitchP2 = await karaokeAudioController.detectPitch(karaokePitchBuf2, karaokePitchDetectionAudioCtx.sampleRate);
       } catch (error) {
         karaokePitchP2 = -1;
       }
@@ -1172,6 +1190,7 @@ export async function restartKaraokeRecording() {
     track.currentTime = 0;
   }
   const voicePlayer = $("karaokeVoicePlayer");
+  revokePreviewUrl();
   if (voicePlayer) voicePlayer.src = "";
   karaokeChunks = [];
   karaokeChunks2 = [];
@@ -1736,8 +1755,9 @@ export async function mixKaraoke() {
     resultDiv.innerHTML = "<p style='color: var(--text-muted);'>Uniendo la pista y tu voz. Esto puede tardar unos segundos...</p>";
   }
 
+  let audioCtx = null;
   try {
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
     // FIX #5: distinguir entre URL remota y Blob/objeto local para evitar
     // TypeError "Failed to fetch" cuando trackFile es un Blob (no string).
@@ -1822,7 +1842,11 @@ export async function mixKaraoke() {
 
     const renderedBuffer = await offlineCtx.startRendering();
     const finalWavBlob = await getAudioController().encodeWavToBlob(renderedBuffer);
-    const finalUrl = URL.createObjectURL(finalWavBlob);
+    if (karaokeMixUrl) {
+      try { URL.revokeObjectURL(karaokeMixUrl); } catch (e) {}
+    }
+    karaokeMixUrl = URL.createObjectURL(finalWavBlob);
+    const finalUrl = karaokeMixUrl;
 
     if (resultDiv) {
       resultDiv.innerHTML = `
@@ -1850,13 +1874,17 @@ export async function mixKaraoke() {
       }
     }
 
-    try { await audioCtx.close(); } catch (e) {}
   } catch (err) {
     console.error("Error al mezclar:", err);
     if (resultDiv) {
       resultDiv.innerHTML = "<p style='color: #ef4444;'>❌ Hubo un error al mezclar los audios.</p>";
     }
   } finally {
+    // El contexto de mezcla se cierra siempre, también en error: antes quedaba
+    // corriendo en segundo plano por cada mezcla fallida.
+    if (audioCtx) {
+      try { await audioCtx.close(); } catch (e) {}
+    }
     if (btn) {
       btn.textContent = "🎧 Mezclar Pista + Voz";
       btn.disabled = false;
