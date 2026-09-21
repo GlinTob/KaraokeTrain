@@ -254,7 +254,7 @@ function drawRegion(pTop, pBottom, pVal, pHist, filtro, etiqueta, paleta, curren
       const age = tNow - (entry && typeof entry === "object" && entry.t ? entry.t : tNow);
       if (age > 2000) continue;
       const x = dynLineX - age * PX_PER_MS;
-      if (x < pentagramStartX) break;
+      if (x < pentagramStartX) continue;
       const yPos = midiToY(Math.round(12 * Math.log2(f / 440) + 69));
       if (!started) { ctx.moveTo(x, yPos); started = true; }
       else { ctx.lineTo(x, yPos); }
