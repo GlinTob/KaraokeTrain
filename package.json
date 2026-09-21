@@ -1,7 +1,6 @@
 {
+  "private": true,
   "type": "module",
-  "name": "karaokeTrain",
-  "lockfileVersion": 3,
-  "requires": true,
-  "packages": {}
+  "name": "karaoketrain",
+  "version": "1.0.0"
 }
