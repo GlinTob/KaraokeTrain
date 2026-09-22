@@ -30,6 +30,8 @@ let karaokeMediaRecorder = null;
 // USB, 3.5mm o mixto; cada mic conserva su reloj y su encoding).
 let karaokePitchBuf1 = null;
 let karaokePitchBuf2 = null;
+// Puntaje por frase: frames totales/afinados por índice de segmento y cantante.
+let scoreData = { P1: [], P2: [] };
 let karaokeChunks2 = [];
 let karaokeRecordedBlob2 = null;
 let karaokeMediaRecorder2 = null;
@@ -498,6 +500,85 @@ function updateDuoLevels() {
   setBarWidth("karaokeDuoMic2Level", karaokeSplitAnalyser2);
 }
 
+// --- PUNTAJE DE AFINACIÓN POR FRASE (usa la tolerancia del pentagrama) ---
+function escHtml(s) {
+  return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function targetMidiAt(time, parte) {
+  if (!Array.isArray(textSegments)) return null;
+  for (let i = 0; i < textSegments.length; i++) {
+    const seg = textSegments[i];
+    if (seg.parte !== parte && seg.parte !== "DUO") continue;
+    if (time < (seg.start || 0) || time > (seg.end || 0)) continue;
+    let target = Number.isFinite(seg.midi) ? seg.midi : 60;
+    if (Array.isArray(seg.words)) {
+      for (const w of seg.words) {
+        const ws = Number.isFinite(w.start) ? w.start : -1;
+        const we = Number.isFinite(w.end) ? w.end : -1;
+        if (time >= ws && time <= we) {
+          if (Number.isFinite(w.midi)) target = w.midi;
+          break;
+        }
+      }
+    }
+    return { idx: i, target };
+  }
+  return null;
+}
+
+function accumulateScore(quien, time, freq) {
+  if (!(freq > 0)) return;
+  const hit = targetMidiAt(time, quien);
+  if (!hit) return;
+  const tol = getPentagramTolerance();
+  const userMidi = Math.round(12 * Math.log2(freq / 440) + 69);
+  let slot = scoreData[quien][hit.idx];
+  if (!slot) slot = scoreData[quien][hit.idx] = { total: 0, ok: 0 };
+  slot.total++;
+  if (Math.abs(userMidi - hit.target) <= tol) slot.ok++;
+}
+
+function starStr(pct) {
+  const n = pct >= 90 ? 5 : pct >= 75 ? 4 : pct >= 60 ? 3 : pct >= 40 ? 2 : 1;
+  return "★".repeat(n) + "☆".repeat(5 - n);
+}
+
+function summarizeScore(quien) {
+  const slots = scoreData[quien];
+  let t = 0, ok = 0, n = 0, best = null, worst = null;
+  for (let i = 0; i < slots.length; i++) {
+    const s = slots[i];
+    if (!s || s.total < 5) continue;
+    n++;
+    t += s.total;
+    ok += s.ok;
+    const p = Math.round(100 * s.ok / s.total);
+    const txt = (textSegments[i] && textSegments[i].text) || `Línea ${i + 1}`;
+    if (!best || p > best.p) best = { p, txt };
+    if (!worst || p < worst.p) worst = { p, txt };
+  }
+  if (!n) return null;
+  return { pct: Math.round(100 * ok / t), n, best, worst };
+}
+
+function renderScoreboard() {
+  const box = $("karaokeScore");
+  const s1 = summarizeScore("P1");
+  const s2 = karaokeDuoSplitMode ? summarizeScore("P2") : null;
+  const line = (tag, s) => s
+    ? `<div style="margin-top:8px;"><b>${tag}: ${s.pct}/100 ${starStr(s.pct)}</b> <span style="color:var(--text-muted);">(${s.n} líneas)</span><br><small>✅ Mejor: ${escHtml(s.best.txt)} (${s.best.p}%) · ⚠️ A pulir: ${escHtml(s.worst.txt)} (${s.worst.p}%)</small></div>`
+    : "";
+  const html = line(karaokeDuoSplitMode ? "🟦 P1" : "🎤 Tu puntaje", s1) + (s2 ? line("🟧 P2", s2) : "");
+  if (box) {
+    box.innerHTML = html ? `<h4 style="margin:0 0 4px 0;">🏆 Puntaje de afinación</h4>${html}` : "";
+    box.style.display = html ? "block" : "none";
+  }
+  if (s1 && !s2) return `Puntaje: ${s1.pct}/100 ${starStr(s1.pct)}`;
+  if (s1 && s2) return `P1: ${s1.pct} · P2: ${s2.pct}`;
+  return "";
+}
+
 // Constraints agnósticos al hardware (USB / 3.5mm / mixto): SIN cancelación
 // de eco ni supresión de ruido (el AEC/NS toma al segundo cantante como
 // "eco/ruido" y lo deja bajo y entrecortado), pero CON control automático
@@ -738,6 +819,9 @@ export async function startKaraokeRecording() {
     karaokeDuoP2Active = false;
     karaokeDuoCombined = false;
     clearFinalizeWatchdog();
+    scoreData = { P1: [], P2: [] };
+    const scoreBoxAtStart = $("karaokeScore");
+    if (scoreBoxAtStart) { scoreBoxAtStart.innerHTML = ""; scoreBoxAtStart.style.display = "none"; }
 
     // Durante una grabación nueva no hay voz lista; se habilita "Mezclar"
     // recién cuando el onstop construye el blob (FIX #18).
@@ -834,6 +918,29 @@ const pitchInputGain2 = karaokePitchDetectionAudioCtx.createGain();
     pitchInputGain2.gain.value = 1;
     source2.connect(pitchInputGain2);
     pitchInputGain2.connect(karaokeSplitAnalyser2);
+    }
+
+    // Monitoreo opcional (apagado por defecto): escucharse mientras se canta.
+    // Ganancia baja (0.2) y se recomienda audífonos: con altavoces hay acople.
+    // Los nodos mueren con el AudioContext al detener; no hay que liberarlos.
+    const monitorChk = $("karaokeMonitorChk");
+    if (monitorChk && monitorChk.checked) {
+      const monitorGain = karaokePitchDetectionAudioCtx.createGain();
+      monitorGain.gain.value = 0.2;
+      source1.connect(monitorGain);
+      monitorGain.connect(karaokePitchDetectionAudioCtx.destination);
+      if (karaokeDuoSplitMode && karaokeStream2) {
+        try {
+          const monitorSrc2 = karaokePitchDetectionAudioCtx.createMediaStreamSource(karaokeStream2);
+          const monitorGain2 = karaokePitchDetectionAudioCtx.createGain();
+          monitorGain2.gain.value = 0.2;
+          monitorSrc2.connect(monitorGain2);
+          monitorGain2.connect(karaokePitchDetectionAudioCtx.destination);
+        } catch (e) {
+          console.warn("No se pudo monitorear el mic 2:", e);
+        }
+      }
+      console.log("🎧 Monitoreo activado: te escuchas mientras cantas (usa audífonos).");
     }
 
     karaokeAudioController = getAudioController();
@@ -1053,6 +1160,12 @@ async function loop() {
 
       if (karaokeDuoSplitMode) updateDuoLevels();
       else setBarWidth("karaokeMic1Level", karaokePitchDetectionAnalyser);
+
+      // Puntaje: solo mientras se graba (no en previsualización).
+      if (karaokeRecordingActive) {
+        accumulateScore("P1", currentTime, karaokePitchP1);
+        if (karaokeDuoSplitMode) accumulateScore("P2", currentTime, karaokePitchP2);
+      }
     }
 
     drawKaraokeMonitor(currentTime, karaokePitchP1, karaokePitchP2);
@@ -1155,8 +1268,13 @@ export function stopKaraokeRecording() {
     try { track.pause(); } catch (e) {}
   }
 
+  const scoreTxt = renderScoreboard();
   const statusEl = $("karaokeStatus");
-  if (statusEl) statusEl.textContent = "⏹️ Grabación detenida. Escucha tu voz abajo.";
+  if (statusEl) {
+    statusEl.textContent = scoreTxt
+      ? `⏹️ Grabación detenida. ${scoreTxt}. Escucha tu voz abajo.`
+      : "⏹️ Grabación detenida. Escucha tu voz abajo.";
+  }
 
   // El botón Mezclar se habilita en el onstop del recorder, cuando la voz ya
   // está construida (FIX #18). Aquí NO se habilita: si el blob aún no existe,
