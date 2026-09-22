@@ -357,6 +357,20 @@ export async function initSettings() {
   inicializarEscenarioDesdeMemoria();
   initializeAvatarSelector();
   toggleMic2Visibility();
+
+  // Botones de Primeros pasos: navegan al tab indicado.
+  document.querySelectorAll("[data-go]").forEach((btn) => {
+    if (btn.dataset.goBound) return;
+    btn.dataset.goBound = "true";
+    btn.addEventListener("click", async () => {
+      try {
+        const { showTab } = await import("../script.js");
+        if (typeof showTab === "function") showTab(btn.dataset.go);
+      } catch (e) {
+        console.warn("No se pudo navegar a", btn.dataset.go, e);
+      }
+    });
+  });
 }
 
 // ====================================================================
