@@ -1,4 +1,4 @@
-import { $, safeAdd } from "./utils.js";
+import { $, safeAdd, toast } from "./utils.js";
 import { getLibraryItemsByIdFromSupabase, getLibraryItemsByTypeFromSupabase, saveToLibrary } from "./biblioteca.js?v=4";
 // FIX #17: removido `destroyAudioController` del import. Se mantiene el
 // singleton vivo durante toda la sesión (no se destruye en flujos normales)
@@ -797,7 +797,7 @@ export async function startKaraokeRecording() {
   try {
     const track = $("karaokeTrack") || $("karaokeAudio") || $("audioKaraoke") || $("trackPlayer");
     if (!track || !track.src) {
-      alert("⚠️ Primero selecciona un karaoke desde la Biblioteca.");
+      toast("Primero selecciona un karaoke desde la Biblioteca.", "warn");
       return;
     }
 
@@ -928,6 +928,10 @@ const pitchInputGain2 = karaokePitchDetectionAudioCtx.createGain();
     const monitorChk = $("karaokeMonitorChk");
     karaokeMonitorOn = !!(monitorChk && monitorChk.checked);
     if (karaokeMonitorOn) {
+      // Volumen elegido por el usuario (0-100). El compresor doma los picos.
+      const volEl = $("karaokeMonitorVol");
+      const volParsed = volEl ? parseInt(volEl.value || "80", 10) : 80;
+      const monitorVol = Math.max(0, Math.min(100, Number.isFinite(volParsed) ? volParsed : 80)) / 100;
       const wireMonitor = (src) => {
         const comp = karaokePitchDetectionAudioCtx.createDynamicsCompressor();
         comp.threshold.value = -16;
@@ -936,7 +940,7 @@ const pitchInputGain2 = karaokePitchDetectionAudioCtx.createGain();
         comp.attack.value = 0.003;
         comp.release.value = 0.2;
         const monitorGain = karaokePitchDetectionAudioCtx.createGain();
-        monitorGain.gain.value = 0.6;
+        monitorGain.gain.value = monitorVol;
         src.connect(comp);
         comp.connect(monitorGain);
         monitorGain.connect(karaokePitchDetectionAudioCtx.destination);
@@ -1852,11 +1856,11 @@ export async function mixKaraoke() {
   }
 
   if (!karaokeRecordedBlob) {
-    alert("⚠️ Tu voz no se grabó. Pulsa '▶️ Iniciar Grabación', canta, y al terminar presiona '⏹️ Detener'. Luego vuelve a intentar mezclar.");
+    toast("Tu voz no se grabó. Inicia grabación, canta y detén antes de mezclar.", "warn", 5000);
     return;
   }
   if (!karaokeSelectedTrackBlob) {
-    alert("⚠️ No hay pista seleccionada. Elige un karaoke desde la Biblioteca y vuelve a intentar.");
+    toast("No hay pista seleccionada. Elige un karaoke desde la Biblioteca.", "warn");
     return;
   }
 
