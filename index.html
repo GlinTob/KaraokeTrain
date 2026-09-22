@@ -120,6 +120,16 @@
         <!-- ESTUDIO -->
         <section id="estudio" class="tab">
           <h1>ESTUDIO: Mezcla y sincroniza archivos para crear un Karaoke</h1>
+
+          <div class="card" id="studioChecklistCard">
+            <h3>✅ Para crear tu karaoke necesitas</h3>
+            <ul style="list-style: none; padding: 0; margin: 0 0 10px 0;">
+              <li id="checkPista">⬜ Pista cargada</li>
+              <li id="checkVoz">⬜ Voz cargada</li>
+              <li id="checkLetra">⬜ Letra cargada</li>
+            </ul>
+            <p style="color: var(--text-muted); margin: 0;">Cuando las tres estén listas, ve a la sincronización con taps abajo.</p>
+          </div>
           
           <div class="card">
             <h3>PISTA: Exporta desde Biblioteca</h3>
@@ -336,9 +346,13 @@
 
             <div id="karaokeScore" style="display: none; margin-bottom: 15px; padding: 15px; background: var(--bg-main); border-radius: 8px; border: 1px solid var(--border);"></div>
 
-            <label style="display: flex; gap: 8px; align-items: center; margin-bottom: 15px; color: var(--text-muted); cursor: pointer;">
+            <label style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px; color: var(--text-muted); cursor: pointer;">
               <input type="checkbox" id="karaokeMonitorChk">
               <span>🎧 Escucharme mientras canto (usa audífonos para evitar acople)</span>
+            </label>
+            <label style="display: flex; gap: 8px; align-items: center; margin-bottom: 15px; color: var(--text-muted);">
+              <span>🔊 Volumen de mi voz:</span>
+              <input type="range" id="karaokeMonitorVol" min="0" max="100" value="80" style="flex: 1;">
             </label>
 
             <audio id="karaokeTrack" preload="auto" style="display:none;"></audio>
@@ -387,8 +401,19 @@
         <!-- CONFIGURACIÃ“N -->
         <section id="config" class="tab active">
           <div class="config-header">
-            <h1>ConfiguraciÃ³n</h1>
-            <p class="config-subtitle">Personaliza tu experiencia. Los cambios se guardan automÃ¡ticamente.</p>
+            <h1>Configuración</h1>
+            <p class="config-subtitle">Personaliza tu experiencia. Los cambios se guardan automáticamente.</p>
+          </div>
+
+          <div class="card config-section">
+            <h2>🚀 Primeros pasos</h2>
+            <p class="section-desc">Tu ruta para crear y cantar un karaoke:</p>
+            <div class="studio-controls" style="display: flex; gap: 8px; flex-wrap: wrap;">
+              <button type="button" data-go="biblioteca">1️⃣ Sube archivos en Biblioteca</button>
+              <button type="button" data-go="estudio">2️⃣ Arma y sincroniza en Estudio</button>
+              <button type="button" data-go="afinador">3️⃣ Practica en Afinador</button>
+              <button type="button" data-go="karaoke">4️⃣ Canta en Karaoke</button>
+            </div>
           </div>
 
           <!-- AVATAR -->
