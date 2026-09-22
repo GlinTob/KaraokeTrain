@@ -41,8 +41,21 @@ let tapSyncParts = [];
 let tapSyncSession = 0;
 
 
+// Checklist visible: qué falta para poder crear el karaoke. Se refresca al
+// entrar al tab y tras cada carga.
+export function refreshStudioChecklist() {
+  const set = (id, ok, label) => {
+    const el = $(id);
+    if (el) el.textContent = `${ok ? "✅" : "⬜"} ${label}`;
+  };
+  set("checkPista", !!studioTrackId, "Pista cargada");
+  set("checkVoz", !!selectedVoiceId, "Voz cargada");
+  set("checkLetra", !!selectedTextId, "Letra cargada");
+}
+
 export function initEstudio() {
-  console.log("🎚️ [estudio.js] Inicializado con éxito"); 
+  console.log("🎚️ [estudio.js] Inicializado con éxito");
+  refreshStudioChecklist();
 
   // Enlazar los tres clics de tus botones rosas del HTML
   safeAdd("loadStudioTrackBtn", "click", loadSelectedTrackFromLibraryStudio);
@@ -158,6 +171,7 @@ export async function loadSelectedTrackFromLibraryStudio() {
 
     studioTrackFileName = item.name;
     studioTrackId = item.id;
+    refreshStudioChecklist();
 
         const urlOrBlob = item.file_url || item.audioBlob;
 
@@ -260,6 +274,7 @@ export async function loadSelectedVoiceFromLibrary() {
     const urlOrBlob = item.file_url || item.audioBlob;
 
     selectedVoiceId = item.id;
+    refreshStudioChecklist();
 
     if (typeof urlOrBlob === 'string') {
       selectedVoiceBlob = urlOrBlob;
@@ -367,6 +382,7 @@ export async function loadSelectedTextFromLibrary() {
     }
 
         selectedTextId = item.id;
+        refreshStudioChecklist();
 
     if (Array.isArray(item.lyrics) && item.lyrics.length > 0) {
       textSegments = item.lyrics;
