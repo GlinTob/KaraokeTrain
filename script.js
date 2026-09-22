@@ -118,11 +118,12 @@ export async function showTab(tabId) {
       }
       } else if (normalizedTabId === "estudio") {
       console.log("ðŸŽ§ [Lazy Load] Cargando entorno de sincronizaciÃ³n y listados...");
-      const { initEstudio } = await import("./modules/estudio.js");
+      const { initEstudio, refreshStudioChecklist } = await import("./modules/estudio.js");
       if (navAhora !== navSeq) return;
       if (typeof initEstudio === "function" && initUnaVez("estudio")) {
         await initEstudio();
       }
+      if (typeof refreshStudioChecklist === "function") refreshStudioChecklist();
     } else if (normalizedTabId === "afinador") {
       console.log("ðŸŽµ [Lazy Load] MÃ³dulo Afinador Vocal listo.");
       const { initAfinadorUI } = await import("./modules/afinador.js?v=1");
