@@ -694,6 +694,7 @@ async function combineDuoVoiceBlobs(blob1, blob2) {
 
 let karaokePreviewUrl = null;
 let karaokeMixUrl = null;
+let karaokeMonitorOn = false;
 
 function revokePreviewUrl() {
   if (karaokePreviewUrl) {
@@ -921,25 +922,34 @@ const pitchInputGain2 = karaokePitchDetectionAudioCtx.createGain();
     }
 
     // Monitoreo opcional (apagado por defecto): escucharse mientras se canta.
-    // Ganancia baja (0.2) y se recomienda audífonos: con altavoces hay acople.
-    // Los nodos mueren con el AudioContext al detener; no hay que liberarlos.
+    // Voz con compresor para que vaya al frente sin picos que acoplen, y la
+    // pista se atenúa un poco para dejarle espacio. Con altavoces puede haber
+    // acople: se recomiendan audífonos. Los nodos mueren con el AudioContext.
     const monitorChk = $("karaokeMonitorChk");
-    if (monitorChk && monitorChk.checked) {
-      const monitorGain = karaokePitchDetectionAudioCtx.createGain();
-      monitorGain.gain.value = 0.2;
-      source1.connect(monitorGain);
-      monitorGain.connect(karaokePitchDetectionAudioCtx.destination);
+    karaokeMonitorOn = !!(monitorChk && monitorChk.checked);
+    if (karaokeMonitorOn) {
+      const wireMonitor = (src) => {
+        const comp = karaokePitchDetectionAudioCtx.createDynamicsCompressor();
+        comp.threshold.value = -16;
+        comp.knee.value = 6;
+        comp.ratio.value = 6;
+        comp.attack.value = 0.003;
+        comp.release.value = 0.2;
+        const monitorGain = karaokePitchDetectionAudioCtx.createGain();
+        monitorGain.gain.value = 0.6;
+        src.connect(comp);
+        comp.connect(monitorGain);
+        monitorGain.connect(karaokePitchDetectionAudioCtx.destination);
+      };
+      wireMonitor(source1);
       if (karaokeDuoSplitMode && karaokeStream2) {
         try {
-          const monitorSrc2 = karaokePitchDetectionAudioCtx.createMediaStreamSource(karaokeStream2);
-          const monitorGain2 = karaokePitchDetectionAudioCtx.createGain();
-          monitorGain2.gain.value = 0.2;
-          monitorSrc2.connect(monitorGain2);
-          monitorGain2.connect(karaokePitchDetectionAudioCtx.destination);
+          wireMonitor(karaokePitchDetectionAudioCtx.createMediaStreamSource(karaokeStream2));
         } catch (e) {
           console.warn("No se pudo monitorear el mic 2:", e);
         }
       }
+      if (track) track.volume = 0.35;
       console.log("🎧 Monitoreo activado: te escuchas mientras cantas (usa audífonos).");
     }
 
@@ -1266,7 +1276,10 @@ export function stopKaraokeRecording() {
   const track = $("karaokeTrack") || $("karaokeAudio") || $("audioKaraoke") || $("trackPlayer");
   if (track) {
     try { track.pause(); } catch (e) {}
+    // Restaurar el volumen de la pista si el monitoreo lo había atenuado.
+    if (karaokeMonitorOn) track.volume = 0.5;
   }
+  karaokeMonitorOn = false;
 
   const scoreTxt = renderScoreboard();
   const statusEl = $("karaokeStatus");
