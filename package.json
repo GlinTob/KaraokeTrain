@@ -2,5 +2,8 @@
   "private": true,
   "type": "module",
   "name": "karaoketrain",
-  "version": "1.0.0"
+  "version": "1.0.0",
+  "scripts": {
+    "test": "node scripts/pitch-harness.cjs"
+  }
 }
