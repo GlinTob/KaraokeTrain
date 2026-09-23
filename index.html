@@ -33,6 +33,7 @@
         <button id="btnAfinador" type="button">Afinador</button>
         <button id="btnCambiarTono" type="button">Cambiar Tono</button>
         <button id="btnKaraoke" type="button">Karaoke</button>
+        <button id="btnSeparador" type="button">Separador</button>
       </nav>
       
       <!-- CONTENIDO -->
@@ -413,6 +414,7 @@
               <button type="button" data-go="estudio">2️⃣ Arma y sincroniza en Estudio</button>
               <button type="button" data-go="afinador">3️⃣ Practica en Afinador</button>
               <button type="button" data-go="karaoke">4️⃣ Canta en Karaoke</button>
+              <button type="button" data-go="separador">🎛️ Separar voz/pista (opcional)</button>
             </div>
           </div>
 
@@ -562,6 +564,56 @@
           <div class="card config-section">
             <h2>ðŸŽ­ Escenario de Karaoke</h2>
             <div class="theme-grid" id="karaokeThemeGrid"></div>
+          </div>
+        </section>
+
+        <!-- SEPARADOR -->
+        <section id="separador" class="tab">
+          <h1>🎛️ SEPARADOR: Voz e instrumental con IA (100% local)</h1>
+
+          <div class="card">
+            <h3>🎧 1. Elige la canción (MP3/WAV desde tu PC)</h3>
+            <div class="settings-group">
+              <label>Seleccionar archivo</label>
+              <div class="file-input-row">
+                <button type="button" id="sepSelectBtn" class="btn-neon" onclick="document.getElementById('sepFileInput').click()">📂 Seleccionar canción</button>
+                <span id="sepFileName" class="file-chosen-text">Ningún archivo seleccionado</span>
+              </div>
+              <input type="file" id="sepFileInput" accept="audio/*" hidden>
+            </div>
+            <div class="settings-group" style="margin-top: 10px;">
+              <label>Modelo (se descarga una sola vez y queda guardado)</label>
+              <div style="display: flex; gap: 12px; margin-top: 5px;">
+                <label style="cursor: pointer;"><input type="radio" name="sepPrecision" value="fp16" checked> FP16 (~103 MB, recomendado)</label>
+                <label style="cursor: pointer;"><input type="radio" name="sepPrecision" value="fp32"> FP32 (~201 MB)</label>
+              </div>
+            </div>
+            <div class="studio-controls">
+              <button id="sepRunBtn" type="button" disabled>🎤 Separar voz y pista</button>
+              <button id="sepCancelBtn" type="button" style="display: none;">❌ Cancelar</button>
+            </div>
+            <div class="upload-progress-container" id="sepProgressWrap" style="display: none; margin-top: 15px;">
+              <div class="upload-progress-bar" id="sepProgressBar"></div>
+            </div>
+            <p id="sepStatus" style="color: var(--text-muted); margin-top: 15px; font-weight: bold;">Estado: sin archivo.</p>
+            <p id="sepWasmWarn" style="display: none; color: #f59e0b; font-weight: bold;">⚠️ Sin WebGPU: se usará CPU (lento, una canción puede tardar 10-30 min). Mejor en Chrome/Edge con GPU.</p>
+          </div>
+
+          <div class="card" id="sepOutputs" style="display: none;">
+            <h3>🎧 2. Escucha y descarga</h3>
+            <h4>🗣️ Voz separada</h4>
+            <audio id="sepAudioVoz" controls style="width: 100%;"></audio>
+            <div class="studio-controls">
+              <button id="sepDlVoz" type="button" disabled>💾 Descargar voz.wav</button>
+              <button id="sepSaveVoz" type="button" disabled>📁 Voz a Biblioteca</button>
+            </div>
+            <h4 style="margin-top: 20px;">🎵 Pista (instrumental)</h4>
+            <audio id="sepAudioPista" controls style="width: 100%;"></audio>
+            <div class="studio-controls">
+              <button id="sepDlPista" type="button" disabled>💾 Descargar pista.wav</button>
+              <button id="sepSavePista" type="button" disabled>📁 Pista a Biblioteca</button>
+            </div>
+            <p style="color: var(--text-muted); margin-top: 15px;">Tip: guarda ambas en Biblioteca y ármalas en Estudio.</p>
           </div>
         </section>
 
