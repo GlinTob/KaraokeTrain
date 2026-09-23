@@ -49,6 +49,9 @@ async function cleanupTab(tabId) {
     } else if (tabId === "config") {
       const { destroyConfig } = await import("./modules/config.js?v=9");
       if (typeof destroyConfig === "function") destroyConfig();
+    } else if (tabId === "separador") {
+      const { destroySeparador } = await import("./modules/separador.js");
+      if (typeof destroySeparador === "function") destroySeparador();
     }
   } catch (e) {
     console.warn(`No se pudo limpiar el tab [${tabId}]:`, e);
@@ -85,7 +88,8 @@ export async function showTab(tabId) {
     estudio: "btnEstudio",
     afinador: "btnAfinador",
     "cambiar-tono": "btnCambiarTono",
-    karaoke: "btnKaraoke"
+    karaoke: "btnKaraoke",
+    separador: "btnSeparador"
   };
 
   const activeBtn = document.getElementById(btnMap[normalizedTabId]);
@@ -150,6 +154,11 @@ export async function showTab(tabId) {
       }
       // Limpiar el flag para futuras navegaciones manuales
       if (track) delete track.dataset.preventLoad;
+    } else if (normalizedTabId === "separador") {
+      console.log("🎛️ [Lazy Load] Módulo Separador listo.");
+      const { initSeparador } = await import("./modules/separador.js");
+      if (navAhora !== navSeq) return;
+      if (typeof initSeparador === "function" && initUnaVez("separador")) initSeparador();
     }
     console.log(`âœ… [NavegaciÃ³n] PestaÃ±a [${normalizedTabId.toUpperCase()}] cargada y visualizada.`);
   } catch (error) {
@@ -264,6 +273,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   safeAdd("btnBiblioteca", "click", () => showTab("biblioteca"));
   safeAdd("btnCambiarTono", "click", () => showTab("cambiar-tono"));
   safeAdd("btnKaraoke", "click", () => showTab("karaoke"));
+  safeAdd("btnSeparador", "click", () => showTab("separador"));
   safeAdd("btnConfig", "click", () => showTab("Config"));
 
   // --- EVENTOS AFINADOR ---
