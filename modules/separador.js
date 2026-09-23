@@ -430,6 +430,7 @@ export async function separateVocals() {
     if (session !== sepSession) return;
 
     // Proveedor: WebGPU si hay GPU, si no WASM (lento pero funciona).
+    // Si WebGPU falla en el primer tramo, se reconstruye en WASM y se sigue.
     let provider = "wasm";
     try {
       if (navigator.gpu) {
@@ -444,28 +445,24 @@ export async function separateVocals() {
     const precision = precisionEl ? precisionEl.value : "fp16";
 
     const ort = window.ort;
-    const sessionOrt = await (async () => {
-      const opts = { executionProviders: [provider], graphOptimizationLevel: "all" };
-      if (provider === "webgpu") {
+    const buildSession = async (prov) => {
+      const o = { executionProviders: [prov], graphOptimizationLevel: "all" };
+      if (prov === "webgpu") {
         ort.env.webgpu.powerPreference = "high-performance";
         const probeFrames = 1 + Math.floor(CHUNK / HOP);
-        opts.freeDimensionOverrides = { batch: 1, time_frames: probeFrames };
+        o.freeDimensionOverrides = { batch: 1, time_frames: probeFrames };
       } else {
         ort.env.wasm.numThreads = navigator.hardwareConcurrency || 4;
       }
       ort.env.wasm.wasmPaths = ORT_CDN;
-      const url = MODEL_PATHS[precision][provider];
-      setStatus(`Descargando modelo ${precision.toUpperCase()} (~${precision === "fp16" ? "103" : "201"} MB, una sola vez)…`);
-      const buf = await fetchModelCached(url, (p) => setStatus(`Descargando modelo… ${Math.round(p * 100)}%`));
+      const u = MODEL_PATHS[precision][prov];
+      const b = await fetchModelCached(u, (p) => setStatus(`Descargando modelo… ${Math.round(p * 100)}%`));
       if (session !== sepSession) throw new Error("cancelado");
-      setStatus("Iniciando el modelo (calentando)…");
-      const s = await ort.InferenceSession.create(buf, opts);
-      const probeFrames = 1 + Math.floor(CHUNK / HOP);
-      await s.run({
-        stft_features: new ort.Tensor("float32", new Float32Array(probeFrames * N_FREQ * 2 * 2), [1, probeFrames, N_FREQ * 2 * 2]),
-      });
-      return s;
-    })();
+      setStatus("Iniciando el modelo…");
+      return await ort.InferenceSession.create(b, o);
+    };
+    setStatus(`Descargando modelo ${precision.toUpperCase()} (~${precision === "fp16" ? "103" : "201"} MB, una sola vez)…`);
+    let sessionOrt = await buildSession(provider);
     if (session !== sepSession) return;
 
     const { left, right, duration } = sepAudioBuffer;
@@ -488,7 +485,22 @@ export async function separateVocals() {
 
       const { input, nFrames, stftL, stftR } = prepareChunkInput(cL, cR, win);
       const tensor = new ort.Tensor("float32", input, [1, nFrames, N_FREQ * 2 * 2]);
-      const results = await sessionOrt.run({ stft_features: tensor });
+      let results;
+      try {
+        results = await sessionOrt.run({ stft_features: tensor });
+      } catch (runErr) {
+        // Fallback: si WebGPU truena en el primer tramo (GPU modesta), seguir
+        // en WASM con el modelo equivalente en vez de dejar todo colgado.
+        if (provider !== "webgpu" || session !== sepSession) throw runErr;
+        console.warn("WebGPU falló, cambiando a WASM:", runErr);
+        setStatus("⚠️ WebGPU falló en este equipo; siguiendo en CPU (lento)…");
+        provider = "wasm";
+        const warnEl = $("sepWasmWarn");
+        if (warnEl) warnEl.style.display = "block";
+        sessionOrt = await buildSession("wasm");
+        if (session !== sepSession) return;
+        results = await sessionOrt.run({ stft_features: tensor });
+      }
       if (session !== sepSession) return;
       const mask = results.mask ? results.mask.data : results[Object.keys(results)[0]].data;
 
