@@ -303,7 +303,7 @@
 
           <div class="card upload-card">
             <h3>🔄 Migrar karaokes de la app previa</h3>
-            <p style="color: var(--text-muted);">Sube el CSV exportado (letra sincronizada incluida) y los MP3: se emparejan por nombre y se guardan como pista/voz/karaoke listos, sin re-tapear.</p>
+            <p style="color: var(--text-muted);">Sube el CSV exportado (letra sincronizada incluida). Los audios se reutilizan del bucket viejo si siguen vivos; si alguno murió, súbele su MP3 y se empareja por nombre. Sin re-tapear.</p>
 
             <div class="settings-group">
               <label>1. Archivo CSV</label>
@@ -315,7 +315,7 @@
             </div>
 
             <div class="settings-group">
-              <label>2. Audios MP3/WAV (se emparejan por nombre)</label>
+              <label>2. Audios MP3/WAV (opcional: solo si alguna URL vieja murió)</label>
               <div class="file-input-row">
                 <button type="button" id="migAudioBtn" class="btn-neon">🎵 Seleccionar audios</button>
                 <span id="migAudioText" class="file-chosen-text">Ningún audio seleccionado</span>
