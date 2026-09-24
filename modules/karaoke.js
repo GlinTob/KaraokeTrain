@@ -1804,10 +1804,12 @@ track.onloadedmetadata = () => {
 export async function loadTrackOptionsInKaraoke() {
   try {
     const items = await getLibraryItemsByTypeFromSupabase("karaoke");
+    // Orden alfabético: lo recién migrado se anexaba al fondo y parecía ausente.
+    const sorted = (items || []).slice().sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "es"));
     const select = $("karaokeTrackSelect");
     if (select) {
       select.innerHTML = '<option value="">Selecciona un karaoke</option>';
-      (items || []).forEach(item => {
+      sorted.forEach(item => {
         const opt = document.createElement("option");
         opt.value = String(item.id);
         opt.textContent = item.name || "Karaoke";
@@ -1817,7 +1819,7 @@ export async function loadTrackOptionsInKaraoke() {
     const list = $("karaokeSongList");
     if (list) {
       list.innerHTML = "";
-      (items || []).forEach(item => {
+      sorted.forEach(item => {
         const btn = document.createElement("button");
         btn.type = "button";
         btn.textContent = `🎤 ${item.name || "Karaoke"}`;
