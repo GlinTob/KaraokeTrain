@@ -824,6 +824,23 @@ function pairMigAudio(rowName) {
   }) || null;
 }
 
+function cleanMigUrl(u) {
+  return String(u || "").replace(/\s+/g, "");
+}
+
+// Verifica que el audio viejo siga vivo (Range mínimo, con UA de navegador
+// el bucket responde 206 + CORS *; sin UA da 403 anti-bots).
+async function urlMigViva(u) {
+  const url = cleanMigUrl(u);
+  if (!url) return false;
+  try {
+    const res = await fetch(url, { headers: { Range: "bytes=0-0" } });
+    return res.ok;
+  } catch (e) {
+    return false;
+  }
+}
+
 export function renderMigPreview() {
   const box = $("migPreview");
   if (!box) return;
@@ -839,7 +856,8 @@ export function renderMigPreview() {
   migRows.slice(0, 60).forEach((r) => {
     const necesitaAudio = r.type !== "texto";
     const paired = necesitaAudio ? pairMigAudio(r.name) : true;
-    const marca = !necesitaAudio ? "📄" : (paired ? "✅" : "⚠️ sin audio");
+    const tieneUrl = necesitaAudio && !!cleanMigUrl(r.file_url);
+    const marca = !necesitaAudio ? "📄" : (tieneUrl ? "🌐 URL vieja" : (paired ? "✅ MP3" : "⚠️ sin audio"));
     html += `<li>${marca} <b>${escapeHTML(r.type)}</b> — ${escapeHTML(r.name)}${paired && paired.name ? ` <small>↔ ${escapeHTML(paired.name)}</small>` : ""}</li>`;
   });
   if (migRows.length > 60) html += `<li>…y ${migRows.length - 60} más</li>`;
@@ -887,9 +905,22 @@ export async function migrarAppPrevia(onProgress) {
         ok++;
         continue;
       }
+      // 1) URL vieja viva: referenciar directo (sin re-subir, instantáneo).
+      // file_path queda null (bucket ajeno): al borrar solo se borra el registro.
+      if (await urlMigViva(row.file_url)) {
+        const { error } = await db.from("library").insert([{
+          ...base,
+          file_path: null,
+          file_url: cleanMigUrl(row.file_url),
+        }]).select();
+        if (error) throw error;
+        ok++;
+        continue;
+      }
+      // 2) Respaldo: MP3 emparejado por nombre -> subir a R2 nuevo.
       const audio = pairMigAudio(row.name);
       if (!audio) {
-        pendientes.push(`${row.type}: ${row.name}`);
+        pendientes.push(`${row.type}: ${row.name} (URL muerta y sin MP3)`);
         continue;
       }
       const up = await window.CloudflareStorage.saveLibraryItemToCloudflare({
