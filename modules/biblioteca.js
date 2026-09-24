@@ -873,10 +873,21 @@ export async function migrarAppPrevia(onProgress) {
     setSt("Primero sube el CSV.");
     return { ok: 0, pendientes: [] };
   }
+  // Anti-duplicados: lo ya migrado se omite al repetir (por nombre+tipo).
+  let existentes = new Set();
+  try {
+    const items = await getAllLibraryItemsFromSupabase();
+    existentes = new Set((items || []).map((it) => `${it.type}||${it.name}`));
+  } catch (e) {}
   let ok = 0;
+  let omitidos = 0;
   const pendientes = [];
   let i = 0;
   for (const row of migRows) {
+    if (existentes.has(`${row.type}||${row.name}`)) {
+      omitidos++;
+      continue;
+    }
     i++;
     if (onProgress) onProgress(i, migRows.length);
     setSt(`Migrando ${i}/${migRows.length}: ${row.name}`);
@@ -946,7 +957,7 @@ export async function migrarAppPrevia(onProgress) {
       pendientes.push(`${row.type}: ${row.name} (error: ${e.message || e})`);
     }
   }
-  setSt(`✅ Migrados ${ok}/${migRows.length}.` + (pendientes.length ? ` Pendientes (${pendientes.length}): súbeles su MP3 y repite.` : ""));
+  setSt(`✅ Migrados ${ok}/${migRows.length}.` + (omitidos ? ` Omitidos (ya estaban): ${omitidos}.` : "") + (pendientes.length ? ` Pendientes (${pendientes.length}): súbeles su MP3 y repite.` : ""));
   try { await renderLibrary("todos"); } catch (e) {}
   return { ok, pendientes };
 }
