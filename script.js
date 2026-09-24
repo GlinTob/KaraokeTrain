@@ -49,9 +49,6 @@ async function cleanupTab(tabId) {
     } else if (tabId === "config") {
       const { destroyConfig } = await import("./modules/config.js?v=9");
       if (typeof destroyConfig === "function") destroyConfig();
-    } else if (tabId === "separador") {
-      const { destroySeparador } = await import("./modules/separador.js");
-      if (typeof destroySeparador === "function") destroySeparador();
     }
   } catch (e) {
     console.warn(`No se pudo limpiar el tab [${tabId}]:`, e);
@@ -88,8 +85,7 @@ export async function showTab(tabId) {
     estudio: "btnEstudio",
     afinador: "btnAfinador",
     "cambiar-tono": "btnCambiarTono",
-    karaoke: "btnKaraoke",
-    separador: "btnSeparador"
+    karaoke: "btnKaraoke"
   };
 
   const activeBtn = document.getElementById(btnMap[normalizedTabId]);
@@ -154,11 +150,6 @@ export async function showTab(tabId) {
       }
       // Limpiar el flag para futuras navegaciones manuales
       if (track) delete track.dataset.preventLoad;
-    } else if (normalizedTabId === "separador") {
-      console.log("🎛️ [Lazy Load] Módulo Separador listo.");
-      const { initSeparador } = await import("./modules/separador.js");
-      if (navAhora !== navSeq) return;
-      if (typeof initSeparador === "function" && initUnaVez("separador")) initSeparador();
     }
     console.log(`âœ… [NavegaciÃ³n] PestaÃ±a [${normalizedTabId.toUpperCase()}] cargada y visualizada.`);
   } catch (error) {
@@ -273,7 +264,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   safeAdd("btnBiblioteca", "click", () => showTab("biblioteca"));
   safeAdd("btnCambiarTono", "click", () => showTab("cambiar-tono"));
   safeAdd("btnKaraoke", "click", () => showTab("karaoke"));
-  safeAdd("btnSeparador", "click", () => showTab("separador"));
   safeAdd("btnConfig", "click", () => showTab("Config"));
 
   // --- EVENTOS AFINADOR ---
@@ -370,6 +360,28 @@ document.addEventListener("DOMContentLoaded", async () => {
         fileInput.setAttribute("accept", "audio/*");
       }
     }
+  });
+
+  // --- EVENTOS MIGRACIÓN APP PREVIA ---
+  safeAdd("migCsvBtn", "click", () => $("migCsvInput")?.click());
+  safeAdd("migAudioBtn", "click", () => $("migAudioInput")?.click());
+  safeAdd("migCsvInput", "change", async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const label = $("migCsvText");
+    if (label) label.textContent = file.name;
+    const { setMigCSV } = await import("./modules/biblioteca.js?v=4");
+    if (typeof setMigCSV === "function") setMigCSV(await file.text());
+  });
+  safeAdd("migAudioInput", "change", async (e) => {
+    const label = $("migAudioText");
+    if (label) label.textContent = `${e.target.files.length} audio(s)`;
+    const { setMigAudios } = await import("./modules/biblioteca.js?v=4");
+    if (typeof setMigAudios === "function") setMigAudios(e.target.files);
+  });
+  safeAdd("migGoBtn", "click", async () => {
+    const { migrarAppPrevia } = await import("./modules/biblioteca.js?v=4");
+    if (typeof migrarAppPrevia === "function") migrarAppPrevia();
   });
 
   // --- EVENTOS CAMBIAR TONO ---
