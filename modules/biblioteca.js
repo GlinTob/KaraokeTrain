@@ -746,3 +746,176 @@ export function clearUploadSelection() {
 
   console.log("ðŸ§¼ Interfaz de carga reiniciada de forma segura.");
 }
+
+
+
+// ============================================
+// MIGRACIÓN DESDE APP PREVIA (CSV + MP3 por nombre)
+// ============================================
+// El CSV trae columnas id,name,type,file_path,file_url,...,transcription,
+// metadata,isReadyKaraoke,textoPlano,lyrics,isSincronizada,tapModeStyle.
+// Los audios viejos están muertos (403): se re-suben los MP3 del usuario,
+// emparejados por nombre normalizado. Los textos no necesitan audio.
+
+let migRows = [];
+let migAudios = [];
+
+function parseCSV(text) {
+  const rows = [];
+  let row = [], val = "", inQ = false;
+  const push = () => { row.push(val); val = ""; };
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQ) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { val += '"'; i++; }
+        else inQ = false;
+      } else val += c;
+    } else if (c === '"') inQ = true;
+    else if (c === ",") push();
+    else if (c === "\n") { push(); rows.push(row); row = []; }
+    else if (c === "\r") { /* ignorar */ }
+    else val += c;
+  }
+  if (val !== "" || row.length) { push(); rows.push(row); }
+  if (!rows.length) return [];
+  const head = rows[0].map((h) => h.trim());
+  return rows.slice(1).filter((r) => r.length === head.length).map((r) => {
+    const o = {};
+    head.forEach((h, i) => { o[h] = r[i]; });
+    return o;
+  });
+}
+
+function normMigName(s) {
+  return String(s || "").toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/^karaoke\s*-\s*/, "")
+    .replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function parseJSONSeguro(s, fb) {
+  try {
+    const v = JSON.parse(s);
+    return (v === null || v === undefined) ? fb : v;
+  } catch (e) { return fb; }
+}
+
+export function setMigCSV(text) {
+  migRows = parseCSV(text);
+  console.log(`Migración: ${migRows.length} filas en el CSV.`);
+  renderMigPreview();
+  return migRows.length;
+}
+
+export function setMigAudios(fileList) {
+  migAudios = Array.from(fileList || []);
+  console.log(`Migración: ${migAudios.length} audios para emparejar.`);
+  renderMigPreview();
+  return migAudios.length;
+}
+
+function pairMigAudio(rowName) {
+  const target = normMigName(rowName);
+  if (!target) return null;
+  return migAudios.find((f) => {
+    const base = normMigName(f.name.replace(/\.[^.]+$/, ""));
+    return base && (base.includes(target) || target.includes(base));
+  }) || null;
+}
+
+export function renderMigPreview() {
+  const box = $("migPreview");
+  if (!box) return;
+  if (!migRows.length) {
+    box.innerHTML = "<p style='color: var(--text-muted);'>Sube el CSV para ver qué se migrará.</p>";
+    return;
+  }
+  const counts = {};
+  migRows.forEach((r) => { counts[r.type] = (counts[r.type] || 0) + 1; });
+  const resumen = Object.entries(counts).map(([t, n]) => `${t}: ${n}`).join(" · ");
+  let html = `<p><b>${migRows.length} filas</b> (${escapeHTML(resumen)}) · ${migAudios.length} audios</p>`;
+  html += "<ul style='max-height: 220px; overflow-y: auto; padding-left: 18px;'>";
+  migRows.slice(0, 60).forEach((r) => {
+    const necesitaAudio = r.type !== "texto";
+    const paired = necesitaAudio ? pairMigAudio(r.name) : true;
+    const marca = !necesitaAudio ? "📄" : (paired ? "✅" : "⚠️ sin audio");
+    html += `<li>${marca} <b>${escapeHTML(r.type)}</b> — ${escapeHTML(r.name)}${paired && paired.name ? ` <small>↔ ${escapeHTML(paired.name)}</small>` : ""}</li>`;
+  });
+  if (migRows.length > 60) html += `<li>…y ${migRows.length - 60} más</li>`;
+  html += "</ul>";
+  box.innerHTML = html;
+}
+
+export async function migrarAppPrevia(onProgress) {
+  if (!db) await initSupabase();
+  const status = $("migStatus");
+  const setSt = (t) => { if (status) status.textContent = t; };
+  if (!migRows.length) {
+    setSt("Primero sube el CSV.");
+    return { ok: 0, pendientes: [] };
+  }
+  let ok = 0;
+  const pendientes = [];
+  let i = 0;
+  for (const row of migRows) {
+    i++;
+    if (onProgress) onProgress(i, migRows.length);
+    setSt(`Migrando ${i}/${migRows.length}: ${row.name}`);
+    try {
+      const lyrics = parseJSONSeguro(row.lyrics, []);
+      const transcription = parseJSONSeguro(row.transcription, []);
+      const meta = Object.assign(parseJSONSeguro(row.metadata, {}), { migrado: true, origen: "app-previa" });
+      const segs = (Array.isArray(transcription) && transcription.length)
+        ? transcription
+        : (Array.isArray(lyrics) ? lyrics : []);
+      const base = {
+        name: row.name || "Sin nombre",
+        type: row.type || "pista",
+        transcription: segs,
+        lyrics: Array.isArray(lyrics) ? lyrics : [],
+        textoPlano: row.textoPlano || null,
+        isSincronizada: row.isSincronizada === "true" || row.isSincronizada === true || row.type === "karaoke",
+        isReadyKaraoke: row.isReadyKaraoke === "true" || row.isReadyKaraoke === true,
+        tapModeStyle: row.tapModeStyle || "linea",
+        metadata: meta,
+        date: new Date().toISOString(),
+      };
+      if (row.type === "texto") {
+        const { error } = await db.from("library").insert([{ ...base, file_path: null, file_url: null }]).select();
+        if (error) throw error;
+        ok++;
+        continue;
+      }
+      const audio = pairMigAudio(row.name);
+      if (!audio) {
+        pendientes.push(`${row.type}: ${row.name}`);
+        continue;
+      }
+      const up = await window.CloudflareStorage.saveLibraryItemToCloudflare({
+        name: row.name,
+        type: row.type,
+        blob: audio,
+        transcription: base.transcription,
+        metadata: meta,
+        textoPlano: null,
+      });
+      // Conservar letra sincronizada y flags viejos en el registro recién creado.
+      if (up && up.id) {
+        await db.from("library").update({
+          lyrics: base.lyrics,
+          isSincronizada: base.isSincronizada,
+          isReadyKaraoke: base.isReadyKaraoke,
+          tapModeStyle: base.tapModeStyle,
+        }).eq("id", up.id);
+      }
+      ok++;
+    } catch (e) {
+      console.error(`Migración falló en "${row.name}":`, e);
+      pendientes.push(`${row.type}: ${row.name} (error: ${e.message || e})`);
+    }
+  }
+  setSt(`✅ Migrados ${ok}/${migRows.length}.` + (pendientes.length ? ` Pendientes (${pendientes.length}): súbeles su MP3 y repite.` : ""));
+  try { await renderLibrary("todos"); } catch (e) {}
+  return { ok, pendientes };
+}
