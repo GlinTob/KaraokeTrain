@@ -41,16 +41,23 @@ let _supabaseApp = null;
 
 function getSupabaseClient() {
   if (!_supabaseApp) {
+    if (typeof window.supabase === "undefined" || typeof window.supabase.createClient !== "function") {
+      throw new Error("Supabase CDN no cargado (revisa conexión o CSP). Recarga la página.");
+    }
     const { url, key } = getSupabaseConfig();
     _supabaseApp = window.supabase.createClient(url, key);
   }
   return _supabaseApp;
 }
 
-// Para compatibilidad con código existente
+// Para compatibilidad con código existente. Las funciones van con bind para
+// que el destructuring (const { from } = supabaseApp) no pierda el `this`.
 const supabaseApp = new Proxy({}, {
   get(_, prop) {
-    return getSupabaseClient()[prop];
+    if (prop === "then") return undefined;
+    const client = getSupabaseClient();
+    const v = client[prop];
+    return typeof v === "function" ? v.bind(client) : v;
   }
 });
 
