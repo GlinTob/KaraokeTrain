@@ -3,9 +3,9 @@
 ========================================== */
 
 :root {
-  --bg-main: #012622;
-  --bg-sidebar: #003b36;
-  --bg-card: #038a7e;
+  --bg-main: #361907;
+  --bg-sidebar: #360623;
+  --bg-card: #521002;
 
   --text-main: #ffffff;
   --text-muted: #94a3b8;
@@ -280,6 +280,26 @@
 }
 
 @media (max-width: 768px) {
+  .app {
+    flex-direction: column;
+  }
+  .sidebar {
+    width: 100%;
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 10px;
+    gap: 8px;
+    align-items: center;
+  }
+  .sidebar h2 {
+    margin-bottom: 0;
+    white-space: nowrap;
+  }
+  .sidebar button {
+    flex: 0 0 auto;
+    min-height: 44px;
+  }
   .afinador-hero {
     min-height: calc(100dvh - 40px);
   }
