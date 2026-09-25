@@ -35,9 +35,12 @@ class VocalGateProcessor extends AudioWorkletProcessor {
   constructor() {
     super();
     const sr = sampleRate;
-    const k = (t) => Math.exp(-1 / (sr * t));
+    // Coeficientes POR BLOQUE de 128 (antes por muestra pero aplicados por
+    // bloque: la envolvente quedaba ~128x más lenta de lo rotulado).
+    const B = 128;
+    const k = (t) => Math.exp(-B / (sr * t));
     this._envDb = -70;
-    this._gain = 1;
+    this._gain = PISO_LIN; // coherente con _envDb inicial (gate cerrado)
     this._attackCoef = 1 - k(ATTACK_S);
     this._releaseCoef = 1 - k(RELEASE_S);
     this._gAttackCoef = 1 - k(G_ATTACK_S);
@@ -47,7 +50,13 @@ class VocalGateProcessor extends AudioWorkletProcessor {
   process(inputs, outputs) {
     const input = inputs[0];
     const output = outputs[0];
-    if (!input || input.length === 0) {
+    if (!input || input.length === 0 || !output || !output[0]) {
+      // Rellenar con ceros: si no, queda basura/cola anterior en la salida.
+      if (output) {
+        for (let c = 0; c < output.length; c++) {
+          if (output[c]) output[c].fill(0);
+        }
+      }
       return true;
     }
 
