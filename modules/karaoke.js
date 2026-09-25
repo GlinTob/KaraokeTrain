@@ -481,10 +481,12 @@ function drawLyricsBar(canvas, ctx, currentTime) {
   }
 }
 
+let meterBuf = null;
 function setBarWidth(barId, analyser) {
   const bar = document.getElementById(barId);
   if (!bar || !analyser) return;
-  const data = new Uint8Array(analyser.fftSize);
+  if (!meterBuf || meterBuf.length !== analyser.fftSize) meterBuf = new Uint8Array(analyser.fftSize);
+  const data = meterBuf;
   analyser.getByteTimeDomainData(data);
   let sum = 0;
   for (let i = 0; i < data.length; i++) {
@@ -667,8 +669,12 @@ async function combineDuoVoiceBlobs(blob1, blob2) {
       console.warn("🎤🎤 Ambas voces bajo el piso de silencio: acerca los mics y sube el volumen de entrada en Windows.");
     }
     const HEADROOM = 0.9;
+    // Duración (no muestras): las fuentes se remuestrean solas al rate del
+    // contexto, pero el largo debe calcularse en segundos (USB 48k vs 44.1k).
     const sampleRate = buf1.sampleRate;
-    const length = Math.max(buf1.length, buf2.length);
+    const length = Math.ceil(
+      Math.max(buf1.length / buf1.sampleRate, buf2.length / buf2.sampleRate) * sampleRate
+    );
     const offline = new OfflineAudioContext(1, length, sampleRate);
     const src1 = offline.createBufferSource();
     src1.buffer = buf1;
@@ -734,6 +740,17 @@ function clearFinalizeWatchdog() {
 async function tryFinalizeDuoVoice() {
   if (!karaokeDuoSplitMode) return;
   if (karaokeMediaRecorder || karaokeMediaRecorder2) return;
+  if (karaokeDuoCombined) return;
+  // Dúo parcial: si solo llegó P2, publicarla como fallback con aviso.
+  if (!karaokeRecordedBlob && karaokeRecordedBlob2) {
+    clearFinalizeWatchdog();
+    karaokeRecordedBlob = karaokeRecordedBlob2;
+    karaokeDuoCombined = true;
+    duoStatus(`⚠️ Solo llegó la voz P2 (${karaokeRecordedBlob2.size} bytes). Revisa el mic 1 en Config. Escúchala abajo.`);
+    publishVoicePreview(karaokeRecordedBlob2);
+    releaseKaraokeCaptureStreams();
+    return;
+  }
   if (!karaokeRecordedBlob) return;
   if (!karaokeDuoP2Active || !karaokeRecordedBlob2) {
     // P2 no aportó audio: se publica P1 con aviso en vez de silencio total.
@@ -774,6 +791,12 @@ function scheduleFinalizeWatchdog() {
       karaokeDuoCombined = true;
       duoStatus(`⚠️ Solo llegó la voz P1 (${karaokeRecordedBlob.size} bytes). Escúchala abajo; revisa el mic 2.`);
       publishVoicePreview(karaokeRecordedBlob);
+      releaseKaraokeCaptureStreams();
+    } else if (!karaokeRecordedBlob && karaokeRecordedBlob2) {
+      karaokeDuoCombined = true;
+      karaokeRecordedBlob = karaokeRecordedBlob2;
+      duoStatus(`⚠️ Solo llegó la voz P2 (${karaokeRecordedBlob2.size} bytes). Escúchala abajo; revisa el mic 1.`);
+      publishVoicePreview(karaokeRecordedBlob2);
       releaseKaraokeCaptureStreams();
     } else if (!karaokeRecordedBlob) {
       duoStatus("❌ No llegó ninguna voz (0 chunks). Abre F12 → Consola, filtra 🎤 y envíame lo que salga.");
@@ -902,12 +925,12 @@ export async function startKaraokeRecording() {
     // La voz se graba en crudo y se reproduce después para que el usuario la evalúe.
     karaokePitchDetectionAnalyser = karaokePitchDetectionAudioCtx.createAnalyser();
     karaokePitchDetectionAnalyser.fftSize = 2048;
-    // FIX: el pitch/dot solo reaccionaba al cantar muy fuerte o gritar porque
-    // la señal cruda del micrófono queda por debajo del umbral de RMS de
-    // detectPitch. Aplicamos una ganancia fija SOLO en la ruta de análisis;
-    // la grabación sigue usando el micrófono en crudo.
+    // El pitch/dot solo reaccionaba gritando porque la señal cruda queda bajo
+    // el umbral RMS de detectPitch. Ganancia x3 SOLO en análisis (la
+    // grabación sigue en crudo); con AGC del mic suele bastar, esto ayuda a
+    // mics flojos sin tocar lo grabado.
     const pitchInputGain = karaokePitchDetectionAudioCtx.createGain();
-    pitchInputGain.gain.value = 1;
+    pitchInputGain.gain.value = 3;
     source1.connect(pitchInputGain);
     pitchInputGain.connect(karaokePitchDetectionAnalyser);
 
@@ -916,7 +939,7 @@ export async function startKaraokeRecording() {
       karaokeSplitAnalyser2 = karaokePitchDetectionAudioCtx.createAnalyser();
       karaokeSplitAnalyser2.fftSize = 2048;
 const pitchInputGain2 = karaokePitchDetectionAudioCtx.createGain();
-    pitchInputGain2.gain.value = 1;
+    pitchInputGain2.gain.value = 3;
     source2.connect(pitchInputGain2);
     pitchInputGain2.connect(karaokeSplitAnalyser2);
     }
@@ -1125,7 +1148,14 @@ async function loop() {
     // "primero canta"). `currentTime > 0.15` evita detener por una pausa
     // momentánea del arranque (buffering) antes de que empiece a sonar.
     const trackPaused = !!(track && track.paused && !track.ended && track.currentTime > 0.15);
-    const shouldFinalize = isRecording && (trackEnded || trackPaused);
+    // Solo se autofinaliza al TERMINAR la pista. Pausar para respirar ya no
+    // mata la toma: se avisa una vez y la grabación sigue hasta Detener.
+    const shouldFinalize = isRecording && trackEnded;
+    if (isRecording && trackPaused && !track.dataset.pauseWarned) {
+      track.dataset.pauseWarned = "1";
+      toast("Pista en pausa: tu voz se sigue grabando. Pulsa Detener para terminar.", "warn", 5000);
+    }
+    if (!trackPaused && track) delete track.dataset.pauseWarned;
 
     // FIX #20 (entrecortado del mic): el MediaRecorder corre en el hilo
     // principal y Chrome suelta tramas si el hilo está saturado. El análisis
@@ -1306,6 +1336,15 @@ export function stopKaraokeRecording() {
 // Limpieza al salir del tab: si hay grabación activa se finaliza (así el
 // onstop publica la voz) y la pista se pausa. Sin esto, mic, pista, RAF y
 // AudioContext seguían vivos en otras pestañas.
+function clearMixResult() {
+  if (karaokeMixUrl) {
+    try { URL.revokeObjectURL(karaokeMixUrl); } catch (e) {}
+    karaokeMixUrl = null;
+  }
+  const resultDiv = $("karaokeMixResult");
+  if (resultDiv) resultDiv.innerHTML = "";
+}
+
 export function destroyKaraoke() {
   const track = $("karaokeTrack") || $("karaokeAudio") || $("audioKaraoke") || $("trackPlayer");
   const recA = karaokeMediaRecorder && karaokeMediaRecorder.state !== "inactive";
@@ -1316,6 +1355,7 @@ export function destroyKaraoke() {
   } else if (track && !track.paused) {
     try { track.pause(); } catch (e) {}
   }
+  clearMixResult();
 }
 
 export async function restartKaraokeRecording() {
@@ -1327,6 +1367,7 @@ export async function restartKaraokeRecording() {
   const voicePlayer = $("karaokeVoicePlayer");
   revokePreviewUrl();
   if (voicePlayer) voicePlayer.src = "";
+  clearMixResult();
   karaokeChunks = [];
   karaokeChunks2 = [];
   karaokeRecordedBlob = null;
@@ -1729,11 +1770,14 @@ export function cargarLetrasEnMonitor() {
 }
 window.cargarLetrasEnMonitor = cargarLetrasEnMonitor;
 
+let karaokeLoadSeq = 0;
 export async function loadKaraokeSong(id) {
+  const mySeq = ++karaokeLoadSeq;
   try {
     limpiarVariablesMonitor();
 
     const item = await getLibraryItemsByIdFromSupabase(id);
+    if (mySeq !== karaokeLoadSeq) return;
     if (!item) {
       alert("⚠️ No se encontró el karaoke.");
       return;
@@ -1761,11 +1805,14 @@ export async function loadKaraokeSong(id) {
       track.volume = 0.5;
       track.load();
 
-track.onloadedmetadata = () => {
+      // addEventListener (no asignación): no pisa handlers de otros módulos.
+      // El token descarta metadatos obsoletos si se cargó otro tema después.
+      track.addEventListener("loadedmetadata", () => {
+        if (mySeq !== karaokeLoadSeq) return;
         textSegments = ensureTextLineTimings(karaokeLoadedLyrics, track.duration);
         cargarLetrasEnMonitor();
         drawKaraokeMonitor(track.currentTime || 0, -1, -1);
-      };
+      }, { once: true });
     }
 
     if (Array.isArray(item.lyrics) && item.lyrics.length) {
@@ -1920,9 +1967,20 @@ export async function mixKaraoke() {
     const trackBuffer = await audioCtx.decodeAudioData(trackArrayBuffer.slice(0));
     const voiceBuffer = await audioCtx.decodeAudioData(voiceArrayBuffer.slice(0));
 
-    const renderLength = Math.max(trackBuffer.length, voiceBuffer.length);
-    const renderChannels = Math.max(trackBuffer.numberOfChannels, voiceBuffer.numberOfChannels);
+    // Si la voz es puro silencio/hiss, no entregar "mezcla de ruido".
+    const preVoiceRms = singingRmsOfBuffer(voiceBuffer);
+    if (!(preVoiceRms > 0.0008)) {
+      toast("Tu voz quedó en silencio. Vuelve a grabar acercándote al mic.", "warn", 5000);
+      return;
+    }
+
+    // Duración (no muestras): USB a 48k y jack a 44.1k no son comparables.
     const sampleRate = trackBuffer.sampleRate;
+    const renderLength = Math.max(
+      trackBuffer.length,
+      Math.ceil((voiceBuffer.length / voiceBuffer.sampleRate) * sampleRate)
+    );
+    const renderChannels = Math.max(trackBuffer.numberOfChannels, voiceBuffer.numberOfChannels);
 
     const offlineCtx = new OfflineAudioContext(
       renderChannels,
