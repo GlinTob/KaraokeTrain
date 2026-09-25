@@ -105,9 +105,14 @@ async function addModuleOnce(audioContext, url, processorName) {
     })
     .catch((err) => {
       if (timeoutId) clearTimeout(timeoutId);
-      // Si falla, eliminamos la entrada cacheada para permitir reintento.
-      perContextCache.delete(url);
+      // Si el fallo es por nombre duplicado, el processor YA quedó registrado
+      // (quizá por un addModule tardío): conservar la entrada en vez de borrar
+      // para no relanzar addModule y chocar de nuevo con "name already used".
+      const dup = err && /already *(been *)?used|already registered/i.test(err.message || "");
+      if (!dup) perContextCache.delete(url);
+      else console.log(`ℹ️ [worklets] ${processorName} ya estaba registrado; se reutiliza.`);
       console.warn(`❌ [worklets] Error cargando ${processorName}:`, err);
+      if (dup) return;
       throw err;
     });
 
