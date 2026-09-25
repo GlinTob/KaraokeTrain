@@ -1,4 +1,4 @@
-import { $ } from "./modules/utils.js";
+import { $, toast } from "./modules/utils.js";
 
 export function safeAdd(id, event, handler) {
   const el = $(id);
@@ -49,17 +49,44 @@ async function cleanupTab(tabId) {
     } else if (tabId === "config") {
       const { destroyConfig } = await import("./modules/config.js?v=9");
       if (typeof destroyConfig === "function") destroyConfig();
+    } else if (tabId === "estudio") {
+      // Pausar audios y soltar el teclado de taps al salir, SIN cancelar la
+      // sesión (cancelTapSync borraría el progreso; al volver se reanuda).
+      try {
+        const { handleTapSyncKeypress } = await import("./modules/estudio.js");
+        if (typeof handleTapSyncKeypress === "function") {
+          document.removeEventListener("keydown", handleTapSyncKeypress, { capture: true });
+        }
+      } catch (e) {}
+      document.querySelectorAll("audio").forEach((a) => {
+        try { a.pause(); } catch (e) {}
+      });
+    } else if (tabId === "biblioteca") {
+      // Pausar previews de audio al salir.
+      document.querySelectorAll("audio").forEach((a) => {
+        try { a.pause(); } catch (e) {}
+      });
     }
   } catch (e) {
     console.warn(`No se pudo limpiar el tab [${tabId}]:`, e);
   }
 }
 
+// Expuesto para módulos que no pueden importar script.js (importarlo pelado
+// duplicaría la instancia y sus listeners).
+window.showTab = showTab;
 export async function showTab(tabId) {
   const originalTabId = String(tabId);
   const normalizedTabId = originalTabId.toLowerCase();
+  // Token primero: si durante la limpieza arranca otra navegación, se aborta.
+  const navAhora = ++navSeq;
 
   console.log(`\n📌 [Navegación] Solicitando cambio a la pestaña: [${normalizedTabId.toUpperCase()}]`);
+
+  if (currentTabId && currentTabId !== normalizedTabId) {
+    await cleanupTab(currentTabId);
+    if (navAhora !== navSeq) return;
+  }
 
   document.querySelectorAll(".tab").forEach(tab => tab.classList.remove("active"));
 
@@ -71,11 +98,7 @@ export async function showTab(tabId) {
     return;
   }
 
-  if (currentTabId && currentTabId !== normalizedTabId) {
-    await cleanupTab(currentTabId);
-  }
   currentTabId = normalizedTabId;
-  const navAhora = ++navSeq;
 
   document.querySelectorAll(".sidebar button").forEach(btn => btn.classList.remove("active"));
 
@@ -118,12 +141,14 @@ export async function showTab(tabId) {
       }
       } else if (normalizedTabId === "estudio") {
       console.log("ðŸŽ§ [Lazy Load] Cargando entorno de sincronizaciÃ³n y listados...");
-      const { initEstudio, refreshStudioChecklist } = await import("./modules/estudio.js");
+      const { initEstudio, refreshStudioChecklist, reattachTapKeys } = await import("./modules/estudio.js");
       if (navAhora !== navSeq) return;
       if (typeof initEstudio === "function" && initUnaVez("estudio")) {
         await initEstudio();
       }
       if (typeof refreshStudioChecklist === "function") refreshStudioChecklist();
+      // Si había taps en curso al salir, re-enganchar el teclado.
+      if (typeof reattachTapKeys === "function") reattachTapKeys();
     } else if (normalizedTabId === "afinador") {
       console.log("ðŸŽµ [Lazy Load] MÃ³dulo Afinador Vocal listo.");
       const { initAfinadorUI } = await import("./modules/afinador.js?v=1");
@@ -139,14 +164,20 @@ export async function showTab(tabId) {
       console.log("ðŸŽ¤ [Lazy Load] Inicializando Canvas e HistÃ³ricos de Canto...");
       const { loadTrackOptionsInKaraoke, loadKaraokeSong } = await import("./modules/karaoke.js?v=18");
       const { inicializarEscenarioDesdeMemoria } = await import("./modules/config.js?v=9");
+      if (navAhora !== navSeq) return;
 
       if (typeof inicializarEscenarioDesdeMemoria === "function") inicializarEscenarioDesdeMemoria();
       if (typeof loadTrackOptionsInKaraoke === "function") await loadTrackOptionsInKaraoke();
+      if (navAhora !== navSeq) return;
 
       const track = $("karaokeTrack");
-      // Solo carga si tiene ID Y NO tiene el flag de prevenciÃ³n
-      if (track && track.dataset.karaokeId && !track.dataset.preventLoad && typeof loadKaraokeSong === "function") {
-        await loadKaraokeSong(track.dataset.karaokeId);
+      // Solo carga si tiene ID Y NO tiene el flag de prevención; y solo si el
+      // ID cambió desde la última carga (evita recargar red en cada entrada).
+      const kid = track?.dataset.karaokeId;
+      if (track && kid && !track.dataset.preventLoad && track.dataset.loadedId !== kid && typeof loadKaraokeSong === "function") {
+        await loadKaraokeSong(kid);
+        if (navAhora !== navSeq) return;
+        track.dataset.loadedId = kid;
       }
       // Limpiar el flag para futuras navegaciones manuales
       if (track) delete track.dataset.preventLoad;
@@ -204,7 +235,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
     console.error("âŒ No se pudo inicializar Supabase tras varios intentos.");
     window.supabaseReady = false;
-    alert("âš ï¸ No se pudo conectar con la base de datos (Supabase/CDN). Revisa tu conexiÃ³n y recarga. La biblioteca no mostrarÃ¡ archivos.");
+    toast("No se pudo conectar con la base de datos. Revisa tu conexión y recarga.", "error", 6000);
     return false;
   };
 
@@ -339,6 +370,14 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 
   // --- EVENTOS BIBLIOTECA ---
+  // Filtros de carpeta con import versionado único (los onclick inline usaban
+  // ruta pelada y duplicaban la instancia del módulo).
+  document.querySelectorAll(".folder-btn[data-filter]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const { renderLibrary } = await import("./modules/biblioteca.js?v=4");
+      if (typeof renderLibrary === "function") renderLibrary(btn.dataset.filter);
+    });
+  });
   safeAdd("saveLibraryFileBtn", "click", async () => {
     const { saveManualFileToLibrary } = await import("./modules/biblioteca.js?v=4");
     if (typeof saveManualFileToLibrary === "function") saveManualFileToLibrary();
