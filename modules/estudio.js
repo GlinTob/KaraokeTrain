@@ -171,7 +171,6 @@ export async function loadSelectedTrackFromLibraryStudio() {
 
     studioTrackFileName = item.name;
     studioTrackId = item.id;
-    refreshStudioChecklist();
 
         const urlOrBlob = item.file_url || item.audioBlob;
 
@@ -205,9 +204,14 @@ export async function loadSelectedTrackFromLibraryStudio() {
     }
 
     status.innerHTML = `🎵 <strong>Estado:</strong> pista cargada desde Biblioteca (<span style="color:#22c55e;">${item.name}</span>)`;
+    // Checklist solo con blob verificado (antes marcaba con solo el id).
+    refreshStudioChecklist();
 
   } catch (error) {
     console.error("Error cargando pista:", error);
+    studioTrackId = null;
+    studioTrackBlob = null;
+    refreshStudioChecklist();
     alert("❌ No se pudo cargar la pista seleccionada: " + error.message);
   }
 }
@@ -274,7 +278,6 @@ export async function loadSelectedVoiceFromLibrary() {
     const urlOrBlob = item.file_url || item.audioBlob;
 
     selectedVoiceId = item.id;
-    refreshStudioChecklist();
 
     if (typeof urlOrBlob === 'string') {
       selectedVoiceBlob = urlOrBlob;
@@ -302,9 +305,13 @@ export async function loadSelectedVoiceFromLibrary() {
     if (typeof window.cargarLetrasEnMonitor === "function") {
       window.cargarLetrasEnMonitor();
     }
+    refreshStudioChecklist();
 
   } catch (error) {
     console.error(error);
+    selectedVoiceId = null;
+    selectedVoiceBlob = null;
+    refreshStudioChecklist();
     alert("❌ No se pudo cargar el archivo de voz seleccionado");
   }
 }
@@ -382,7 +389,6 @@ export async function loadSelectedTextFromLibrary() {
     }
 
         selectedTextId = item.id;
-        refreshStudioChecklist();
 
     if (Array.isArray(item.lyrics) && item.lyrics.length > 0) {
       textSegments = item.lyrics;
@@ -420,8 +426,11 @@ export async function loadSelectedTextFromLibrary() {
       textInput.value = "";
       status.textContent = "Estado: El archivo de texto no contiene palabras válidas.";
     }
+    refreshStudioChecklist();
   } catch (error) {
     console.error(error);
+    selectedTextId = null;
+    refreshStudioChecklist();
     alert("❌ No se pudo cargar la letra seleccionada.");
   }
 }
@@ -840,7 +849,11 @@ export async function startTapSync() {
     });
 
     // Si se canceló durante la espera, no hacer play ni enganchar teclado.
-    if (!tapSyncMode || session !== tapSyncSession) return;
+    // Se restauran los botones para no dejar la UI trabada.
+    if (!tapSyncMode || session !== tapSyncSession) {
+      restoreTapSyncButtons();
+      return;
+    }
 
     await activePlayer.play();
   } catch (e) {
@@ -850,7 +863,10 @@ export async function startTapSync() {
     return;
   }
 
-  if (!tapSyncMode || session !== tapSyncSession) return;
+  if (!tapSyncMode || session !== tapSyncSession) {
+    restoreTapSyncButtons();
+    return;
+  }
 
   document.removeEventListener("keydown", handleTapSyncKeypress, { capture: true });
   document.addEventListener("keydown", handleTapSyncKeypress, { capture: true });
@@ -948,6 +964,14 @@ export function resumeTapSync() {
     } catch (e) {}
   }
   console.log("▶️ Sesión de taps reanudada sin perder el progreso.");
+}
+
+// Re-engancha el teclado tras volver al tab (el cleanup lo suelta sin
+// cancelar la sesión). No-op si no hay taps en curso.
+export function reattachTapKeys() {
+  if (!tapSyncMode) return;
+  document.removeEventListener("keydown", handleTapSyncKeypress, { capture: true });
+  document.addEventListener("keydown", handleTapSyncKeypress, { capture: true });
 }
 
 export function setCurrentTapPart(part) {
@@ -1202,7 +1226,8 @@ export async function finishTapSync() {
       null;
 
     await updateLibraryItemsFromSupabase(currentId, {
-      name: `${item.name.replace(" - [KARAOKE]", "")} - [KARAOKE]`,
+      // Nombre limpio sin sufijo: el tipo ya distingue al karaoke en listas.
+      name: (item.name || "").replace(" - [KARAOKE]", ""),
       type: "karaoke",
       lyrics: karaokeSegments,
       transcription: karaokeSegments,
