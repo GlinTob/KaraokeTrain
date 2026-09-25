@@ -80,9 +80,11 @@ class AudioProcessor {
     let sum = 0;
     let maxVal = 0;
 
-    // Pasada única: RMS + Max Value
+    // Pasada única: RMS + Max Value (ignora no-finitos como el vocal-gate;
+    // un solo NaN ponía rms=NaN y devolvía -1 todo el frame).
     for (let i = 0; i < len; i++) {
       const v = buffer[i];
+      if (!Number.isFinite(v)) continue;
       sum += v * v;
       const absV = v >= 0 ? v : -v;
       if (absV > maxVal) maxVal = absV;
@@ -228,10 +230,13 @@ class AudioProcessor {
    */
   applyGain(buffer, gain = 1) {
     if (!buffer) throw new Error("Invalid buffer");
+    // Gain no-finito contaminaría todo el buffer: fallback a 1.
+    const g = Number.isFinite(gain) ? gain : 1;
 
     const result = new Float32Array(buffer.length);
     for (let i = 0; i < buffer.length; i++) {
-      result[i] = buffer[i] * gain;
+      const v = buffer[i];
+      result[i] = Number.isFinite(v) ? v * g : 0;
     }
     return result;
   }
@@ -257,9 +262,11 @@ class AudioProcessor {
     const dt = 1 / sampleRate;
     const alpha = dt / (rc + dt);
 
-    result[0] = buffer[0];
+    // Un NaN a la entrada se propaga por recursión: sanear muestra a muestra.
+    result[0] = Number.isFinite(buffer[0]) ? buffer[0] : 0;
     for (let i = 1; i < buffer.length; i++) {
-      result[i] = result[i - 1] + alpha * (buffer[i] - result[i - 1]);
+      const v = Number.isFinite(buffer[i]) ? buffer[i] : result[i - 1];
+      result[i] = result[i - 1] + alpha * (v - result[i - 1]);
     }
 
     return result;
