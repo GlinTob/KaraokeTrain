@@ -180,11 +180,22 @@ export async function loadSelectedPitchKaraoke() {
       }
     } catch (fetchErr) {
       console.error("[CambiarTono] error descargando/decodificando:", fetchErr);
+      // Limpiar el buffer viejo: si no, Play tocaría el tema anterior.
+      pitchAudioBuffer = null;
+      pitchSelectedItem = null;
+      const playBtn = $("pitchPlayBtn");
+      if (playBtn) playBtn.disabled = true;
+      const saveBtn2 = $("pitchSaveBtn");
+      if (saveBtn2) saveBtn2.disabled = true;
       if (status) status.textContent = "Estado: âŒ no se pudo decodificar el audio (" + fetchErr.message + ").";
       alert("âŒ No se pudo descargar/decodificar el audio: " + fetchErr.message);
       return;
     }
     console.log("[CambiarTono] audio decodificado OK, duraciÃ³n:", pitchAudioBuffer.duration, "canales:", pitchAudioBuffer.numberOfChannels);
+    const playBtnOk = $("pitchPlayBtn");
+    if (playBtnOk) playBtnOk.disabled = false;
+    const saveBtnOk = $("pitchSaveBtn");
+    if (saveBtnOk) saveBtnOk.disabled = false;
     pitchSelectedItem = item;
 
     pitchLastSavedId = null;
@@ -417,6 +428,12 @@ export async function savePitchShiftedToLibrary() {
       console.warn("Encode en worker falló, usando codificador local:", encodeErr);
       wavBlob = audioBufferToWavBlob(renderedBuffer);
     }
+    // El token también cubre encode/upload (antes seguían tras el destroy).
+    if (renderSession !== pitchRenderSession) {
+      console.log("🧹 Encode de tono descartado: se cambió de pestaña.");
+      if (status) status.textContent = "Estado: cancelado (cambiaste de pestaña).";
+      return;
+    }
     if (status) status.textContent = `Estado: ☁️ subiendo a la nube (${(wavBlob.size / 1048576).toFixed(1)} MB, puede tardar)…`;
 
     const nameInput = $("pitchSaveName");
@@ -552,6 +569,9 @@ export async function renderPitchShiftOffline(audioBuffer, semitones, onProgress
 }
 
 function trimAudioBufferFront(buffer, skip) {
+  if (!buffer || skip >= buffer.length) {
+    throw new Error("Audio demasiado corto para el cambio de tono.");
+  }
   const out = new AudioBuffer({
     length: Math.max(1, buffer.length - skip),
     numberOfChannels: buffer.numberOfChannels,
