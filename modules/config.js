@@ -504,12 +504,12 @@ export function renderAvatarGrid(user, categoryKey) {
     card.onclick = () => selectAvatar(user, { ...character, category: categoryKey });
     
     // Usar imagen si está disponible, sino emoji
-    const avatarImg = character.img ? `<img src="${character.img}" alt="${character.name}" style="width:80px; height:80px; border-radius:8px; object-fit:contain; background:var(--bg-main);" />` : `<div style="width:80px; height:80px; background:var(--bg-main); border-radius:8px; display:flex; align-items:center; justify-content:center; color:var(--text-color); font-size:2em;">${character.emoji}</div>`;
+    const avatarImg = character.img ? `<img src="${character.img}" alt="${character.name}" style="width:80px; height:80px; border-radius:8px; object-fit:contain; background:var(--bg-main);" />` : `<div style="width:80px; height:80px; background:var(--bg-main); border-radius:8px; display:flex; align-items:center; justify-content:center; color:var(--text-main); font-size:2em;">${(character.name || "?").charAt(0).toUpperCase()}</div>`;
     
     card.innerHTML = `
       <div style="text-align:center; margin:4px 0;">
         ${avatarImg}
-        <div style="font-size:0.75em; margin-top:4px; color:var(--text-color-soft);">${character.name}</div>
+        <div style="font-size:0.75em; margin-top:4px; color:var(--text-muted);">${character.name}</div>
       </div>
     `;
     gridContainer.appendChild(card);
@@ -677,6 +677,7 @@ export function getPentagramTolerance() {
     const level = localStorage.getItem("karaokeTrain_pentagram") || "medio";
     if (level === "facil") return 3;
     if (level === "dificil") return 1;
+    if (level !== "medio") localStorage.setItem("karaokeTrain_pentagram", "medio");
     return 2;
   } catch (e) {
     return 2;
@@ -817,8 +818,7 @@ export function destroyConfig() {
 }
 
 export function initConfig() {
-  if (settingsInitialized) return;
-  settingsInitialized = true;
-  renderAppThemeGrid(); // Solo renderizar una vez
-  renderKaraokeThemeGrid(); // Solo renderizar una vez
+  // Delegar en el init completo: el anterior solo pintaba grids y dejaba
+  // mics/tema/avatares desincronizados tras un destroy.
+  return initSettings();
 }
