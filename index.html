@@ -258,12 +258,12 @@
           </div>
 
           <div class="folder-controls">
-            <button class="folder-btn" type="button" onclick="import('./modules/biblioteca.js').then(m => m.renderLibrary('todos'))">Todos</button>
-            <button class="folder-btn" type="button" onclick="import('./modules/biblioteca.js').then(m => m.renderLibrary('pista'))">Pista</button>
-            <button class="folder-btn" type="button" onclick="import('./modules/biblioteca.js').then(m => m.renderLibrary('voz'))">Voz</button>
-            <button class="folder-btn" type="button" onclick="import('./modules/biblioteca.js').then(m => m.renderLibrary('grabacion'))">Grabaciones</button>
-            <button class="folder-btn" type="button" onclick="import('./modules/biblioteca.js').then(m => m.renderLibrary('karaoke'))">Karaoke</button>
-            <button class="folder-btn" type="button" onclick="import('./modules/biblioteca.js').then(m => m.renderLibrary('letra'))">Letras</button>
+            <button class="folder-btn" type="button" data-filter="todos">Todos</button>
+            <button class="folder-btn" type="button" data-filter="pista">Pista</button>
+            <button class="folder-btn" type="button" data-filter="voz">Voz</button>
+            <button class="folder-btn" type="button" data-filter="grabacion">Grabaciones</button>
+            <button class="folder-btn" type="button" data-filter="karaoke">Karaoke</button>
+            <button class="folder-btn" type="button" data-filter="letra">Letras</button>
           </div>
 
           <div class="card upload-card">
@@ -275,7 +275,7 @@
                 <button type="button" id="selectLibraryFileBtn" class="btn-neon">ðŸ“‚ Seleccionar archivo</button>
                 <span id="libraryFileChosenText" class="file-chosen-text">NingÃºn archivo seleccionado</span>
               </div>
-              <input type="file" id="libraryFileInput" accept=".txt" multiple hidden>
+              <input type="file" id="libraryFileInput" accept="audio/*,.txt" multiple hidden>
             </div>
           
             <div id="uploadProgressContainer" class="upload-progress-container" style="display: none;">
@@ -671,7 +671,7 @@
       window.__PITCH_WORKLET_URL__ = "/modules/pitch-shifter-processor.js?v=10";
     </script>
         <script src="cloudflare-storage.js?v=3" type="module"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.44.4/dist/umd/supabase.js" integrity="sha384-kZWN1jXLxKqoCJcxyA+ULpvroEC7ON6oTDdrk3ITl0yan71ecEDf7FpFvnyVNVdo" crossorigin="anonymous" defer></script>
     <script type="module" src="supabase-config.js?v=3"></script>
     <script type="module" src="modules/worklets.js?v=5"></script>
     <script src="script.js?v=17" type="module"></script>
