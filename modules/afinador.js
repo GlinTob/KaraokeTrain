@@ -67,11 +67,15 @@ function stopGuideTone() {
 
 // Tono guía de la nota objetivo (seno + octava suave, con envolvente de
 // entrada/salida para no chasquear). Dura 4.5 s.
-export function playGuideTone(freq, seconds = 4.5) {
+export async function playGuideTone(freq, seconds = 4.5) {
   if (!freq || freq <= 0) return;
   try {
     stopGuideTone();
     const ctx = getSfxCtx();
+    // Esperar el resume: sin esto los primeros ~200 ms salen mudos.
+    if (ctx.state === 'suspended') {
+      try { await ctx.resume(); } catch (e) {}
+    }
     const t0 = ctx.currentTime + 0.05;
     const gain = ctx.createGain();
     gain.gain.setValueAtTime(0.0001, t0);
@@ -102,9 +106,12 @@ export function playGuideTone(freq, seconds = 4.5) {
 }
 
 // Check corto al llegar a la nota objetivo (dos blips ascendentes).
-export function playCheckSound() {
+export async function playCheckSound() {
   try {
     const ctx = getSfxCtx();
+    if (ctx.state === 'suspended') {
+      try { await ctx.resume(); } catch (e) {}
+    }
     const t0 = ctx.currentTime + 0.02;
     [[880, 0, 0.12], [1318.5, 0.1, 0.22]].forEach(([f, off, dur]) => {
       const osc = ctx.createOscillator();
