@@ -119,7 +119,10 @@ export async function deleteLibraryItemsFromSupabase(id) {
 
     // 1. Borrar PRIMERO el binario en R2. Si falla, se conserva el registro
     // para reintentar y no queda un binario huerfano (con costo) en R2.
-    if (typeof window !== 'undefined' && window.CloudflareStorage) {
+    if (typeof window === 'undefined' || !window.CloudflareStorage) {
+      throw new Error("Sin acceso a R2: no se borra el registro para no dejar huérfano.");
+    }
+    {
       const ok = await window.CloudflareStorage.deleteFileFromCloudflare(r2Key);
       if (!ok) throw new Error("No se pudo eliminar el binario de R2; el registro se conserva para reintentar.");
       console.log(`Archivo binario eliminado de Cloudflare R2: ${r2Key}`);
@@ -245,7 +248,7 @@ export async function saveToLibrary(blob, options = {}) {
   try {
         const result = await saveLibraryItemToSupabase({
       name: options.name || "Archivo",
-      type: options.type || "audio",
+        type: options.type === "audio" || !options.type ? "pista" : options.type,
       blob: blob,
       transcription: options.transcription || [],
       metadata: { textoPlano: options.textoPlano || null }
@@ -295,8 +298,8 @@ export async function renderLibrary(filter = "todos") {
         return item.isSincronizada === true || item.type === "karaoke";
       }
   
-      if (filter === "letras") {
-        return item.type === "texto";
+      if (filter === "letras" || filter === "letra") {
+        return item.type === "texto" || item.type === "letra" || item.type === "texto_plano" || item.type === "ultrastar_txt";
       }
   
       if (filter === "voces") {
@@ -403,7 +406,9 @@ export async function saveManualFileToLibrary() {
   const typeSelect = $("libraryFileType");
   const nameInput = $("libraryFileName");
   const files = fileInput?.files;
-  const type = typeSelect?.value || "audio";
+  const rawType = typeSelect?.value || "pista";
+  // Unificar: el tipo legacy "audio" se guarda como "pista" para que el filtro lo encuentre.
+  const type = rawType === "audio" ? "pista" : rawType;
 
   if (!files || files.length === 0) {
     alert(type === "texto" || type === "texto_plano" || type === "ultrastar_txt" ? "âš ï¸ Selecciona un .txt" : "âš ï¸ Selecciona al menos un archivo");
@@ -697,15 +702,22 @@ export async function enviarAlMonitorKaraoke(karaokeItem) {
         track.dataset.karaokeId = String(karaokeItem.id);
         track.load();
     
+        if (!karaokeItem.file_url) {
+          const { toast: toastFn } = await import("./utils.js");
+          if (typeof toastFn === "function") toastFn("Este karaoke no tiene audio.", "warn");
+          else alert("Este karaoke no tiene audio.");
+          return;
+        }
         const { setKaraokeData } = await import("./karaoke.js?v=18");
         setKaraokeData(
             karaokeItem.transcription || [],
             karaokeItem.name,
             karaokeItem.file_url
         );
-        
-        const { showTab } = await import("../script.js");
-        showTab("karaoke");
+
+        // window.showTab evita importar ../script.js pelado (duplicaría el
+        // módulo y sus listeners de DOMContentLoaded).
+        if (typeof window.showTab === "function") window.showTab("karaoke");
     }
 
   } catch (error) {
@@ -815,29 +827,46 @@ export function setMigAudios(fileList) {
   return migAudios.length;
 }
 
+const TIPOS_TEXTO_MIG = ["texto", "letra", "texto_plano", "ultrastar_txt"];
+
 function pairMigAudio(rowName) {
   const target = normMigName(rowName);
   if (!target) return null;
-  return migAudios.find((f) => {
+  // Igualdad exacta primero; solo luego contains con la coincidencia más larga.
+  let best = null;
+  let bestLen = 0;
+  for (const f of migAudios) {
     const base = normMigName(f.name.replace(/\.[^.]+$/, ""));
-    return base && (base.includes(target) || target.includes(base));
-  }) || null;
+    if (!base) continue;
+    if (base === target) return f;
+    if (base.includes(target) || target.includes(base)) {
+      const overlap = Math.min(base.length, target.length);
+      if (overlap > bestLen) { bestLen = overlap; best = f; }
+    }
+  }
+  return best;
 }
 
 function cleanMigUrl(u) {
-  return String(u || "").replace(/\s+/g, "");
+  // Preserva %20 y espacios codificados; solo quita saltos del CSV.
+  return String(u || "").replace(/[\r\n\t]+/g, "").trim();
 }
 
 // Verifica que el audio viejo siga vivo (Range mínimo, con UA de navegador
-// el bucket responde 206 + CORS *; sin UA da 403 anti-bots).
-async function urlMigViva(u) {
+// el bucket responde 206 + CORS *; sin UA da 403 anti-bots). Con timeout para
+// no colgar la migración en URLs lentas.
+async function urlMigViva(u, timeoutMs = 9000) {
   const url = cleanMigUrl(u);
   if (!url) return false;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    const res = await fetch(url, { headers: { Range: "bytes=0-0" } });
-    return res.ok;
+    const res = await fetch(encodeURI(url), { headers: { Range: "bytes=0-0" }, signal: ctrl.signal });
+    return res.status === 200 || res.status === 206;
   } catch (e) {
     return false;
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -854,7 +883,7 @@ export function renderMigPreview() {
   let html = `<p><b>${migRows.length} filas</b> (${escapeHTML(resumen)}) · ${migAudios.length} audios</p>`;
   html += "<ul style='max-height: 220px; overflow-y: auto; padding-left: 18px;'>";
   migRows.slice(0, 60).forEach((r) => {
-    const necesitaAudio = r.type !== "texto";
+    const necesitaAudio = !TIPOS_TEXTO_MIG.includes(r.type);
     const paired = necesitaAudio ? pairMigAudio(r.name) : true;
     const tieneUrl = necesitaAudio && !!cleanMigUrl(r.file_url);
     const marca = !necesitaAudio ? "📄" : (tieneUrl ? "🌐 URL vieja" : (paired ? "✅ MP3" : "⚠️ sin audio"));
@@ -877,14 +906,14 @@ export async function migrarAppPrevia(onProgress) {
   let existentes = new Set();
   try {
     const items = await getAllLibraryItemsFromSupabase();
-    existentes = new Set((items || []).map((it) => `${it.type}||${it.name}`));
+    existentes = new Set((items || []).map((it) => `${it.type}||${normMigName(it.name)}`));
   } catch (e) {}
   let ok = 0;
   let omitidos = 0;
   const pendientes = [];
   let i = 0;
   for (const row of migRows) {
-    if (existentes.has(`${row.type}||${row.name}`)) {
+    if (existentes.has(`${row.type}||${normMigName(row.name)}`)) {
       omitidos++;
       continue;
     }
@@ -910,8 +939,8 @@ export async function migrarAppPrevia(onProgress) {
         metadata: meta,
         date: new Date().toISOString(),
       };
-      if (row.type === "texto") {
-        const { error } = await db.from("library").insert([{ ...base, file_path: null, file_url: null }]).select();
+      if (TIPOS_TEXTO_MIG.includes(row.type)) {
+        const { error } = await db.from("library").insert([{ ...base, type: "texto", file_path: null, file_url: null }]).select();
         if (error) throw error;
         ok++;
         continue;
