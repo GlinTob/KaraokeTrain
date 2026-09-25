@@ -4,8 +4,11 @@
 bower_components
 node_modules
 .env
+.env.local
 .env.*.local
 .dev.vars
+*.pem
+*.key
 
 # Generated files
 .psci
