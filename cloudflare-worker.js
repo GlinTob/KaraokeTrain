@@ -67,6 +67,13 @@ async function handleUpload(request, env) {
       return jsonResponse({ error: `Archivo muy grande (${(contentLength / 1048576).toFixed(1)} MB). Máximo 100 MB: comprime o divide el audio.` }, 413);
     }
 
+    // Allowlist laxa: audios y texto sí; HTML/ejecutables no (se servirían inline).
+    const mt = String(mimeType || "").split(";")[0].trim().toLowerCase();
+    const permitido = mt.startsWith("audio/") || mt === "text/plain" || mt === "application/octet-stream";
+    if (!permitido) {
+      return jsonResponse({ error: `Tipo no permitido (${mt}). Solo audio y texto.` }, 415);
+    }
+
     const cleanName = sanitizeFileName(fileName);
     // uuid evita colisiones (mismo ms + mismo nombre). El tipo se infiere del
     // prefijo que el cliente antepone (pista_/voz_/karaoke_/...) o del query.
@@ -95,17 +102,20 @@ async function handleUpload(request, env) {
   } catch (error) {
     const elapsed = ((Date.now() - t0) / 1000).toFixed(2);
     console.error("[UPLOAD] Error", elapsed, error);
-    return jsonResponse({ error: error.message || "Upload error" }, 500);
+    return jsonResponse({ error: "No se pudo subir el archivo." }, 500);
   }
 }
 
 async function handleDelete(key, env) {
   try {
+    if (!key || !key.trim() || key.includes("..")) {
+      return jsonResponse({ error: "Clave inválida." }, 400);
+    }
     await env.VOCAL_APP_STORAGE.delete(key);
     return jsonResponse({ success: true }, 200);
   } catch (error) {
     console.error("[DELETE] Error", error);
-    return jsonResponse({ error: error.message || "Delete error" }, 500);
+    return jsonResponse({ error: "No se pudo eliminar." }, 500);
   }
 }
 
