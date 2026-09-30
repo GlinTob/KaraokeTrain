@@ -48,7 +48,11 @@ export class AudioProcessorController {
     this.worker.onmessageerror = (error) => {
       console.error("Audio Worker Message Error:", error);
       this.rejectAllPending(new Error("Error al deserializar mensaje del audio worker."));
+      // Igual que en onerror: no reutilizar un worker en estado dudoso.
+      try { this.worker.terminate(); } catch (e) {}
+      this.isTerminated = true;
     };
+    this._timeoutStrikes = 0;
   }
 
   rejectAllPending(error) {
@@ -77,10 +81,18 @@ export class AudioProcessorController {
       const timer = setTimeout(() => {
         if (this.pendingRequests.has(id)) {
           this.pendingRequests.delete(id);
+          // Dos timeouts seguidos = worker roto: terminarlo para que el
+          // próximo getAudioController() cree uno sano.
+          this._timeoutStrikes = (this._timeoutStrikes || 0) + 1;
+          if (this._timeoutStrikes >= 2 && !this.isTerminated) {
+            this._timeoutStrikes = 0;
+            try { this.worker.terminate(); } catch (e) {}
+            this.isTerminated = true;
+          }
           reject(new Error(`El audio worker no respondió al comando "${command}" (${timeoutMs}ms). Reintenta.`));
         }
       }, timeoutMs);
-      const wrappedResolve = (v) => { clearTimeout(timer); resolve(v); };
+      const wrappedResolve = (v) => { clearTimeout(timer); this._timeoutStrikes = 0; resolve(v); };
       const wrappedReject = (e) => { clearTimeout(timer); reject(e); };
       this.pendingRequests.set(id, { resolve: wrappedResolve, reject: wrappedReject });
 
