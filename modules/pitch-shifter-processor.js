@@ -280,12 +280,21 @@ class PitchShifterProcessor extends AudioWorkletProcessor {
       for (let c = 0; c < numCh; c++) {
         const src = input && input[c] ? input[c] : output[c];
         const dst = output[c];
-        for (let i = 0; i < block; i++) dst[i] = src[i] || 0;
+        for (let i = 0; i < block; i++) {
+          const v = src[i];
+          dst[i] = Number.isFinite(v) ? v : 0;
+        }
       }
-      // Purga: al volver a ratio!=1 la cola vieja del OLA sonaría como burst.
+      // Purga total al entrar/salir del bypass: cola OLA + anillo + cursores.
+      // Sin esto, al re-enganchar suena un burst con fase rota.
       for (let c = 0; c < this.outBuf.length; c++) {
         if (this.outBuf[c]) this.outBuf[c].fill(0);
       }
+      for (let c = 0; c < this.inRing.length; c++) {
+        if (this.inRing[c]) this.inRing[c].fill(0);
+      }
+      this.headIn = 0;
+      this.frameStart = 0;
       return true;
     }
 
