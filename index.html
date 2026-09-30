@@ -93,9 +93,9 @@
                 <div class="difficulty-selector">
                   <label for="afinadorDifficulty" class="sr-only">Dificultad</label>
                   <select id="afinadorDifficulty" aria-label="Dificultad del afinador">
-                    <option value="facil">FÃ¡cil (Â±50Â¢)</option>
+                    <option value="facil">Fácil (Â±50Â¢)</option>
                     <option value="medio" selected>Medio (Â±30Â¢)</option>
-                    <option value="dificil">DifÃ­cil (Â±15Â¢)</option>
+                    <option value="dificil">Difícil (Â±15Â¢)</option>
                     <option value="experto">Experto (Â±5Â¢)</option>
                   </select>
                 </div>
@@ -109,7 +109,7 @@
 
               <footer class="afinador-footer">
                 <button id="recordBtn" class="btn-record" aria-pressed="false">
-                  <span class="btn-icon">ðŸŽ¤</span>
+                  <span class="btn-icon">🎤</span>
                   <span class="btn-text">Iniciar</span>
                 </button>
               </footer>
@@ -132,13 +132,13 @@
           </div>
           
           <div class="card">
-            <h3>PISTA: Exporta desde Biblioteca</h3>
+            <h3>PISTA</h3>
             <select id="studioTrackSelect">
               <option value="">Selecciona un archivo</option>
             </select>
             
             <div class="studio-controls" style="margin-bottom: 20px;">
-              <button id="loadStudioTrackBtn" type="button" style="margin-top: 15px">Cargar pista â†©ï¸</button>
+              <button id="loadStudioTrackBtn" type="button" style="margin-top: 15px">Cargar pista ↩️</button>
             </div>
             
             <audio id="player" controls crossorigin="anonymous"></audio>
@@ -146,79 +146,79 @@
           </div>
           
           <div class="card">
-            <h3>VOZ: Exporta desde Biblioteca</h3>
+            <h3>VOZ</h3>
             
             <select id="voiceLibrarySelect">
               <option value="">Selecciona un archivo</option>
             </select>
             <div class="studio-controls">
-              <button id="loadSelectedVoiceBtn" type="button" style="margin-top: 15px">Cargar voz â†©ï¸</button>
+              <button id="loadSelectedVoiceBtn" type="button" style="margin-top: 15px">Cargar voz ↩️</button>
             </div>
             <audio id="selectedVoicePlayer" controls crossorigin="anonymous"></audio>
             <p id="selectedVoiceStatus">Estado: ninguna voz seleccionada</p>
           </div>
 
           <div class="card">
-            <h3>LETRA: Exporta desde biblioteca</h3>
+            <h3>LETRA</h3>
             
             <select id="textLibrarySelect">
               <option value="">Selecciona un archivo</option>
             </select>
             <div class="studio-controls">
-              <button id="loadSelectedTextBtn" type="button">Cargar letra seleccionada â†©ï¸</button>
+              <button id="loadSelectedTextBtn" type="button">Cargar letra ↩️</button>
             </div>
             <div id="selectedTextContainer" style="margin: 15px 0;"></div>
-            <p id="selectedTextStatus">Estado: ningÃºn texto seleccionado</p>
+            <p id="selectedTextStatus">Estado: ningún texto seleccionado</p>
           </div>
           <div class="card">
             <h3>EDITOR: Corrije la letra</h3>
-            <textarea id="lyricsText" rows="7" placeholder="Pega la letra de la canciÃ³n..."></textarea>
+            <textarea id="lyricsText" rows="7" placeholder="Pega la letra de la canción..."></textarea>
             <div class="studio-controls">
-              <button id="applyCorrectedLyricsBtn" type="button" style="margin-top: 15px">Aplicar cambios ðŸ“</button>
+              <button id="applyCorrectedLyricsBtn" type="button" style="margin-top: 15px">Aplicar cambios 📝</button>
             </div>
 
-            <!-- SINCRONIZACIÃ“N MANUAL CON TAPS -->
+            <!-- SINCRONIZACIÓN MANUAL CON TAPS -->
             <div id="tapSyncSection" style="margin-top: 20px; padding: 15px; background: linear-gradient(135deg, #1e3a5f, #1e293b); border-radius: 8px; border: 2px solid #3b82f6;">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                <h4 style="margin: 0; color: #60a5fa;">SincronizaciÃ³n manual con taps ðŸŽ¯</h4>
-                <button id="toggleAutoScrollBtn" type="button" style="background: #f59e0b; font-size: 12px; padding: 5px 10px;">ðŸ”’ Auto-scroll: ON</button>
+                <h4 style="margin: 0; color: #60a5fa;">Sincronización manual con taps 🎯</h4>
+                <button id="toggleAutoScrollBtn" type="button" style="background: #f59e0b; font-size: 12px; padding: 5px 10px;">🔒 Auto-scroll: ON</button>
               </div>
               <div style="margin-bottom: 20px;">
                 <label for="tapSyncMethodSelect" style="font-size: 18px; color: #60a5fa; display: block; margin-bottom: 5px; font-weight: bold;">
-                  âœðŸ¼ Opciones de sincronizaciÃ³n manual:
+                  ✍🏼 Opciones de sincronización manual:
                 </label>
                 <select id="tapSyncMethodSelect" style="width: 100%; padding: 8px; background: var(--bg-main); border: 1px solid #3b82f6; color: white; border-radius: 4px;">
-                  <option value="linea"> LÃ­nea por lÃ­nea: (Recomendada)</option>
+                  <option value="linea"> Línea por lí­nea: (Recomendada)</option>
                   <option value="palabra"> Palabra por palabra: (Para canciones lentas)</option>
                 </select>
                 <p style="font-size: 19px; color: var(--text-muted); margin-bottom: 15px; font-weight: bold;"> 
                   Usa la barra espaciadora para hacer TAP.
                 </p>
                 <div class="studio-controls" style="margin-bottom: 20px;">
-                                  <button id="startTapSyncBtn" type="button" style="background: #3b82f6; color: white;">â–¶ï¸ Iniciar SincronizaciÃ³n</button>
-                                  <button id="cancelTapSyncBtn" type="button" style="background: #6b7280; display: none;">âŒ Cancelar</button>
+                                  <button id="startTapSyncBtn" type="button" style="background: #3b82f6; color: white;">Iniciar Sincronización</button>
+                                  <button id="cancelTapSyncBtn" type="button" style="background: #6b7280; display: none;">Cancelar</button>
                                 </div>
 
-                <!-- Modo de sincronizaciÃ³n -->
+                <!-- Modo de sincronización -->
                 <div id="tapSyncActive" style="display: none;">
-                  <!-- Selector: Â¿QuiÃ©n canta quÃ©? -->
+                  <!-- Selector: ¿Quién canta qué? -->
                   <div style="padding: 12px; background: var(--bg-main); border-radius: 8px; margin-bottom: 12px; border: 1px solid #3b82f6;">
                     <p style="margin: 0 0 8px 0; font-size: 13px; color: #60a5fa; font-weight: bold;">
-                      Elige: Â¿QuiÃ©n canta quÃ©?
+                      Elige: ¿Quién canta qué?
                     </p>
                     <div class="studio-controls" style="display: flex; gap: 8px; flex-wrap: wrap;">
                       <button id="tapPartP1Btn" type="button" data-testid="tap-part-p1" style="flex:1; min-width:90px; background:#3b82f6; color:white; padding:8px 12px; border-radius:6px; border:none; cursor:pointer; font-weight:bold;">
-                        ðŸŸ¦ Cantante 1 (MicrÃ³fono 1)
+                        🟦 Cantante 1 (Micrófono 1)
                       </button>
                       <button id="tapPartP2Btn" type="button" data-testid="tap-part-p2" style="flex:1; min-width:90px; background:#374151; color:white; padding:8px 12px; border-radius:6px; border:none; cursor:pointer; font-weight:bold;">
-                        ðŸŸ§ Cantante 2 (MicrÃ³fono 2)
+                        🟧 Cantante 2 (Micrófono 2)
                       </button>
                       <button id="tapPartDuoBtn" type="button" data-testid="tap-part-duo" style="flex:1; min-width:90px; background:#374151; color:white; padding:8px 12px; border-radius:6px; border:none; cursor:pointer; font-weight:bold;">
-                        ðŸŸª DÃšO (Ambos)
+                        🟪 Dúo (Ambos)
                       </button>
                     </div>
                     <p style="font-size: 15px; color: var(--text-muted); margin: 8px 0 0 0;">
-                      âŒ¨ï¸ Teclado: <b>1</b> = P1 Â· <b>2</b> = P2 Â· <b>3</b> = DÃšO
+                       Teclado: <b>1</b> = P1 · <b>2</b> = P2 · <b>3</b> = Dúo
                     </p>
                   </div>
                   <div style="text-align: center; padding: 20px; background: var(--bg-main); border-radius: 8px; margin-bottom: 15px;">
@@ -230,19 +230,12 @@
                   <button id="tapBeatBtn" type="button" style="width: 100%; padding: 30px; font-size: 24px; background: linear-gradient(135deg, #22c55e, #16a34a); color: white; border-radius: 12px;">
                     TAP (Presiona la barra espaciadora)
                   </button>
-
-                  <!-- Se quita indicador de oprimir la barra espaciadora
-                  <p style="font-size: 12px; color: var(--text-muted); text-align: center; margin-top: 10px;">
-                    âŒ¨ï¸ðŸ‘‡ Usa la barra espaciadoraðŸ‘‡âŒ¨ï¸
-                  </p>
-                  -->
                 </div>
-                
                 <div id="tapSyncResult" style="display: none; margin-top: 15px; padding: 15px; background: #14532d; border-radius: 8px; border: 1px solid #22c55e;">
-                  <p style="color: #22c55e; font-weight: bold; margin: 0 0 10px 0;">âœ… Â¡Los TAPS han sido guardados!</p>
+                  <p style="color: #22c55e; font-weight: bold; margin: 0 0 10px 0;">Los TAPS han sido guardados!</p>
                   <div class="studio-controls">
-                    <button id="applyTapSyncBtn" type="button" style="background: #22c55e;">ðŸ—³ Aplicar TAPS para terminar la sincronizaciÃ³n</button>
-                    <button id="redoTapSyncBtn" type="button" style="background: #f59e0b;">Volver a intentar ðŸ”„</button>
+                    <button id="applyTapSyncBtn" type="button" style="background: #22c55e;">Aplicar TAPS para terminar la sincronización</button>
+                    <button id="redoTapSyncBtn" type="button" style="background: #f59e0b;">Volver a intentar</button>
                   </div>
                 </div>
               </div>
@@ -253,7 +246,7 @@
         <!-- BIBLIOTECA -->
         <section id="biblioteca" class="tab">
           <div class="biblioteca-header">
-            <h1>ðŸ—ƒ BIBLIOTECA: Guarda archivos desde PC</h1>
+            <h1>BIBLIOTECA: Guarda archivos desde PC</h1>
             <div class="biblioteca-stats" id="bibliotecaStats"></div>
           </div>
 
@@ -267,13 +260,13 @@
           </div>
 
           <div class="card upload-card">
-            <h3>ðŸ“¤ Subir archivos desde PC</h3>
+            <h3>Subir archivos desde PC</h3>
           
             <div class="settings-group">
               <label>Seleccionar archivo</label>
               <div class="file-input-row">
-                <button type="button" id="selectLibraryFileBtn" class="btn-neon">ðŸ“‚ Seleccionar archivo</button>
-                <span id="libraryFileChosenText" class="file-chosen-text">NingÃºn archivo seleccionado</span>
+                <button type="button" id="selectLibraryFileBtn" class="btn-neon">Seleccionar archivo</button>
+                <span id="libraryFileChosenText" class="file-chosen-text">Ningún archivo seleccionado</span>
               </div>
               <input type="file" id="libraryFileInput" accept="audio/*,.txt" multiple hidden>
             </div>
@@ -287,20 +280,21 @@
             <div class="settings-group" id="uploadOptions" style="display: none;">
               <label for="libraryFileType">Tipo de archivo</label>
               <select id="libraryFileType">
-                <option value="pista">ðŸŽµ Pista</option>
-                <option value="voz">ðŸŽ™ï¸ Voz</option>
-                <option value="texto">ðŸ“ Letras</option>
+                <option value="pista">Pista</option>
+                <option value="voz">Voz</option>
+                <option value="texto">Letras</option>
               </select>
             </div>
           
             <div class="studio-controls">
-              <button id="saveLibraryFileBtn" type="button" class="btn-neon">ðŸ’¾ Guardar en la nube</button>
-              <button type="button" id="clearUploadBtn" class="btn-neon btn-secondary" style="display: none;">âœ– Limpiar selecciÃ³n</button>
+              <button id="saveLibraryFileBtn" type="button" class="btn-neon">Guardar en la nube</button>
+              <button type="button" id="clearUploadBtn" class="btn-neon btn-secondary" style="display: none;">Limpiar selección</button>
             </div>
           
             <p id="uploadStatus" class="upload-status" style="display: none;"></p>
           </div>
 
+          <!--
           <div class="card upload-card">
             <h3>🔄 Migrar karaokes de la app previa</h3>
             <p style="color: var(--text-muted);">Sube el CSV exportado (letra sincronizada incluida). Los audios se reutilizan del bucket viejo si siguen vivos; si alguno murió, súbele su MP3 y se empareja por nombre. Sin re-tapear.</p>
@@ -340,6 +334,7 @@
               <input type="text" id="bibliotecaSearch" placeholder="Buscar por nombre, tipo, fecha...">
             </div>
           </div>
+          -->
 
           <div class="card">
             <h3>Archivos guardados (<span id="libraryCount">0</span>)</h3>
@@ -349,7 +344,7 @@
         
         <!-- KARAOKE -->
         <section id="karaoke" class="tab">
-          <h1>ðŸ‘©ðŸŽ¤ðŸ§” KARAOKE: ERES UNA SÃšPER ESTRELLA ðŸŒŸðŸŒŸðŸŒŸ</h1>
+          <h1>👩🎤🧔 KARAOKE: ERES UNA SÚPER ESTRELLA</h1>
           
           <div class="card" style="background: #1a1a1a; padding: 0; border: 2px solid var(--border); overflow: hidden;">
             <div style="padding: 10px 12px; background: #0f172a; border-bottom: 1px solid var(--border); display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
@@ -357,7 +352,7 @@
                 <option value="">Selecciona un karaoke...</option>
               </select>
               <button id="karaokeDuoSplitToggleBtn" type="button" data-testid="karaoke-duo-split-toggle" style="background: #3b82f6; color: white; padding: 8px 14px; border-radius: 6px; border: none; cursor: pointer; font-weight: bold;">
-                ðŸ‘©ðŸŽ¤ðŸ§” Modo DÃºo Split: Inactivo. Haz click aquÃ­ para activarlo.
+                👩🎤🧔 Modo Dúo Split: Inactivo. Haz click aquí­ para activarlo.
               </button>
               <span id="karaokeDuoSplitHint" style="color: var(--text-muted); font-size: 12px;">
                 Monitor dividido.
@@ -372,7 +367,7 @@
           </div>
           
           <div class="card">
-            <h3>GrabaciÃ³n SincronizadaðŸŽ™ï¸ðŸ‘„</h3>
+            <h3>Grabación Sincronizada</h3>
             <p id="karaokeStatus" style="color: var(--text-muted); margin-bottom: 15px;">Estado: selecciona un karaoke de la lista y presiona Cantar.</p>
 
             <div id="karaokeScore" style="display: none; margin-bottom: 15px; padding: 15px; background: var(--bg-main); border-radius: 8px; border: 1px solid var(--border);"></div>
@@ -389,12 +384,12 @@
             <audio id="karaokeTrack" preload="auto" style="display:none;"></audio>
 
             <div id="karaokeSoloMicIndicator" style="display: none; margin-bottom: 15px; padding: 15px; background: var(--bg-main); border-radius: 8px; border: 1px solid var(--border);">
-              <p style="margin: 0 0 10px 0; font-weight: bold; color: var(--accent);">ðŸŽ¤ Nivel de voz</p>
+              <p style="margin: 0 0 10px 0; font-weight: bold; color: var(--accent);">Nivel de voz</p>
               <div class="mic-level-bar"><div id="karaokeMic1Level" class="mic-level-fill"></div></div>
             </div>
 
             <div id="karaokeDuoIndicator" style="display: none; margin-bottom: 15px; padding: 15px; background: var(--bg-main); border-radius: 8px; border: 1px solid var(--border);">
-              <p style="margin: 0 0 10px 0; font-weight: bold; color: var(--accent);">ðŸŽ¤ðŸŽ¤ Modo DÃºo Activo</p>
+              <p style="margin: 0 0 10px 0; font-weight: bold; color: var(--accent);">Modo Dúo Activo</p>
               <div style="display: flex; gap: 20px;">
                 <div style="flex: 1;">
                   <small>Mic 1:</small>
@@ -408,28 +403,28 @@
             </div>
             
             <div class="studio-controls">
-              <button id="karaokeStartBtn" class="btn-danger" type="button">â–¶ï¸ Iniciar GrabaciÃ³n</button>
-              <button id="karaokeStopBtn" type="button">â¹ï¸ Detener</button>
-              <button id="karaokeRestartBtn" type="button">ðŸ”„ Volver a intentar</button>
+              <button id="karaokeStartBtn" class="btn-danger" type="button">Iniciar Grabación</button>
+              <button id="karaokeStopBtn" type="button">Detener</button>
+              <button id="karaokeRestartBtn" type="button">Volver a intentar</button>
             </div>
           </div>
 
           <div class="card">
-            <h4 style="margin-top: 20px;">ðŸ—£ï¸ Tu voz grabada: Escucha tu voz sin la pista</h4>
+            <h4 style="margin-top: 20px;">Tu voz grabada: Escucha tu voz sin la pista</h4>
             <audio id="karaokeVoicePlayer" controls crossorigin="anonymous"></audio>
           </div>
 
           <div class="card">
-            <h3>ðŸ—£ï¸Mezcla FinalðŸ’¿</h3>
+            <h3>Mezcla Final</h3>
             <p style="color: var(--text-muted); margin-bottom: 15px;">Tu voz y la pista en un solo archivo.</p>
             <div class="studio-controls">
-              <button id="karaokeMixBtn" type="button" style="background: #a855f7; color: white;">Mezclarâš™ï¸</button>
+              <button id="karaokeMixBtn" type="button" style="background: #a855f7; color: white;">Mezclar</button>
             </div>
             <div id="karaokeMixResult" style="margin-top: 15px;"></div>
           </div>
         </section>
 
-        <!-- CONFIGURACIÃ“N -->
+        <!-- CONFIGURACIÓN -->
         <section id="config" class="tab active">
           <div class="config-header">
             <h1>Configuración</h1>
@@ -449,17 +444,17 @@
 
           <!-- AVATAR -->
           <div class="card config-section">
-            <h2>ðŸ‘¤ Avatares / Personajes en Monitor</h2>
+            <h2>Avatares / Personajes en Monitor</h2>
             <p class="section-desc">Cada usuario elige su avatar y sus emojis para el monitor de karaoke.</p>
 
             <div class="avatar-user-tabs">
               <div class="avatar-user-tab active" data-avatar-user="P1" role="tab" aria-selected="true">
-                <span class="avatar-user-emoji">ðŸŸ¦</span>
-                <input type="text" class="avatar-user-input" data-user="P1" placeholder="Nombre aquÃ­" title="Escribe aquÃ­ el nombre" />
+                <span class="avatar-user-emoji">🟦</span>
+                <input type="text" class="avatar-user-input" data-user="P1" placeholder="Nombre aquÃí" title="Escribe aquí el nombre" />
               </div>
               <div class="avatar-user-tab" data-avatar-user="P2" role="tab" aria-selected="false">
-                <span class="avatar-user-emoji">ðŸŸ§</span>
-                <input type="text" class="avatar-user-input" data-user="P2" placeholder="Nombre aquÃ­" title="Escribe aquÃ­ el nombre" />
+                <span class="avatar-user-emoji">🟧</span>
+                <input type="text" class="avatar-user-input" data-user="P2" placeholder="Nombre aquí­" title="Escribe aquí­ el nombre" />
               </div>
             </div>
 
@@ -467,7 +462,7 @@
               <div class="avatar-category-tabs" id="avatarCategoryTabsP1"></div>
               <div class="avatar-grid" id="avatarGridP1"></div>
               <div class="avatar-emoji-picker">
-                <label>âœ¨ Emojis junto al avatar (Usuario 1)</label>
+                <label>Emojis junto al avatar (Usuario 1)</label>
                 <div class="avatar-emoji-row">
                   <div class="avatar-emoji-group">
                     <span class="avatar-emoji-group-label">Emoji 1:</span>
@@ -485,7 +480,7 @@
               <div class="avatar-category-tabs" id="avatarCategoryTabsP2"></div>
               <div class="avatar-grid" id="avatarGridP2"></div>
               <div class="avatar-emoji-picker">
-                <label>âœ¨ Emojis junto al avatar (Usuario 2)</label>
+                <label>Emojis junto al avatar (Usuario 2)</label>
                 <div class="avatar-emoji-row">
                   <div class="avatar-emoji-group">
                     <span class="avatar-emoji-group-label">Emoji 1:</span>
@@ -500,47 +495,47 @@
               </div>
           </div>
 
-          <!-- MICROFONOS -->
+          <!-- MICRÓFONOS -->
           <div class="card config-section">
-              <h2>ðŸŽ™ï¸ ConfiguraciÃ³n de MicrÃ³fonos</h2>
+              <h2>Configuración de Micrófonos</h2>
 
              <!-- SELECTOR DE MODO -->
               <div class="settings-group">
-                <label>Modo dÃºo:</label>
+                <label>Modo dúo:</label>
                 <select id="micCount">
                   <option value="1">1 Cantante</option>
-                  <option value="2">2 Cantantes (DÃºo)</option>
+                  <option value="2">2 Cantantes (Dúo)</option>
                 </select>
               </div>
             <div class="settings-group" style="margin-top: 15px;">
-              <button type="button" id="refreshMicsBtn" class="btn-neon btn-secondary">ðŸ”„ Actualizar lista de micrÃ³fonos</button>
+              <button type="button" id="refreshMicsBtn" class="btn-neon btn-secondary">Actualizar lista de micrófonos</button>
             </div>
             
-              <!-- MICRÃ“FONO 1 -->
+              <!-- MICRÓFONO 1 -->
               <div class="mic-tester-card">
                 <div class="mic-header">
-                  <h4>MicrÃ³fono Principal</h4>
+                  <h4>Micrófono Principal</h4>
                   <select id="mic1Select" class="config-select">
                     <option value="">Detectando dispositivos...</option>
                   </select>
                 </div>
                 
                 <div class="mic-level-bar">
-                  <!-- Esta es la barra que se moverÃ¡ -->
+                  <!-- Esta es la barra que se moverá -->
                   <div id="mic1LevelFill" class="mic-level-fill"></div>
                 </div>
                 
                 <div class="mic-controls">
                   <span id="mic1Status" class="mic-status">Listo para probar</span>
-                  <button type="button" id="testMic1Btn" class="btn-neon btn-secondary">ðŸ”Š Probar Mic 1</button>
-                  <button type="button" id="stopMic1TestBtn" class="btn-neon btn-secondary">â¹ï¸ Detener</button>
+                  <button type="button" id="testMic1Btn" class="btn-neon btn-secondary">Probar Mic 1</button>
+                  <button type="button" id="stopMic1TestBtn" class="btn-neon btn-secondary">Detener</button>
                 </div>
               </div>
             
-              <!-- MICRÃ“FONO 2 -->
+              <!-- MICRÓFONO 2 -->
               <div class="mic-tester-card" id="mic2Group" style="display: none;">
                 <div class="mic-header">
-                  <h4>MicrÃ³fono Secundario (DÃºo)</h4>
+                  <h4>Micrófono Secundario (Dúo)</h4>
                   <select id="mic2Select" class="config-select">
                     <option value="">Detectando dispositivos...</option>
                   </select>
@@ -552,31 +547,31 @@
                 
                 <div class="mic-controls">
                   <span id="mic2Status" class="mic-status">Listo para probar</span>
-                  <button type="button" id="testMic2Btn" class="btn-neon btn-secondary">ðŸ”Š Probar Mic 2</button>
-                  <button type="button" id="stopMic2TestBtn" class="btn-neon btn-secondary">â¹ï¸ Detener</button>
+                  <button type="button" id="testMic2Btn" class="btn-neon btn-secondary">Probar Mic 2</button>
+                  <button type="button" id="stopMic2TestBtn" class="btn-neon btn-secondary">Detener</button>
                 </div>
               </div>
           </div>
 
           <!-- DIFICULTADES -->
           <div class="card config-section">
-            <h2>ðŸŽ® Dificultades</h2>
+            <h2>Dificultades</h2>
             <div class="difficulty-grid">
               <div class="difficulty-card">
-                <label for="difficultyLevel">ðŸŽµ Afinador</label>
+                <label for="difficultyLevel">Afinador</label>
                 <select id="difficultyLevel" class="config-select">
-                  <option value="facil">ðŸŸ¢ FÃ¡cil (Â±50Â¢)</option>
-                  <option value="medio" selected>ðŸŸ¡ Medio (Â±30Â¢)</option>
-                  <option value="dificil">ðŸŸ  DifÃ­cil (Â±15Â¢)</option>
-                  <option value="experto">ðŸ”´ Experto (Â±5Â¢)</option>
+                  <option value="facil">Fácil (Â±50Â¢)</option>
+                  <option value="medio" selected>Medio (Â±30Â¢)</option>
+                  <option value="dificil">Difí­cil (Â±15Â¢)</option>
+                  <option value="experto">Experto (Â±5Â¢)</option>
                 </select>
               </div>
               <div class="difficulty-card">
-                <label for="pentagramDifficulty">ðŸŽ¼ Pentagrama</label>
+                <label for="pentagramDifficulty">Pentagrama</label>
                 <select id="pentagramDifficulty" class="config-select">
-                  <option value="facil">ðŸŸ¢ FÃ¡cil</option>
-                  <option value="medio" selected>ðŸŸ¡ Medio</option>
-                  <option value="dificil">ðŸŸ  DifÃ­cil</option>
+                  <option value="facil">Fácil</option>
+                  <option value="medio" selected>Medio</option>
+                  <option value="dificil">Difí­cil</option>
                 </select>
               </div>
             </div>
@@ -584,35 +579,35 @@
 
           <!-- THEME SWITCHER -->
           <div class="card config-section">
-            <h2>ðŸŽ¨ Temas Visuales</h2>
-            <p class="section-desc">Elige la estÃ©tica de la app, monitores y karaoke</p>
+            <h2>Temas Visuales</h2>
+            <p class="section-desc">Elige la estética de la app, monitores y karaoke</p>
             <div class="theme-grid" id="themeGrid"></div>
           </div>
 
           <!-- ESCENARIO KARAOKE -->
           <div class="card config-section">
-            <h2>ðŸŽ­ Escenario de Karaoke</h2>
+            <h2>Escenario de Karaoke</h2>
             <div class="theme-grid" id="karaokeThemeGrid"></div>
           </div>
         </section>
 
         <!-- CAMBIAR TONO -->
         <section id="cambiar-tono" class="tab">
-          <h1>ðŸŽ¼ CAMBIAR TONO: Modifica el tono de un karaoke</h1>
+          <h1>CAMBIAR TONO: Modifica el tono de un karaoke</h1>
 
           <div class="card">
-            <h3>ðŸŽ§ 1. Selecciona un karaoke desde tu biblioteca</h3>
+            <h3>1. Selecciona un karaoke desde tu biblioteca</h3>
             <select id="pitchKaraokeSelect">
               <option value="">Selecciona un archivo karaoke</option>
             </select>
             <div class="studio-controls">
-              <button id="loadPitchKaraokeBtn" type="button" style="margin-top: 15px">Cargar karaoke â†©ï¸</button>
+              <button id="loadPitchKaraokeBtn" type="button" style="margin-top: 15px">Cargar karaoke</button>
             </div>
             <p id="pitchLoadStatus" style="color: var(--text-muted); margin-top: 15px; font-weight: bold;">Estado: sin archivo cargado</p>
           </div>
 
           <div class="card">
-            <h3>ðŸŽ›ï¸ 2. Ajusta el tono (semitonos)</h3>
+            <h3>2. Ajusta el tono (semitonos)</h3>
             <div style="display: flex; gap: 20px; flex-wrap: wrap;">
               <div style="flex: 1; min-width: 180px;">
                 <label for="pitchSemitones">Semitonos (-12 a +12)</label>
@@ -647,19 +642,19 @@
             </div>
             <p id="pitchCurrentDisplay" style="color: var(--text-muted); font-weight: bold; margin-top: 15px;">Cambio actual: 0 semitonos</p>
             <div class="studio-controls">
-              <button id="pitchPlayBtn" type="button" style="margin-top: 15px">â–¶ï¸ Reproducir</button>
-              <button id="pitchStopBtn" type="button" style="margin-top: 15px">â¹ï¸ Detener</button>
+              <button id="pitchPlayBtn" type="button" style="margin-top: 15px">Reproducir</button>
+              <button id="pitchStopBtn" type="button" style="margin-top: 15px">Detener</button>
             </div>
             <p id="pitchPlayStatus" style="color: var(--text-muted); font-weight: bold;">Estado: detenido.</p>
           </div>
 
           <div class="card">
-            <h3>ðŸ’¾ 3. Guarda el archivo con el tono modificado</h3>
+            <h3>3. Guarda el archivo con el tono modificado</h3>
             <label for="pitchSaveName" style="display: block; margin-bottom: 5px;">Nombre de archivo</label>
             <input type="text" id="pitchSaveName" placeholder="Nombre del karaoke (tono modificado)" style="width: 100%; padding: 8px; background: var(--bg-main); border: 1px solid #3b82f6; color: white; border-radius: 4px;">
             <div class="studio-controls">
-              <button id="pitchSaveBtn" type="button" style="margin-top: 15px">ðŸ’¾ Guardar en mi biblioteca</button>
-              <button id="pitchSendToKaraokeBtn" type="button" style="margin-top: 15px" disabled>ðŸŽ¤ Enviar al monitor karaoke</button>
+              <button id="pitchSaveBtn" type="button" style="margin-top: 15px">Guardar en mi biblioteca</button>
+              <button id="pitchSendToKaraokeBtn" type="button" style="margin-top: 15px" disabled>Enviar al monitor karaoke</button>
             </div>
             <p id="pitchSaveStatus" style="color: var(--text-muted); font-weight: bold; margin-top: 15px;">Estado: sin guardar.</p>
           </div>
