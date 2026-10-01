@@ -274,14 +274,10 @@ export async function renderLibrary(filter = "todos") {
   const container = $("libraryList");
   if (!container) return;
 
-  // 1. Manejo visual de botones de carpeta activos
+  // 1. Manejo visual de botones de carpeta activos (los botones usan
+  // data-filter + addEventListener, no onclick: comparar el dataset).
   document.querySelectorAll(".folder-btn").forEach(btn => {
-    const clickAttr = btn.getAttribute("onclick") || "";
-    if (clickAttr.includes(filter)) {
-      btn.classList.add("active");
-    } else {
-      btn.classList.remove("active");
-    }
+    btn.classList.toggle("active", btn.dataset.filter === filter);
   });
 
   container.innerHTML = "Archivos de la biblioteca";
@@ -302,7 +298,7 @@ export async function renderLibrary(filter = "todos") {
         return item.type === "texto" || item.type === "letra" || item.type === "texto_plano" || item.type === "ultrastar_txt";
       }
   
-      if (filter === "voces") {
+      if (filter === "voz" || filter === "voces") {
         return item.type === "voz";
       }
 
@@ -534,14 +530,16 @@ function validateFilesForUpload(files, type) {
   const isTextType = ["texto", "texto_plano", "letra", "ultrastar_txt"].includes(type);
   const audioTypes = ["audio/mpeg", "audio/wav", "audio/ogg", "audio/webm", "audio/mp4", "audio/m4a", "audio/mp3", "audio/x-wav"];
   const textTypes = ["text/plain"];
-  const maxSize = 500 * 1024 * 1024; // 500 MB
+  // Tope alineado con el Worker (cloudflare-worker.js rechaza con 413 a
+  // partir de 100 MB): validar aquí para no hacer esperar la subida.
+  const maxSize = 100 * 1024 * 1024; // 100 MB
 
   for (const file of files) {
-    // 1. Validar tamaÃ±o mÃ¡ximo
+    // 1. Validar tamaño máximo
     if (file.size > maxSize) {
       return {
         valid: false,
-        error: `${file.name}: excede 500 MB`
+        error: `${file.name}: excede 100 MB (límite de subida)`
       };
     }
 
@@ -696,30 +694,22 @@ export async function enviarAlMonitorKaraoke(karaokeItem) {
   if (!karaokeItem) return;
 
   try {
-    const track = document.getElementById("karaokeTrack");
-    if (track && karaokeItem.file_url) {
-        track.src = karaokeItem.file_url;
-        track.dataset.karaokeId = String(karaokeItem.id);
-        track.load();
-    
-        if (!karaokeItem.file_url) {
-          const { toast: toastFn } = await import("./utils.js");
-          if (typeof toastFn === "function") toastFn("Este karaoke no tiene audio.", "warn");
-          else alert("Este karaoke no tiene audio.");
-          return;
-        }
-        const { setKaraokeData } = await import("./karaoke.js?v=18");
-        setKaraokeData(
-            karaokeItem.transcription || [],
-            karaokeItem.name,
-            karaokeItem.file_url
-        );
-
-        // window.showTab evita importar ../script.js pelado (duplicaría el
-        // módulo y sus listeners de DOMContentLoaded).
-        if (typeof window.showTab === "function") window.showTab("karaoke");
+    if (!karaokeItem.file_url) {
+      const { toast: toastFn } = await import("./utils.js");
+      if (typeof toastFn === "function") toastFn("Este karaoke no tiene audio.", "warn");
+      else alert("Este karaoke no tiene audio.");
+      return;
     }
+    // Flujo central de carga (no réplica manual): resuelve letra, tiempos
+    // (re-timing en loadedmetadata), selector y dataset en un solo lugar.
+    const { loadKaraokeSong } = await import("./karaoke.js?v=18");
+    await loadKaraokeSong(karaokeItem.id);
+    const select = document.getElementById("karaokeTrackSelect");
+    if (select) select.value = String(karaokeItem.id);
 
+    // window.showTab evita importar ../script.js pelado (duplicaría el
+    // módulo y sus listeners de DOMContentLoaded).
+    if (typeof window.showTab === "function") window.showTab("karaoke");
   } catch (error) {
     console.error("Error al transferir datos al monitor:", error);
   }
