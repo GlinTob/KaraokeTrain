@@ -4,8 +4,9 @@ import {
   getLibraryItemsByIdFromSupabase,
   getAllLibraryItemsFromSupabase,
   updateLibraryItemsFromSupabase,
-  renderLibrary
-} from './biblioteca.js';
+  renderLibrary,
+  escapeHTML
+} from './biblioteca.js?v=4';
 import { noteToFrequency, frequencyToMidi, midiToNoteName, frequencyToNoteName } from "./afinador.js?v=1";
 // FIX #17: removido `destroyAudioController` del import. Se mantiene el
 // singleton vivo durante toda la sesión del navegador (no se destruye en
@@ -203,7 +204,7 @@ export async function loadSelectedTrackFromLibraryStudio() {
       throw new Error("Formato de archivo no válido");
     }
 
-    status.innerHTML = `🎵 <strong>Estado:</strong> pista cargada desde Biblioteca (<span style="color:#22c55e;">${item.name}</span>)`;
+    status.innerHTML = `🎵 <strong>Estado:</strong> pista cargada desde Biblioteca (<span style="color:#22c55e;">${escapeHTML(item.name)}</span>)`;
     // Checklist solo con blob verificado (antes marcaba con solo el id).
     refreshStudioChecklist();
 
@@ -1109,7 +1110,11 @@ export async function finishTapSync() {
     const item = await getLibraryItemsByIdFromSupabase(currentId);
     if (!item) throw new Error("No se pudo obtener el elemento de la biblioteca remota");
 
-    const baseWords = Array.isArray(item.lyrics) && item.lyrics.length
+    const isWordMode = (window.currentTapSyncModeType === "palabra");
+    // En modo palabra los taps van 1:1 con las palabras del editor: la base
+    // SIEMPRE sale del textarea. Usar item.lyrics (ya agrupado en segmentos
+    // tras un sync previo) desalineaba taps y palabras (timestamps en 0).
+    const baseWords = (!isWordMode && Array.isArray(item.lyrics) && item.lyrics.length)
       ? item.lyrics.map((w, idx) => ({
           id: w.id || (idx + 1),
           text: w.text || w.word || "",
@@ -1124,7 +1129,7 @@ export async function finishTapSync() {
     }
 
     let timedWords = [];
-    const isWordMode = (window.currentTapSyncModeType === "palabra");
+    // isWordMode ya se calculó arriba (se usa para elegir baseWords).
 
     if (isWordMode) {
       timedWords = baseWords.map((word, index) => {
