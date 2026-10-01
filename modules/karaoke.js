@@ -6,6 +6,7 @@ import { getLibraryItemsByIdFromSupabase, getLibraryItemsByTypeFromSupabase, sav
 // El encode WAV ahora corre en el worker (encodeWavToBlob) para no bloquear
 // el hilo principal con mezclas largas.
 import { getAudioController } from "./audio-controller.js";
+import { loadVocalGateProcessor, createVocalGateNode } from "./worklets.js?v=5";
 import { getSelectedMicId, getPentagramTolerance, getPentagramDifficultyLabel } from "./config.js?v=9";
 import { midiToNoteName } from "./afinador.js?v=1";
 
@@ -904,6 +905,27 @@ export async function startKaraokeRecording() {
       try {
         karaokeStream2 = await requestMicStream(mic2);
         logStreamInfo("Mic 2 abierto", karaokeStream2);
+        // El fallback sin deviceId (jack 3.5 compartido) puede devolver EL
+        // MISMO mic dos veces: P1 y P2 grabarían la misma voz duplicada.
+        {
+          const label1 = karaokeStream.getAudioTracks()[0]?.label || "";
+          const label2 = karaokeStream2.getAudioTracks()[0]?.label || "";
+          if (label1 && label2 && label1 === label2) {
+            console.error("🎤🎤 Mic 1 y Mic 2 son el mismo dispositivo:", label1);
+            if (karaokeStream) { karaokeStream.getTracks().forEach(t => t.stop()); karaokeStream = null; }
+            if (karaokeStream2) { karaokeStream2.getTracks().forEach(t => t.stop()); karaokeStream2 = null; }
+            if (track) { try { track.pause(); } catch (e) {} }
+            try { karaokePitchDetectionAudioCtx && await karaokePitchDetectionAudioCtx.close(); } catch (e) {}
+            karaokePitchDetectionAudioCtx = null;
+            karaokePitchDetectionAnalyser = null;
+            karaokeSplitAnalyser2 = null;
+            const statusEl = $("karaokeStatus");
+            if (statusEl) statusEl.textContent = "⚠️ Ambos mics abrieron el mismo dispositivo. Usa dos micrófonos distintos en Config.";
+            alert("⚠️ Mic 1 y Mic 2 abrieron el MISMO dispositivo (" + label1 + "). Para el dúo necesitas dos micrófonos distintos.");
+            karaokeRecordingActive = false;
+            return;
+          }
+        }
       } catch (err2) {
         console.error("No se pudo abrir el segundo micrófono:", err2);
         if (karaokeStream) { karaokeStream.getTracks().forEach(t => t.stop()); karaokeStream = null; }
@@ -1116,6 +1138,14 @@ const pitchInputGain2 = karaokePitchDetectionAudioCtx.createGain();
     if (karaokeStream) { karaokeStream.getTracks().forEach(t => t.stop()); karaokeStream = null; }
     if (karaokeStream2) { karaokeStream2.getTracks().forEach(t => t.stop()); karaokeStream2 = null; }
     if (track) { try { track.pause(); } catch (e) {} }
+    // El AudioContext de análisis se creó antes de pedir el mic: cerrarlo
+    // aquí para no dejarlo corriendo en segundo plano tras el fallo.
+    if (karaokePitchDetectionAudioCtx) {
+      try { await karaokePitchDetectionAudioCtx.close(); } catch (e) {}
+      karaokePitchDetectionAudioCtx = null;
+    }
+    karaokePitchDetectionAnalyser = null;
+    karaokeSplitAnalyser2 = null;
     karaokeRecordingActive = false;
     alert("❌ No se pudo iniciar la grabación. Revisa que el micrófono esté permitido.");
   }
@@ -1248,19 +1278,29 @@ export function stopKaraokeRecording() {
     karaokePitchLoopRafId = null;
   }
 
+  // Flags explícitos de stop pedido: leer `.state` DESPUÉS de stop() no es
+  // fiable (varios navegadores ya reportan "inactive" en cuanto stop()
+  // retorna) y liberaría los tracks del mic antes del onstop, truncando la
+  // cola de la voz (el bug que el FIX #18 intentaba evitar).
+  let pendingA = false;
+  let pendingB = false;
   const recorder = karaokeMediaRecorder;
   if (recorder && recorder.state !== "inactive") {
+    pendingA = true;
     try {
       recorder.stop();
     } catch (e) {
+      pendingA = false;
       console.warn("No se pudo detener MediaRecorder:", e);
     }
   }
   const recorderB = karaokeMediaRecorder2;
   if (recorderB && recorderB.state !== "inactive") {
+    pendingB = true;
     try {
       recorderB.stop();
     } catch (e) {
+      pendingB = false;
       console.warn("No se pudo detener MediaRecorder P2:", e);
     }
   }
@@ -1269,8 +1309,6 @@ export function stopKaraokeRecording() {
   // Si algún recorder está pending (stop() pedido), su onstop construirá el
   // blob Y liberará los tracks (FIX #18: no parar el mic antes de que el
   // blob finalice, o el chunk final llega vacío y la voz "no se graba").
-  const pendingA = recorder && recorder.state !== "inactive";
-  const pendingB = recorderB && recorderB.state !== "inactive";
   if (!pendingA && !pendingB) {
     releaseKaraokeCaptureStreams();
   } else if (karaokeDuoSplitMode) {
@@ -2030,8 +2068,27 @@ export async function mixKaraoke() {
     voiceLevel.gain.value = 0.65;
     const voiceSource = offlineCtx.createBufferSource();
     voiceSource.buffer = voiceBuffer;
+    // Limpieza automática de la voz: paso-alto 90 Hz (retumbos/graves) +
+    // vocal-gate (expansor por RMS: cierra en silencios y respiraciones),
+    // todo antes del compresor. Si el worklet no carga, se mezcla sin gate.
+    const voiceHighpass = offlineCtx.createBiquadFilter();
+    voiceHighpass.type = "highpass";
+    voiceHighpass.frequency.value = 90;
+    let voiceGate = null;
+    try {
+      await loadVocalGateProcessor(offlineCtx);
+      voiceGate = createVocalGateNode(offlineCtx, renderChannels);
+    } catch (gateErr) {
+      console.warn("Vocal gate no disponible, se mezcla sin gate:", gateErr);
+    }
     voiceSource.connect(makeupGain);
-    makeupGain.connect(voiceCompressor);
+    makeupGain.connect(voiceHighpass);
+    if (voiceGate) {
+      voiceHighpass.connect(voiceGate);
+      voiceGate.connect(voiceCompressor);
+    } else {
+      voiceHighpass.connect(voiceCompressor);
+    }
     voiceCompressor.connect(voiceLevel);
     voiceLevel.connect(offlineCtx.destination);
 
@@ -2046,12 +2103,15 @@ export async function mixKaraoke() {
     karaokeMixUrl = URL.createObjectURL(finalWavBlob);
     const finalUrl = karaokeMixUrl;
 
+    // Nombre seguro para el atributo download: comillas y caracteres raros
+    // romperían el HTML e inyectarían atributos (el nombre viene de la BD).
+    const safeMixName = String(karaokeSelectedTrackName || "Karaoke").replace(/["<>:;|?*\\/[\]]/g, "_").slice(0, 80);
     if (resultDiv) {
       resultDiv.innerHTML = `
         <h4 style="color: #22c55e;">✅ ¡Mezcla completada!</h4>
         <audio controls src="${finalUrl}" style="width: 100%; margin-bottom: 15px; border-radius: 8px;"></audio>
         <div style="display: flex; gap: 10px;">
-          <a href="${finalUrl}" download="Mezcla_${karaokeSelectedTrackName || "Karaoke"}.wav" style="flex: 1;">
+          <a href="${finalUrl}" download="Mezcla_${safeMixName}.wav" style="flex: 1;">
             <button type="button" style="width: 100%; background: #22c55e; color: black;">💾 Descargar Archivo</button>
           </a>
           <button id="saveMixToLibBtn" type="button" style="flex: 1; background: #3b82f6; color: white;">📁 Guardar en Biblioteca</button>
