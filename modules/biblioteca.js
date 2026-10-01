@@ -18,7 +18,7 @@ export function escapeHTML(text) {
 } 
 
 export function initBiblioteca() {
-  console.log("ðŸ“š [biblioteca.js] Inicializado con Ã©xito");
+  console.log("[biblioteca.js] Inicializado con Éxito");
 
   const fileInput = $("libraryFileInput");
   const selectBtn = $("selectLibraryFileBtn");
@@ -61,10 +61,10 @@ export function initBiblioteca() {
 export async function initSupabase() {
   if (typeof window.supabaseApp !== "undefined" || typeof window.getSupabaseClient === "function") {
     db = window.getSupabaseClient ? window.getSupabaseClient() : window.supabaseApp;
-    console.log("ðŸš€ Base de datos Supabase conectada en Biblioteca");
+    console.log("Base de datos Supabase conectada en Biblioteca");
     return db;
   } else {
-    console.error("âŒ Error: No se encontrÃ³ la configuraciÃ³n de Supabase.");
+    console.error("Error: No se encontró la configuración de Supabase.");
     throw new Error("Supabase configuration missing");
   }
 } 
@@ -92,9 +92,9 @@ export async function updateLibraryItemsFromSupabase(id, changes) {
       .select(); 
 
     if (error) throw new Error(error.message);
-    if (!data || data.length === 0) throw new Error(`âŒ No se encontrÃ³ el Ã­tem con ID: ${id}`);
+    if (!data || data.length === 0) throw new Error(`No se encontró el Item con ID: ${id}`);
 
-    console.log("âœ… Registro actualizado con Ã©xito en Supabase");
+    console.log("âœ… Registro actualizado con Éxito en Supabase");
     return data[0];
 
   } catch (error) {
@@ -152,9 +152,9 @@ export async function getLibraryItemsByTypeFromSupabase(type) {
     }
 
     const { data, error } = await query;
-    if (error) throw new Error(`âŒ Error de Supabase: ${error.message}`);
+    if (error) throw new Error(`Error de Supabase: ${error.message}`);
     
-    console.log(`ðŸ” Buscando '${type}': se encontraron ${data.length} coincidencias.`);
+    console.log(`Buscando '${type}': se encontraron ${data.length} coincidencias.`);
     return data;
   } catch (error) {
     console.error(error.message);
@@ -167,7 +167,7 @@ export async function getLibraryItemsByIdFromSupabase(id) {
   try {
     const { data, error } = await db.from('library').select('*').eq('id', id).single();
     if (error) throw new Error(error.message);
-    if (!data) throw new Error(`âŒ No se encontrÃ³ ningÃºn elemento con el ID: ${id}`);
+    if (!data) throw new Error(`No se encontró ningún elemento con el ID: ${id}`);
     return data;
   } catch (error) {
     console.error(error.message);
@@ -201,12 +201,12 @@ export async function saveLibraryItemToSupabase({ name, type, blob, transcriptio
   let cleanName = baseName
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-zA-Z0-9_]/g, "_") // Reemplazar caracteres invÃ¡lidos por underscore
+    .replace(/[^a-zA-Z0-9_]/g, "_") // Reemplazar caracteres inválidos por underscore
     .replace(/_+/g, "_"); 
 
   // 4. Unir el nombre limpio con la extensiÃ³n final una sola vez
   const fileName = `${cleanName}.${extension}`;
-  console.log(`ðŸ“¤ Generando archivo seguro: ${fileName}`);
+  console.log(`Generando archivo seguro: ${fileName}`);
 
   const { filePath, fileUrl } = await window.CloudflareStorage.uploadFileToCloudflare(blob, fileName, mimeType, type); 
 
@@ -262,7 +262,7 @@ export async function saveToLibrary(blob, options = {}) {
 
   } catch (error) {
     console.error("Error detallado:", error);
-    alert("âŒ No se pudo guardar en la nube: " + error.message);
+    alert("No se pudo guardar en la nube: " + error.message);
   }
 } 
 
@@ -327,7 +327,7 @@ export async function renderLibrary(filter = "todos") {
       let botonCantarHTML = "";
         if (item.isSincronizada || item.type === "karaoke" || filter === "karaoke") {
           botonCantarHTML = `
-          <button class="send-to-monitor-btn" data-id="${item.id}">â†ªï¸ðŸŽ¤ Cantar</button>
+          <button class="send-to-monitor-btn" data-id="${item.id}">Cantar</button>
         `;
       }
 
@@ -339,7 +339,7 @@ export async function renderLibrary(filter = "todos") {
         </div>
         <div class="item-actions">
           ${botonCantarHTML}
-          <button class="delete-library-btn" data-id="${item.id}">ðŸ—‘ï¸</button>
+          <button class="delete-library-btn" data-id="${item.id}">ðŸ—‘</button>
         </div>
       `;
 
