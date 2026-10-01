@@ -362,13 +362,12 @@ export async function initSettings() {
   document.querySelectorAll("[data-go]").forEach((btn) => {
     if (btn.dataset.goBound) return;
     btn.dataset.goBound = "true";
-    btn.addEventListener("click", async () => {
-      try {
-        const { showTab } = await import("../script.js");
-        if (typeof showTab === "function") showTab(btn.dataset.go);
-      } catch (e) {
-        console.warn("No se pudo navegar a", btn.dataset.go, e);
-      }
+    btn.addEventListener("click", () => {
+      // window.showTab evita importar ../script.js pelado: index.html lo carga
+      // como script.js?v=N y el import pelado duplicaría el módulo (doble
+      // estado de navegación, cleanup salteado y listeners duplicados).
+      if (typeof window.showTab === "function") window.showTab(btn.dataset.go);
+      else console.warn("No se pudo navegar a", btn.dataset.go);
     });
   });
 }
