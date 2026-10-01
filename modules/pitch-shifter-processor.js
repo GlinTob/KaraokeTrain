@@ -170,7 +170,7 @@ class PitchShifterProcessor extends AudioWorkletProcessor {
       const peakIndex = this.peakIndexes[i];
       const peakIndexShifted = Math.round(peakIndex * pitchFactor);
 
-      if (peakIndexShifted > magLen) break;
+      if (peakIndexShifted >= magLen) break;
 
       let startIndex = 0;
       // Tope en Nyquist (magLen): más allá solo hay espejo conjugado; sin
