@@ -19,8 +19,7 @@ let pitchHistoryP2 = [];
 let karaokePitchP1 = -1;
 let karaokePitchP2 = -1;
 let karaokeDuoSplitMode = false;
-let autoScrollEnabled = true;
-let lastActiveLine = null;
+
 let karaokeAudioController = null;
 let karaokeStream = null;
 let karaokeStream2 = null;
@@ -1424,8 +1423,6 @@ export function syncKaraokeMonitor(currentTime) {
   const lines = document.querySelectorAll(".karaoke-live-line");
   if (!lines.length) return;
 
-  let activeLine = null;
-
   lines.forEach(line => {
     const start = parseFloat(line.dataset.start);
     const end = parseFloat(line.dataset.end) + 1.5;
@@ -1434,7 +1431,6 @@ export function syncKaraokeMonitor(currentTime) {
 
     if (currentTime >= start && currentTime <= end) {
       line.classList.add("active");
-      activeLine = line;
     } else if (currentTime > end) {
       line.classList.add("past");
     }
@@ -1453,11 +1449,8 @@ export function syncKaraokeMonitor(currentTime) {
       }
     });
   });
-
-  if (activeLine && activeLine !== lastActiveLine && autoScrollEnabled) {
-    activeLine.scrollIntoView({ behavior: "smooth", block: "center" });
-    lastActiveLine = activeLine;
-  }
+  // Sin auto-scroll: el teleprompter solo ilumina la línea/palabra activa,
+  // sin mover la vista (el scroll automático arrastraba toda la página).
 }
 
 export function setKaraokeData(lyrics, name, fileUrl) {
