@@ -171,16 +171,14 @@ export async function showTab(tabId) {
       if (navAhora !== navSeq) return;
 
       const track = $("karaokeTrack");
-      // Solo carga si tiene ID Y NO tiene el flag de prevención; y solo si el
-      // ID cambió desde la última carga (evita recargar red en cada entrada).
+      // Solo carga si el ID cambió desde la última carga (evita recargar
+      // red en cada entrada al tab).
       const kid = track?.dataset.karaokeId;
-      if (track && kid && !track.dataset.preventLoad && track.dataset.loadedId !== kid && typeof loadKaraokeSong === "function") {
+      if (track && kid && track.dataset.loadedId !== kid && typeof loadKaraokeSong === "function") {
         await loadKaraokeSong(kid);
         if (navAhora !== navSeq) return;
         track.dataset.loadedId = kid;
       }
-      // Limpiar el flag para futuras navegaciones manuales
-      if (track) delete track.dataset.preventLoad;
     }
     console.log(`âœ… [NavegaciÃ³n] PestaÃ±a [${normalizedTabId.toUpperCase()}] cargada y visualizada.`);
   } catch (error) {
@@ -399,28 +397,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         fileInput.setAttribute("accept", "audio/*");
       }
     }
-  });
-
-  // --- EVENTOS MIGRACIÓN APP PREVIA ---
-  safeAdd("migCsvBtn", "click", () => $("migCsvInput")?.click());
-  safeAdd("migAudioBtn", "click", () => $("migAudioInput")?.click());
-  safeAdd("migCsvInput", "change", async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const label = $("migCsvText");
-    if (label) label.textContent = file.name;
-    const { setMigCSV } = await import("./modules/biblioteca.js?v=4");
-    if (typeof setMigCSV === "function") setMigCSV(await file.text());
-  });
-  safeAdd("migAudioInput", "change", async (e) => {
-    const label = $("migAudioText");
-    if (label) label.textContent = `${e.target.files.length} audio(s)`;
-    const { setMigAudios } = await import("./modules/biblioteca.js?v=4");
-    if (typeof setMigAudios === "function") setMigAudios(e.target.files);
-  });
-  safeAdd("migGoBtn", "click", async () => {
-    const { migrarAppPrevia } = await import("./modules/biblioteca.js?v=4");
-    if (typeof migrarAppPrevia === "function") migrarAppPrevia();
   });
 
   // --- EVENTOS CAMBIAR TONO ---
