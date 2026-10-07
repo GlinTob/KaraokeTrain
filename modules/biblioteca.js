@@ -94,7 +94,7 @@ export async function updateLibraryItemsFromSupabase(id, changes) {
     if (error) throw new Error(error.message);
     if (!data || data.length === 0) throw new Error(`No se encontró el Item con ID: ${id}`);
 
-    console.log("âœ… Registro actualizado con Éxito en Supabase");
+    console.log("Registro actualizado con Éxito en Supabase");
     return data[0];
 
   } catch (error) {
@@ -241,7 +241,7 @@ export async function saveLibraryItemToSupabase({ name, type, blob, transcriptio
 
 export async function saveToLibrary(blob, options = {}) {
   if (!blob) {
-    console.error("âŒ No hay audio para guardar");
+    console.error("No hay audio para guardar");
     return;
   } 
 
@@ -254,7 +254,7 @@ export async function saveToLibrary(blob, options = {}) {
       metadata: { textoPlano: options.textoPlano || null }
     }); 
 
-        console.log("âœ… Guardado en biblioteca correctamente (Supabase + Cloudflare R2)");
+        console.log("Guardado en biblioteca correctamente (Supabase + Cloudflare R2)");
 
     const filtroActual = options.type || 'todos';
     await renderLibrary(filtroActual);
@@ -315,11 +315,11 @@ export async function renderLibrary(filter = "todos") {
       div.className = "library-item"; // Conserva tus estilos neÃ³n oscuros
   
       // 1. SelecciÃ³n visual del icono segÃºn tu interfaz
-      let iconoVisual = "ðŸŽµ";
+      let iconoVisual = "🎵";
       if (item.type === "letra" || item.type === "texto" || item.type === "texto_plano") {
-        iconoVisual = "ðŸ“„";
+        iconoVisual = "📝";
       } else if (item.type === "karaoke" || item.isSincronizada) {
-        iconoVisual = "ðŸŽ¤";
+        iconoVisual = "🎧";
       }
 
       // 2. âœ… COMPROBACIÃ“N CRÃTICA: Si el archivo ya estÃ¡ sincronizado por Taps, 
@@ -339,7 +339,7 @@ export async function renderLibrary(filter = "todos") {
         </div>
         <div class="item-actions">
           ${botonCantarHTML}
-          <button class="delete-library-btn" data-id="${item.id}">ðŸ—‘</button>
+          <button class="delete-library-btn" data-id="${item.id}"</button>
         </div>
       `;
 
@@ -349,7 +349,7 @@ export async function renderLibrary(filter = "todos") {
         if (btnCantar) {
           btnCantar.addEventListener("click", async (e) => {
             e.stopPropagation(); // Evita interferencias con otros clics de la tarjeta
-            console.log(`ðŸš€ [Biblioteca] Exportando al Monitor Karaoke: ${item.name}`);
+            console.log(`[Biblioteca] Exportando al Monitor Karaoke: ${item.name}`);
         
             try {
               // LLAMAMOS AL PROCESO DE REDIRECCIÃ“N AUTOMÃTICA
@@ -369,7 +369,7 @@ export async function renderLibrary(filter = "todos") {
     
   } catch (err) {
     console.error("Error al renderizar biblioteca:", err);
-    container.innerHTML = "âŒ Error al cargar los elementos de la biblioteca.";
+    container.innerHTML = "Error al cargar los elementos de la biblioteca.";
   }
 }
 
@@ -377,7 +377,7 @@ export function asignarEventosBiblioteca(filter) {
   document.querySelectorAll(".delete-library-btn").forEach((btn) => {
     btn.removeEventListener("click", btn._handler);
     btn._handler = async () => {
-      if (confirm("Â¿EstÃ¡s seguro de eliminar este archivo?")) {
+      if (confirm("¿Estás seguro de eliminar este archivo?")) {
         const id = btn.dataset.id;
         await deleteLibraryItem(id, filter);
       }
@@ -390,10 +390,10 @@ export async function deleteLibraryItem(id, currentFilter = 'todos') {
   try {
     await deleteLibraryItemsFromSupabase(id);
     await renderLibrary(currentFilter);
-    console.log(`âœ… Archivo ${id} eliminado correctamente.`);
+    console.log(`Archivo ${id} eliminado correctamente.`);
   } catch (error) {
     console.error("Error al eliminar:", error);
-    alert("âŒ No se pudo eliminar el archivo. IntÃ©ntalo de nuevo.");
+    alert("No se pudo eliminar el archivo. Inténtalo de nuevo.");
   }
 }
 
@@ -407,14 +407,14 @@ export async function saveManualFileToLibrary() {
   const type = rawType === "audio" ? "pista" : rawType;
 
   if (!files || files.length === 0) {
-    alert(type === "texto" || type === "texto_plano" || type === "ultrastar_txt" ? "âš ï¸ Selecciona un .txt" : "âš ï¸ Selecciona al menos un archivo");
+    alert(type === "texto" || type === "texto_plano" || type === "ultrastar_txt" ? "Selecciona un .txt" : "Selecciona al menos un archivo");
     return;
   }
 
   // âœ… CORRECCIÃ“N 1: Homologar los tipos de texto para que coincidan con la validaciÃ³n
   const validation = validateFilesForUpload(files, type);
   if (!validation.valid) {
-    alert("âŒ " + validation.error);
+    alert("⚠️" + validation.error);
     return;
   }
 
@@ -424,17 +424,17 @@ export async function saveManualFileToLibrary() {
       await import("./estudio.js");
     }
   } catch (e) {
-    console.warn("âš ï¸ No se pudo pre-cargar estudio.js:", e);
+    console.warn("No se pudo pre-cargar estudio.js:", e);
   }
 
   if (!window.CloudflareStorage?.getCloudflareConfig) {
-    showStatus("âŒ Cloudflare R2 no estÃ¡ configurado. Define VITE_CLOUDFLARE_R2_BASE_URL en .env y reinicia el servidor.", "error");
+    showStatus("Cloudflare R2 no está configurado. Define VITE_CLOUDFLARE_R2_BASE_URL en .env y reinicia el servidor.", "error");
     return;
   }
 
   const r2Config = window.CloudflareStorage.getCloudflareConfig();
   if (!r2Config) {
-    showStatus("âŒ Cloudflare R2 no configurado. Verifica VITE_CLOUDFLARE_R2_BASE_URL en .env y reinicia el servidor (npm run dev).", "error");
+    showStatus("Cloudflare R2 no configurado. Verifica VITE_CLOUDFLARE_R2_BASE_URL en .env y reinicia el servidor (npm run dev).", "error");
     return;
   }
 
@@ -462,7 +462,7 @@ export async function saveManualFileToLibrary() {
         let saveResult = null;
         if (isTextType) {
           const text = await file.text();
-          console.log(`ðŸ“ Guardando archivo de texto: ${file.name}`);
+          console.log(`Guardando archivo de texto: ${file.name}`);
           saveResult = await window.CloudflareStorage.saveLibraryItemToCloudflare({
             name: file.name,
             type,
@@ -472,7 +472,7 @@ export async function saveManualFileToLibrary() {
             metadata: {}
           });
         } else {
-          console.log(`ðŸŽµ Subiendo audio: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+          console.log(`Subiendo audio: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
           saveResult = await window.CloudflareStorage.saveLibraryItemToCloudflare({
             name: file.name,
             type,
@@ -492,7 +492,7 @@ export async function saveManualFileToLibrary() {
             await estudio.autoLoadSelectedInEstudio(type, saveResult?.id);
           }
         } catch (autoErr) {
-          console.warn("âš ï¸ No se pudo auto-cargar en Estudio:", autoErr);
+          console.warn("No se pudo auto-cargar en Estudio:", autoErr);
         }
 
         await new Promise(r => setTimeout(r, 200));
@@ -506,14 +506,14 @@ export async function saveManualFileToLibrary() {
     await renderLibrary("todos");
 
     if (uploadedCount > 0) {
-      showStatus(`âœ… ${uploadedCount}/${totalFiles} archivo(s) guardado(s) correctamente`, "success");
+      showStatus(`${uploadedCount}/${totalFiles} archivo(s) guardado(s) correctamente`, "success");
     }
     if (uploadedCount < totalFiles) {
-      showStatus(`âš ï¸ ${totalFiles - uploadedCount} archivo(s) fallaron`, "warning");
+      showStatus(`${totalFiles - uploadedCount} archivo(s) fallaron`, "warning");
     }
   } catch (error) {
     console.error("Error general:", error);
-    showStatus("âŒ Error: " + error.message, "error");
+    showStatus("Error: " + error.message, "error");
   } finally {
     if (saveBtn) saveBtn.disabled = false;
     if (clearBtn) clearBtn.style.display = "none";
@@ -613,8 +613,8 @@ function handleFileSelection(e) {
       div.className = "upload-file-item";
       div.id = `file-${i}-${file.name.replace(/[^a-zA-Z0-9]/g, "-")}`;
       div.innerHTML = `
-        <span class="file-name">ðŸ“„ ${escapeHTML(file.name)} (${(file.size / 1024 / 1024).toFixed(2)} MB)</span>
-        <span class="file-status status-pending">â³ Listo para subir</span>
+        <span class="file-name"> ${escapeHTML(file.name)} (${(file.size / 1024 / 1024).toFixed(2)} MB)</span>
+        <span class="file-status status-pending"> Listo para subir</span>
       `;
       uploadFilesList.appendChild(div);
     }
@@ -642,7 +642,7 @@ export function addFileToUploadList(container, fileName, status, index = 0) {
     div.id = `file-${index}-${fileName.replace(/[^a-zA-Z0-9]/g, "-")}`;
     div.innerHTML = `
       <span class="file-name">${escapeHTML(fileName)}</span>
-      <span class="file-status status-${status}">â³ Pendiente</span>
+      <span class="file-status status-${status}">Pendiente</span>
     `;
     container.appendChild(div);
   }
@@ -654,7 +654,7 @@ export function updateFileStatus(fileName, status, errorMsg = "", index = 0) {
     const statusEl = el.querySelector(".file-status");
     if (statusEl) {
       statusEl.className = "upload-status status-" + status;
-      statusEl.textContent = status === "success" ? "âœ… Listo" : status === "error" ? "âŒ " + errorMsg : "â³ Pendiente";
+      statusEl.textContent = status === "success" ? "Listo" : status === "error" ? "⚠️" + errorMsg : "Pendiente";
     }
   }
 }
@@ -738,7 +738,7 @@ export function clearUploadSelection() {
   if (uploadProgressText) uploadProgressText.textContent = "";
   if (uploadOptions) uploadOptions.style.display = "none";
   if (typeSelect) typeSelect.value = "pista";
-  if (chosenText) chosenText.textContent = "NingÃºn archivo seleccionado";
+  if (chosenText) chosenText.textContent = "Ningún archivo seleccionado";
 
   if (statusEl) {
     statusEl.style.display = "none";
