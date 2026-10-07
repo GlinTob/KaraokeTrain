@@ -285,7 +285,6 @@ function selectKaraokeStage(stageId) {
 export function inicializarEscenarioDesdeMemoria() {
   const contenedorKaraoke =
     document.getElementById("karaokeLiveLyrics") ||
-    document.getElementById("karaokeLyrics") ||
     document.querySelector(".karaoke-lyrics");
 
   let temaGuardado = localStorage.getItem("karaokeTrain_stage") || "theme-clasico";
@@ -416,6 +415,10 @@ function initializeAvatarUserTabs() {
   const defaultNames = { P1: "Usuario 1", P2: "Usuario 2" };
 
   document.querySelectorAll(".avatar-user-tab").forEach((tab) => {
+    // Sin guarda se duplican los handlers al re-entrar a Config (doble
+    // avatarChanged → doble repintado del monitor karaoke).
+    if (tab.dataset.bound) return;
+    tab.dataset.bound = "true";
     tab.addEventListener("click", (e) => {
       const target = e.target && e.target.closest ? e.target.closest(".avatar-user-input") : null;
       if (target) return;
@@ -438,6 +441,8 @@ function initializeAvatarUserTabs() {
     const keys = storageKeysForUser(user);
     input.value = localStorage.getItem(keys.name) || defaultNames[user];
 
+    if (input.dataset.bound) return;
+    input.dataset.bound = "true";
     input.addEventListener("click", (e) => e.stopPropagation());
     input.addEventListener("mousedown", (e) => e.stopPropagation());
     input.addEventListener("keydown", (e) => e.stopPropagation());
