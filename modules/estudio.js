@@ -21,7 +21,6 @@ import { getAudioController } from "./audio-controller.js";
 
 // Variables de Control de Estado
 let textSegments = [];
-let baseTextSegments = [];
 let autoScrollEnabled = true;
 let studioTrackFileName = null;
 let studioTrackBlob = null;
@@ -176,27 +175,33 @@ export async function loadSelectedTrackFromLibraryStudio() {
         const urlOrBlob = item.file_url || item.audioBlob;
 
     if (typeof urlOrBlob === 'string') {
-      // 1. Indicarle al reproductor que use permisos de origen cruzado nativos
-      player.crossOrigin = "anonymous";
-      player.src = item.file_url || item.audioBlob || "";
-      
-      // 2. SOLUCIÓN CRÍTICA: Añadir un "cache-buster" (?_cb=...) para obligar al navegador 
-      // a ignorar la caché vieja y leer la nueva política CORS de Cloudflare de forma segura
+      // Descarga ÚNICA: el blob alimenta al reproductor (object URL) y queda
+      // guardado para el análisis de pitch. Antes se descargaba dos veces
+      // (stream del player + fetch del blob).
       let urlConCacheBuster = urlOrBlob;
       try {
         const parsedUrl = new URL(urlOrBlob, window.location.href);
         parsedUrl.searchParams.set('_cb', String(Date.now()));
         urlConCacheBuster = parsedUrl.toString();
       } catch (_) {
-        urlConCacheBuster = urlOrBlob.includes('?') 
-          ? `${urlOrBlob}&_cb=${Date.now()}` 
+        urlConCacheBuster = urlOrBlob.includes('?')
+          ? `${urlOrBlob}&_cb=${Date.now()}`
           : `${urlOrBlob}?_cb=${Date.now()}`;
       }
 
       console.log("📡 Descargando binario con bypass de caché:", urlConCacheBuster);
-      
+
       const response = await fetch(urlConCacheBuster);
+      if (!response.ok) {
+        throw new Error(`No se pudo descargar la pista (HTTP ${response.status})`);
+      }
       studioTrackBlob = await response.blob();
+      if (player.dataset.blobUrl) {
+        try { URL.revokeObjectURL(player.dataset.blobUrl); } catch (e) {}
+      }
+      player.dataset.blobUrl = URL.createObjectURL(studioTrackBlob);
+      player.removeAttribute("crossorigin");
+      player.src = player.dataset.blobUrl;
     } else if (urlOrBlob instanceof Blob) {
       studioTrackBlob = urlOrBlob;
       player.src = URL.createObjectURL(urlOrBlob);
@@ -393,9 +398,6 @@ export async function loadSelectedTextFromLibrary() {
 
     if (Array.isArray(item.lyrics) && item.lyrics.length > 0) {
       textSegments = item.lyrics;
-      // FIX #9: sincronizar baseTextSegments con textSegments para que el
-      // estado quede consistente antes de cualquier corrección posterior.
-      baseTextSegments = item.lyrics;
       if (typeof window.renderKaraokeLyrics === "function") window.renderKaraokeLyrics(textSegments);
 
       let textoFormateadoParaPantalla = "";
@@ -411,19 +413,15 @@ export async function loadSelectedTextFromLibrary() {
       status.innerHTML = `📄 <strong>Estado:</strong> Letra cargada respetando tus líneas de estrofa original ⚡`;
     } else if (item.textoPlano || item.metadata?.textoPlano) {
       textInput.value = item.textoPlano || item.metadata?.textoPlano || "";
-      // FIX #9: también actualizar textSegments/baseTextSegments para que el
-      // monitor de karaoke refleje el texto plano y futuros taps/tap-sync
-      // tengan una base sobre la que trabajar.
+      // Actualizar textSegments para que el monitor refleje el texto plano.
       const flatSegments = segmentarTextoPlano(textInput.value);
       textSegments = flatSegments;
-      baseTextSegments = flatSegments;
       if (flatSegments.length > 0 && typeof window.renderKaraokeLyrics === "function") {
         window.renderKaraokeLyrics(flatSegments);
       }
       status.innerHTML = `📄 <strong>Estado:</strong> Letra plana cargada en el monitor ⚡`;
     } else {
       textSegments = [];
-      baseTextSegments = [];
       textInput.value = "";
       status.textContent = "Estado: El archivo de texto no contiene palabras válidas.";
     }
@@ -466,7 +464,6 @@ export async function applyCorrectedLyrics() {
 
     // Procesamos siempre como segmentación manual de texto plano para crear los renglones limpios
     const finalSegments = segmentarTextoPlano(correctedText);
-    baseTextSegments = finalSegments;
     textSegments = finalSegments;
 
     if (typeof window.renderKaraokeLyrics === "function") window.renderKaraokeLyrics(textSegments);
@@ -968,11 +965,19 @@ export function resumeTapSync() {
 }
 
 // Re-engancha el teclado tras volver al tab (el cleanup lo suelta sin
-// cancelar la sesión). No-op si no hay taps en curso.
+// cancelar la sesión). No-op si no hay taps en curso. También reanuda el
+// audio: el cleanup lo pausa y sin esto los taps graban el tiempo detenido.
 export function reattachTapKeys() {
   if (!tapSyncMode) return;
   document.removeEventListener("keydown", handleTapSyncKeypress, { capture: true });
   document.addEventListener("keydown", handleTapSyncKeypress, { capture: true });
+  const player = window.activeTapPlayer || $("selectedVoicePlayer") || $("player");
+  if (player && player.src && player.paused) {
+    try {
+      const p = player.play();
+      if (p && typeof p.catch === "function") p.catch(() => {});
+    } catch (e) {}
+  }
 }
 
 export function setCurrentTapPart(part) {
@@ -1212,7 +1217,6 @@ export async function finishTapSync() {
     const karaokeSegments = groupWordsToKaraokeSegments(finalWords);
 
     textSegments = finalWords;
-    baseTextSegments = finalWords;
 
     const trackItem = studioTrackId
       ? await getLibraryItemsByIdFromSupabase(studioTrackId)
