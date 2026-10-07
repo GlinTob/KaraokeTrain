@@ -2027,6 +2027,20 @@ export async function mixKaraoke() {
     trackCompressor.attack.value = 0.005;
     trackCompressor.release.value = 0.2;
 
+    // Limitador maestro: la suma voz+pista puede superar 0 dBFS y recortar
+    // en digital (esa distorsión se percibe como pista "destemplada").
+    // Techo a -1 dB antes de codificar el WAV.
+    const masterLimiter = offlineCtx.createDynamicsCompressor();
+    masterLimiter.threshold.value = -3;
+    masterLimiter.knee.value = 0;
+    masterLimiter.ratio.value = 20;
+    masterLimiter.attack.value = 0.002;
+    masterLimiter.release.value = 0.1;
+    const masterGain = offlineCtx.createGain();
+    masterGain.gain.value = 1.0;
+    masterLimiter.connect(masterGain);
+    masterGain.connect(offlineCtx.destination);
+
     const trackGain = offlineCtx.createGain();
     // Voz al frente (~65/38): la pista acompaña sin tapar las notas suaves.
     trackGain.gain.value = 0.38;
@@ -2034,7 +2048,7 @@ export async function mixKaraoke() {
     trackSource.buffer = trackBuffer;
     trackSource.connect(trackCompressor);
     trackCompressor.connect(trackGain);
-    trackGain.connect(offlineCtx.destination);
+    trackGain.connect(masterLimiter);
 
     // Balance de la voz: compresor dinámico para equilibrar el volumen de la voz
     // (reduce picos y sube el nivel promedio), sin depender del volumen del archivo.
@@ -2083,12 +2097,24 @@ export async function mixKaraoke() {
       voiceHighpass.connect(voiceCompressor);
     }
     voiceCompressor.connect(voiceLevel);
-    voiceLevel.connect(offlineCtx.destination);
+    voiceLevel.connect(masterLimiter);
 
     trackSource.start(0);
     voiceSource.start(0);
 
     const renderedBuffer = await offlineCtx.startRendering();
+    // Diagnóstico: pico real de la mezcla (si roza 1.0 el limitador trabajó).
+    try {
+      let peak = 0;
+      for (let c = 0; c < renderedBuffer.numberOfChannels; c++) {
+        const d = renderedBuffer.getChannelData(c);
+        for (let i = 0; i < d.length; i += 7) {
+          const a = d[i] >= 0 ? d[i] : -d[i];
+          if (a > peak) peak = a;
+        }
+      }
+      console.log(`🎧 Mezcla renderizada: pico ${peak.toFixed(3)} (limitador a -3 dB).`);
+    } catch (e) {}
     const finalWavBlob = await getAudioController().encodeWavToBlob(renderedBuffer);
     if (karaokeMixUrl) {
       try { URL.revokeObjectURL(karaokeMixUrl); } catch (e) {}
