@@ -1529,3 +1529,31 @@ body[data-theme="otono"] {
 .karaoke-live-word.past-word {
   opacity: 0.6;
 }
+
+/* ==========================================
+   ESCENARIOS karaoke (clase en #karaokeLiveLyrics)
+   Colores espejo de KARAOKE_STAGES en config.js
+========================================== */
+.karaoke-lyrics.theme-clasico { background: #111827; }
+.karaoke-lyrics.theme-clasico .karaoke-live-line.active { background: rgba(59, 130, 246, 0.25); }
+.karaoke-lyrics.theme-clasico .karaoke-live-word.active-word { color: #3b82f6; }
+
+.karaoke-lyrics.theme-moderno { background: #082f49; }
+.karaoke-lyrics.theme-moderno .karaoke-live-line.active { background: rgba(6, 182, 212, 0.25); }
+.karaoke-lyrics.theme-moderno .karaoke-live-word.active-word { color: #06b6d4; }
+
+.karaoke-lyrics.theme-disco { background: #2e1065; }
+.karaoke-lyrics.theme-disco .karaoke-live-line.active { background: rgba(219, 39, 119, 0.3); }
+.karaoke-lyrics.theme-disco .karaoke-live-word.active-word { color: #facc15; }
+
+.karaoke-lyrics.theme-acustico { background: #451a03; }
+.karaoke-lyrics.theme-acustico .karaoke-live-line.active { background: rgba(180, 83, 9, 0.35); }
+.karaoke-lyrics.theme-acustico .karaoke-live-word.active-word { color: #fcd34d; }
+
+.karaoke-lyrics.theme-fiesta { background: #3b1230; }
+.karaoke-lyrics.theme-fiesta .karaoke-live-line.active { background: rgba(255, 0, 127, 0.25); }
+.karaoke-lyrics.theme-fiesta .karaoke-live-word.active-word { color: #ff007f; }
+
+.karaoke-lyrics.theme-retrowave { background: #1a1155; }
+.karaoke-lyrics.theme-retrowave .karaoke-live-line.active { background: rgba(255, 45, 149, 0.3); }
+.karaoke-lyrics.theme-retrowave .karaoke-live-word.active-word { color: #00e5ff; }
