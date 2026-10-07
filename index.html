@@ -294,48 +294,6 @@
             <p id="uploadStatus" class="upload-status" style="display: none;"></p>
           </div>
 
-          <!--
-          <div class="card upload-card">
-            <h3>🔄 Migrar karaokes de la app previa</h3>
-            <p style="color: var(--text-muted);">Sube el CSV exportado (letra sincronizada incluida). Los audios se reutilizan del bucket viejo si siguen vivos; si alguno murió, súbele su MP3 y se empareja por nombre. Sin re-tapear.</p>
-
-            <div class="settings-group">
-              <label>1. Archivo CSV</label>
-              <div class="file-input-row">
-                <button type="button" id="migCsvBtn" class="btn-neon">📂 Seleccionar CSV</button>
-                <span id="migCsvText" class="file-chosen-text">Ningún CSV seleccionado</span>
-              </div>
-              <input type="file" id="migCsvInput" accept=".csv" hidden>
-            </div>
-
-            <div class="settings-group">
-              <label>2. Audios MP3/WAV (opcional: solo si alguna URL vieja murió)</label>
-              <div class="file-input-row">
-                <button type="button" id="migAudioBtn" class="btn-neon">🎵 Seleccionar audios</button>
-                <span id="migAudioText" class="file-chosen-text">Ningún audio seleccionado</span>
-              </div>
-              <input type="file" id="migAudioInput" accept="audio/*" multiple hidden>
-            </div>
-
-            <div id="migPreview" style="margin: 15px 0;"></div>
-
-            <div class="studio-controls">
-              <button id="migGoBtn" type="button" class="btn-neon">🚀 Migrar a mi biblioteca</button>
-            </div>
-
-            <p id="migStatus" class="upload-status"></p>
-          </div>
-          <div class="biblioteca-filters">
-            <div class="biblioteca-search">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                <circle cx="11" cy="11" r="8"></circle>
-                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-              </svg>
-              <input type="text" id="bibliotecaSearch" placeholder="Buscar por nombre, tipo, fecha...">
-            </div>
-          </div>
-          -->
-
           <div class="card">
             <h3>Archivos guardados (<span id="libraryCount">0</span>)</h3>
             <div id="libraryList"></div>
@@ -362,7 +320,6 @@
               <canvas id="karaokeCanvas" width="1800" height="740" style="width: 100%; display: block; border-radius: 12px; min-height: 680px;"></canvas>
             </div>
 
-            <div id="karaokeLyrics" class="karaoke-lyrics" style="display: none;"></div>
             <div id="karaokeLiveLyrics" class="karaoke-lyrics"></div>
           </div>
           
