@@ -1,4 +1,4 @@
-import { $, safeAdd, toast } from "./utils.js";
+import { $, toast } from "./utils.js";
 import { getLibraryItemsByIdFromSupabase, getLibraryItemsByTypeFromSupabase, saveToLibrary } from "./biblioteca.js?v=4";
 // FIX #17: removido `destroyAudioController` del import. Se mantiene el
 // singleton vivo durante toda la sesión (no se destruye en flujos normales)
@@ -11,7 +11,6 @@ import { getSelectedMicId, getPentagramTolerance, getPentagramDifficultyLabel } 
 import { midiToNoteName } from "./afinador.js?v=1";
 
 let textSegments = [];
-let baseTextSegments = [];
 let karaokeLoadedLyrics = [];
 let pitchHistory = [];
 let pitchHistoryP1 = [];
@@ -84,10 +83,12 @@ function obtenerPaleta(hue = 0) {
   let config = { fondo: "#111827", lineas: "#333333", etiquetas: "#666666", barraFutura: "#1e40af", bordeFuturo: "#3b82f6", tamanoTexto: "15px" };
 
   switch (temaActual) {
+    case "theme-clasico": config = { fondo: "#111827", lineas: "#333333", etiquetas: "#666666", barraFutura: "#1e40af", bordeFuturo: "#3b82f6", tamanoTexto: "15px" }; break;
     case "theme-moderno": config = { fondo: "#082f49", lineas: "rgba(6, 182, 212, 0.2)", etiquetas: "#06b6d4", barraFutura: "#1e3a8a", bordeFuturo: "#06b6d4", tamanoTexto: "16px" }; break;
     case "theme-disco": config = { fondo: "#2e1065", lineas: "rgba(219, 39, 119, 0.25)", etiquetas: "#facc15", barraFutura: "#701a75", bordeFuturo: "#db2777", tamanoTexto: "18px" }; break;
     case "theme-acustico": config = { fondo: "#451a03", lineas: "rgba(120, 53, 15, 0.4)", etiquetas: "#fcd34d", barraFutura: "#78350f", bordeFuturo: "#b45309", tamanoTexto: "14px" }; break;
     case "theme-fiesta": config = { fondo: `hsl(${hue}, 40%, 12%)`, lineas: "rgba(255, 255, 255, 0.15)", etiquetas: "#ff007f", barraFutura: `hsl(${(hue + 180) % 360}, 50%, 25%)`, bordeFuturo: `hsl(${(hue + 180) % 360}, 70%, 50%)`, tamanoTexto: "19px" }; break;
+    case "theme-retrowave": config = { fondo: "#1a1155", lineas: "rgba(255, 45, 149, 0.35)", etiquetas: "#00e5ff", barraFutura: "#3b0764", bordeFuturo: "#00e5ff", tamanoTexto: "17px" }; break;
   }
   return config;
 }
@@ -638,7 +639,8 @@ function singingRmsOfBuffer(buffer) {
 // de niveles: el mic más bajito (p.ej. 3.5mm frente a USB) se sube hasta
 // +12 dB para igualarlo al más fuerte. Así el fix no depende del hardware.
 async function combineDuoVoiceBlobs(blob1, blob2) {
-  const decodeCtx = new (window.AudioContext || window.webkitAudioContext)();
+  // Offline: solo decodifica (luego remuestrea al mezclar), sin warnings.
+  const decodeCtx = new OfflineAudioContext(1, 1, 44100);
   try {
     const [buf1, buf2] = await Promise.all([
       decodeCtx.decodeAudioData((await blob1.arrayBuffer()).slice(0)),
@@ -694,7 +696,9 @@ async function combineDuoVoiceBlobs(blob1, blob2) {
     console.log(`🎤🎤 Dúo balanceado: rms1=${rms1.toFixed(4)} g1=${g1.toFixed(2)}, rms2=${rms2.toFixed(4)} g2=${g2.toFixed(2)}`);
     return await getAudioController().encodeWavToBlob(rendered);
   } finally {
-    try { await decodeCtx.close(); } catch (e) {}
+    if (typeof decodeCtx.close === "function") {
+      try { await decodeCtx.close(); } catch (e) {}
+    }
   }
 }
 
@@ -1272,6 +1276,14 @@ function releaseKaraokeCaptureStreams() {
 }
 
 export function stopKaraokeRecording() {
+  // Sin grabación en curso ni voz lista no hay nada que detener: antes se
+  // mostraba "Grabación detenida. Escucha tu voz abajo." en vacío.
+  const recActiva = (karaokeMediaRecorder && karaokeMediaRecorder.state !== "inactive") ||
+    (karaokeMediaRecorder2 && karaokeMediaRecorder2.state !== "inactive");
+  if (!karaokeRecordingActive && !recActiva && !karaokeRecordedBlob) {
+    toast("No hay grabación en curso.", "info");
+    return;
+  }
   if (karaokePitchLoopRafId) {
     cancelAnimationFrame(karaokePitchLoopRafId);
     karaokePitchLoopRafId = null;
@@ -1453,31 +1465,6 @@ export function syncKaraokeMonitor(currentTime) {
   // sin mover la vista (el scroll automático arrastraba toda la página).
 }
 
-export function setKaraokeData(lyrics, name, fileUrl) {
-  const karaokeTrackEl = $("karaokeTrack") || $("karaokeAudio") || $("audioKaraoke") || $("trackPlayer");
-  textSegments = ensureTextLineTimings(normalizeKaraokeSegments(lyrics), karaokeTrackEl?.duration);
-  baseTextSegments = [...textSegments];
-
-  karaokeSelectedTrackName = name || "Sin nombre";
-  karaokeSelectedTrackBlob = fileUrl;
-
-  const statusEl = $("karaokeStatus");
-  if (statusEl) {
-    statusEl.textContent = `Listos para cantar: ${karaokeSelectedTrackName}`;
-  }
-
-  pitchHistory = [];
-  pitchHistoryP1 = [];
-  pitchHistoryP2 = [];
-  karaokePitchP1 = -1;
-  karaokePitchP2 = -1;
-
-  cargarLetrasEnMonitor();
-
-  drawKaraokeMonitor(0, -1, -1);
-
-  console.log(`🎤 [Karaoke] "${karaokeSelectedTrackName}" sincronizado y listo para grabar.`);
-}
 
 function normalizeKaraokeSegments(rawSegments = []) {
   if (!Array.isArray(rawSegments)) return [];
@@ -1972,12 +1959,14 @@ export async function mixKaraoke() {
 
   let audioCtx = null;
   try {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    // Offline: solo se decodifica, sin sonar ni pedir gesto (un AudioContext
+    // normal quedaría "suspended" con warning en consola).
+    audioCtx = new OfflineAudioContext(1, 1, 44100);
 
     // FIX #5: distinguir entre URL remota y Blob/objeto local para evitar
     // TypeError "Failed to fetch" cuando trackFile es un Blob (no string).
     // Antes, trackFile.startsWith("http") crasheaba si trackFile era un Blob
-    // local (p.ej. tras usar setKaraokeData con un File del PC).
+    // local en vez de una URL remota.
     let trackArrayBuffer;
     if (trackFile instanceof Blob) {
       trackArrayBuffer = await trackFile.arrayBuffer();
@@ -2158,8 +2147,9 @@ export async function mixKaraoke() {
     }
   } finally {
     // El contexto de mezcla se cierra siempre, también en error: antes quedaba
-    // corriendo en segundo plano por cada mezcla fallida.
-    if (audioCtx) {
+    // corriendo en segundo plano por cada mezcla fallida. (OfflineAudioContext
+    // no tiene close(): guarda por si vuelve a ser un contexto realtime.)
+    if (audioCtx && typeof audioCtx.close === "function") {
       try { await audioCtx.close(); } catch (e) {}
     }
     if (btn) {
@@ -2171,7 +2161,6 @@ export async function mixKaraoke() {
 
 function limpiarVariablesMonitor() {
   textSegments = [];
-  baseTextSegments = [];
   pitchHistory = [];
   pitchHistoryP1 = [];
   pitchHistoryP2 = [];
@@ -2204,7 +2193,6 @@ export function renderKaraokeLyrics(segments) {
   // Reutilizar el normalizador central para aceptar ambos formatos.
   const track = $("karaokeTrack") || $("karaokeAudio") || $("audioKaraoke") || $("trackPlayer");
   textSegments = ensureTextLineTimings(normalizeKaraokeSegments(segments), track?.duration);
-  baseTextSegments = [...textSegments];
 
   cargarLetrasEnMonitor();
 
@@ -2233,6 +2221,22 @@ export function updateKaraokeHighlight(currentTime) {
   syncKaraokeMonitor(currentTime);
 }
 window.updateKaraokeHighlight = updateKaraokeHighlight;
+
+// El escenario elegido en Config se aplica en vivo: actualiza la clase del
+// teleprompter y repinta el canvas (que lee la paleta por frame).
+window.addEventListener("karaokeThemeChanged", () => {
+  try {
+    const temas = ["theme-clasico", "theme-moderno", "theme-disco", "theme-acustico", "theme-fiesta", "theme-retrowave"];
+    const tema = localStorage.getItem("karaokeTrain_stage") || "theme-clasico";
+    const live = document.getElementById("karaokeLiveLyrics");
+    if (live) {
+      temas.forEach((t) => live.classList.remove(t));
+      live.classList.add(tema);
+    }
+    const track = $("karaokeTrack") || $("karaokeAudio") || $("audioKaraoke") || $("trackPlayer");
+    drawKaraokeMonitor(track ? track.currentTime || 0 : 0, karaokePitchP1, karaokePitchP2);
+  } catch (e) {}
+});
 
 window.addEventListener("avatarChanged", () => {
   avatarCache.P1 = null;
