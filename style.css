@@ -1613,7 +1613,55 @@ body[data-theme="otono"] {
   margin: 16px 0;
 }
 
-.welcome-card button {
-  width: 100%;
-  font-size: 1.05em;
+.welcome-contador {
+  color: var(--text-muted);
+  font-size: 0.9em;
+  margin: 0 0 12px;
+}
+
+.welcome-pasos {
+  min-height: 190px;
+}
+
+.welcome-step {
+  animation: welcomeEntrar 0.25s ease;
+}
+
+@keyframes welcomeEntrar {
+  from { opacity: 0; transform: translateX(18px); }
+  to { opacity: 1; transform: none; }
+}
+
+.welcome-dots {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin: 16px 0;
+}
+
+.welcome-dots span {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  opacity: 0.4;
+}
+
+.welcome-dots span.active {
+  opacity: 1;
+  background: var(--accent);
+}
+
+.welcome-nav {
+  display: flex;
+  gap: 10px;
+}
+
+.welcome-nav button {
+  flex: 1;
+  font-size: 1em;
+}
+
+.welcome-nav button[hidden] {
+  display: none;
 }
