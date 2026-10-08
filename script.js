@@ -215,9 +215,33 @@ function leerBienvenidaVista() {
   }
 }
 
+let welcomePaso = 0;
+const WELCOME_TOTAL = 5;
+
+function pintarPasoBienvenida() {
+  document.querySelectorAll(".welcome-step").forEach((el) => {
+    const n = Number(el.dataset.paso || 0);
+    el.hidden = n !== welcomePaso;
+  });
+  document.querySelectorAll(".welcome-dots span").forEach((el) => {
+    el.classList.toggle("active", Number(el.dataset.dot || 0) === welcomePaso);
+  });
+  const contador = $("welcomeContador");
+  if (contador) contador.textContent = `Paso ${welcomePaso + 1} de ${WELCOME_TOTAL}`;
+  const prev = $("welcomePrevBtn");
+  const next = $("welcomeNextBtn");
+  const empezar = $("welcomeStartBtn");
+  const ultimo = welcomePaso === WELCOME_TOTAL - 1;
+  if (prev) prev.disabled = welcomePaso === 0;
+  if (next) next.hidden = ultimo;
+  if (empezar) empezar.hidden = !ultimo;
+}
+
 function mostrarBienvenida() {
   const overlay = $("welcomeOverlay");
   if (!overlay) return;
+  welcomePaso = 0;
+  pintarPasoBienvenida();
   overlay.hidden = false;
   try {
     document.body.style.overflow = "hidden";
@@ -510,9 +534,22 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (typeof stopMicTest === "function") stopMicTest();
   });
 
-  // --- EVENTOS BIENVENIDA ---
+  // --- EVENTOS BIENVENIDA (tour 5 pasos) ---
   safeAdd("welcomeStartBtn", "click", () => ocultarBienvenida(true));
+  safeAdd("welcomeOmitirBtn", "click", () => ocultarBienvenida(true));
   safeAdd("verBienvenidaBtn", "click", () => mostrarBienvenida());
+  safeAdd("welcomeNextBtn", "click", () => {
+    if (welcomePaso < WELCOME_TOTAL - 1) {
+      welcomePaso += 1;
+      pintarPasoBienvenida();
+    }
+  });
+  safeAdd("welcomePrevBtn", "click", () => {
+    if (welcomePaso > 0) {
+      welcomePaso -= 1;
+      pintarPasoBienvenida();
+    }
+  });
 
   // Carga inicial diferida
   try {
