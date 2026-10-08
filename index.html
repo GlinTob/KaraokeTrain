@@ -21,6 +21,22 @@
   </script>
 </head>
   <body>
+    <!-- BIENVENIDA (pantalla completa, solo primera vez) -->
+    <div id="welcomeOverlay" hidden>
+      <div class="welcome-card" role="dialog" aria-modal="true" aria-labelledby="welcomeTitle">
+        <h1 id="welcomeTitle">🎤 Bienvenido a KaraokeTrain</h1>
+        <p class="welcome-sub">Tu app para practicar canto y armar karaokes con hasta 2 micrófonos. Te limpiamos la voz automáticamente en la mezcla final.</p>
+        <h2>¿Cómo se usa?</h2>
+        <ol class="welcome-steps">
+          <li><strong>1️⃣ Biblioteca:</strong> sube tu pista, tu voz de referencia y la letra.</li>
+          <li><strong>2️⃣ Estudio:</strong> arma la canción y sincroniza la letra con la música.</li>
+          <li><strong>3️⃣ Afinador / Cambiar tono:</strong> practica tu afinación o ajusta el tono a tu voz.</li>
+          <li><strong>4️⃣ Karaoke:</strong> elige la canción, conecta tus micrófonos, canta y mezcla.</li>
+        </ol>
+        <p class="welcome-tip">🎧 Tip: permite el micrófono cuando el navegador lo pida y prueba tu nivel en Configuración antes de grabar.</p>
+        <button id="welcomeStartBtn" type="button">Empezar a cantar</button>
+      </div>
+    </div>
     <div class="app">
       
       <!-- SIDEBAR -->
@@ -396,6 +412,7 @@
               <button type="button" data-go="estudio">2️⃣ Arma y sincroniza en Estudio</button>
               <button type="button" data-go="afinador">3️⃣ Practica en Afinador</button>
               <button type="button" data-go="karaoke">4️⃣ Canta en Karaoke</button>
+              <button type="button" id="verBienvenidaBtn">👋 Ver bienvenida</button>
             </div>
           </div>
 
