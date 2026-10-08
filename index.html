@@ -21,20 +21,50 @@
   </script>
 </head>
   <body>
-    <!-- BIENVENIDA (pantalla completa, solo primera vez) -->
+    <!-- BIENVENIDA (tour interactivo 5 pasos, solo primera vez) -->
     <div id="welcomeOverlay" hidden>
       <div class="welcome-card" role="dialog" aria-modal="true" aria-labelledby="welcomeTitle">
-        <h1 id="welcomeTitle">🎤 Bienvenido a KaraokeTrain</h1>
-        <p class="welcome-sub">Tu app para practicar canto y armar karaokes con hasta 2 micrófonos. Te limpiamos la voz automáticamente en la mezcla final.</p>
-        <h2>¿Cómo se usa?</h2>
-        <ol class="welcome-steps">
-          <li><strong>1️⃣ Biblioteca:</strong> sube tu pista, tu voz de referencia y la letra.</li>
-          <li><strong>2️⃣ Estudio:</strong> arma la canción y sincroniza la letra con la música.</li>
-          <li><strong>3️⃣ Afinador / Cambiar tono:</strong> practica tu afinación o ajusta el tono a tu voz.</li>
-          <li><strong>4️⃣ Karaoke:</strong> elige la canción, conecta tus micrófonos, canta y mezcla.</li>
-        </ol>
-        <p class="welcome-tip">🎧 Tip: permite el micrófono cuando el navegador lo pida y prueba tu nivel en Configuración antes de grabar.</p>
-        <button id="welcomeStartBtn" type="button">Empezar a cantar</button>
+        <p id="welcomeContador" class="welcome-contador" aria-live="polite">Paso 1 de 5</p>
+        <div class="welcome-pasos">
+          <section class="welcome-step" data-paso="0">
+            <h1 id="welcomeTitle">🎤 Bienvenido a KaraokeTrain</h1>
+            <p class="welcome-sub">Tu app para practicar canto y armar karaokes con hasta 2 micrófonos. Te limpiamos la voz automáticamente en la mezcla final.</p>
+            <p class="welcome-sub">Te guiamos en 1 minuto por las 4 pestañas clave. Usa Siguiente para avanzar.</p>
+          </section>
+          <section class="welcome-step" data-paso="1" hidden>
+            <h1>1️⃣ Biblioteca</h1>
+            <p class="welcome-sub">Aquí empieza todo: sube tu pista instrumental, tu voz de referencia y la letra de la canción.</p>
+            <p class="welcome-sub">Todo queda guardado para usarlo en Estudio y Karaoke.</p>
+          </section>
+          <section class="welcome-step" data-paso="2" hidden>
+            <h1>2️⃣ Estudio</h1>
+            <p class="welcome-sub">Arma la canción y sincroniza la letra con la música marcando el ritmo (tap sync).</p>
+            <p class="welcome-sub">Si la letra queda movida, aquí la corriges antes de cantar.</p>
+          </section>
+          <section class="welcome-step" data-paso="3" hidden>
+            <h1>3️⃣ Afinador / Cambiar tono</h1>
+            <p class="welcome-sub">Practica tu afinación con la aguja en vivo o ajusta el tono de la pista a tu voz.</p>
+            <p class="welcome-sub">Así no forzas la garganta: la canción se adapta a ti.</p>
+          </section>
+          <section class="welcome-step" data-paso="4" hidden>
+            <h1>4️⃣ Karaoke: a cantar</h1>
+            <p class="welcome-sub">Elige la canción, conecta tus micrófonos, canta con la letra en pantalla y mezcla tu voz con la pista.</p>
+            <p class="welcome-tip">🎧 Tip: permite el micrófono cuando el navegador lo pida y prueba tu nivel en Configuración antes de grabar.</p>
+          </section>
+        </div>
+        <div class="welcome-dots" aria-hidden="true">
+          <span data-dot="0" class="active"></span>
+          <span data-dot="1"></span>
+          <span data-dot="2"></span>
+          <span data-dot="3"></span>
+          <span data-dot="4"></span>
+        </div>
+        <div class="welcome-nav">
+          <button id="welcomePrevBtn" type="button" class="btn-neon btn-secondary" disabled>Atrás</button>
+          <button id="welcomeOmitirBtn" type="button" class="btn-neon btn-secondary">Omitir</button>
+          <button id="welcomeNextBtn" type="button">Siguiente</button>
+          <button id="welcomeStartBtn" type="button" hidden>Empezar a cantar</button>
+        </div>
       </div>
     </div>
     <div class="app">
