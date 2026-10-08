@@ -202,8 +202,48 @@ export async function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2 
   }
 }
 
+// ============================================
+// 👋 BIENVENIDA (pantalla completa, primera vez)
+// ============================================
+const WELCOME_KEY = "karaokeTrain_bienvenidaVista";
+
+function leerBienvenidaVista() {
+  try {
+    return localStorage.getItem(WELCOME_KEY) === "1";
+  } catch (e) {
+    return true;
+  }
+}
+
+function mostrarBienvenida() {
+  const overlay = $("welcomeOverlay");
+  if (!overlay) return;
+  overlay.hidden = false;
+  try {
+    document.body.style.overflow = "hidden";
+  } catch (e) {}
+}
+
+function ocultarBienvenida(marcarVista = true) {
+  const overlay = $("welcomeOverlay");
+  if (!overlay) return;
+  overlay.hidden = true;
+  try {
+    document.body.style.overflow = "";
+  } catch (e) {}
+  if (marcarVista) {
+    try {
+      localStorage.setItem(WELCOME_KEY, "1");
+    } catch (e) {}
+  }
+}
+
+// Expuesta para reabrirla desde Configuración sin borrar la marca.
+window.mostrarBienvenida = () => mostrarBienvenida();
+
 function iniciarAplicacion() {
   console.log("ðŸ [karaokeTrain] El nÃºcleo del sistema ha arrancado exitosamente.");
+  if (!leerBienvenidaVista()) mostrarBienvenida();
   showTab("Config");
 }
 
@@ -469,6 +509,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     const { stopMicTest } = await import("./modules/config.js?v=9");
     if (typeof stopMicTest === "function") stopMicTest();
   });
+
+  // --- EVENTOS BIENVENIDA ---
+  safeAdd("welcomeStartBtn", "click", () => ocultarBienvenida(true));
+  safeAdd("verBienvenidaBtn", "click", () => mostrarBienvenida());
 
   // Carga inicial diferida
   try {
