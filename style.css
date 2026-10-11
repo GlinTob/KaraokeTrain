@@ -552,12 +552,63 @@ audio {
   padding-bottom: 12px !important;
   border-bottom: 2px solid var(--accent-secondary-border) !important;
 }
+.upload-progress-container {
+  margin-top: 14px;
+  padding: 12px;
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.upload-progress-bar {
+  height: 12px;
+  width: 0%;
+  border-radius: 6px;
+  background: linear-gradient(90deg, #3b82f6, #22c55e);
+  transition: width 0.3s ease;
+}
+
+/* Barras indeterminadas: se mueven aunque fetch no reporte % por byte */
+.upload-progress-bar.indeterminada {
+  width: 40% !important;
+  animation: barraSubiendo 1.2s ease-in-out infinite;
+}
+
+@keyframes barraSubiendo {
+  0% { margin-left: -40%; }
+  100% { margin-left: 100%; }
+}
+
 .upload-progress-text {
   margin-top: 8px;
   font-family: var(--font-mono);
   font-size: 14px;
   color: #bfdbfe;
   font-weight: 600;
+}
+
+/* Botón deshabilitado durante la subida: claro que está trabajando */
+#saveLibraryFileBtn:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+/* Estado "subiendo" por archivo: pulso para que se vea vivo */
+.file-status.status-pending {
+  color: #94a3b8;
+  background: rgba(148, 163, 184, 0.15);
+}
+
+.file-status.status-uploading {
+  color: #60a5fa;
+  background: rgba(59, 130, 246, 0.18);
+  animation: pulsoSubida 1s ease-in-out infinite;
+}
+
+@keyframes pulsoSubida {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
 }
 
 .upload-files-list {
@@ -638,6 +689,12 @@ audio {
   font-size: 14px;
   text-align: center;
   animation: fadeIn 0.3s ease;
+}
+
+.upload-status.info {
+  color: #60a5fa;
+  background: rgba(59, 130, 246, 0.15);
+  border: 1px solid rgba(59, 130, 246, 0.35);
 }
 
 .upload-status.success {
