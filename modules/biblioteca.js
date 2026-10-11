@@ -444,8 +444,23 @@ export async function saveManualFileToLibrary() {
   const clearBtn = $("clearUploadBtn");
 
   if (uploadProgressContainer) uploadProgressContainer.style.display = "block";
-  if (saveBtn) saveBtn.disabled = true;
+  const textoBotonOriginal = saveBtn ? saveBtn.textContent : "";
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.textContent = "⏳ Subiendo... no cierres la página";
+  }
   if (clearBtn) clearBtn.style.display = "inline-block";
+  showStatus("⏳ Enviando archivos a la nube, puede tardar con archivos grandes...", "info");
+
+  // Cronómetro visible: demuestra que sigue trabajando aunque la red vaya lenta.
+  const inicioSubida = Date.now();
+  const temporizador = setInterval(() => {
+    const s = Math.round((Date.now() - inicioSubida) / 1000);
+    const text = document.getElementById("uploadProgressText");
+    if (text && text.dataset.subiendo === "1") {
+      text.textContent = `${text.dataset.base || "Subiendo..."} (${s}s)`;
+    }
+  }, 1000);
 
   try {
     let uploadedCount = 0;
@@ -453,9 +468,18 @@ export async function saveManualFileToLibrary() {
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
+      const tamMB = (file.size / 1024 / 1024).toFixed(1);
+      const base = `⏳ Subiendo ${i + 1}/${totalFiles}: ${file.name} (${tamMB} MB)`;
       // Ã¢Å“â€¦ CORRECCIÃƒâ€œN 2: Pasar el ÃƒÂ­ndice 'i' para evitar conflictos de ID duplicados
-      updateUploadProgress(uploadedCount, totalFiles, file.name);
+      updateUploadProgress(uploadedCount, totalFiles, base);
+      const text = document.getElementById("uploadProgressText");
+      if (text) {
+        text.dataset.subiendo = "1";
+        text.dataset.base = base;
+      }
+      setBarraIndeterminada(true);
       addFileToUploadList(uploadFilesList, file.name, "pending", i);
+      updateFileStatus(file.name, "uploading", "", i);
 
       try {
         const isTextType = ["texto", "texto_plano", "letra", "ultrastar_txt"].includes(type);
@@ -484,6 +508,10 @@ export async function saveManualFileToLibrary() {
 
         updateFileStatus(file.name, "success", "", i);
         uploadedCount++;
+        setBarraIndeterminada(false);
+        const textOk = document.getElementById("uploadProgressText");
+        if (textOk) textOk.dataset.subiendo = "0";
+        updateUploadProgress(uploadedCount, totalFiles, `✅ ${uploadedCount}/${totalFiles} enviados`);
 
         // Ã°Å¸â€â€ž AUTO-CARGA EN ESTUDIO: refrescar y cargar el ÃƒÂ­tem reciÃƒÂ©n guardado
         try {
@@ -499,30 +527,44 @@ export async function saveManualFileToLibrary() {
       } catch (err) {
         console.error(`Error subiendo ${file.name}:`, err);
         updateFileStatus(file.name, "error", err.message, i);
+        setBarraIndeterminada(false);
+        const textErr = document.getElementById("uploadProgressText");
+        if (textErr) textErr.dataset.subiendo = "0";
+        updateUploadProgress(uploadedCount, totalFiles, `⚠️ Falló ${file.name}, sigo con el siguiente...`);
       }
     }
 
-    updateUploadProgress(uploadedCount, totalFiles, "Completado");
+    setBarraIndeterminada(false);
+    const textFin = document.getElementById("uploadProgressText");
+    if (textFin) textFin.dataset.subiendo = "0";
+    updateUploadProgress(uploadedCount, totalFiles, "✅ Completado");
     await renderLibrary("todos");
 
     if (uploadedCount > 0) {
-      showStatus(`${uploadedCount}/${totalFiles} archivo(s) guardado(s) correctamente`, "success");
+      showStatus(`✅ ${uploadedCount}/${totalFiles} archivo(s) guardado(s) correctamente`, "success");
     }
     if (uploadedCount < totalFiles) {
-      showStatus(`${totalFiles - uploadedCount} archivo(s) fallaron`, "warning");
+      showStatus(`⚠️ ${totalFiles - uploadedCount} archivo(s) fallaron`, "warning");
     }
   } catch (error) {
     console.error("Error general:", error);
-    showStatus("Error: " + error.message, "error");
+    showStatus("❌ Error: " + error.message, "error");
   } finally {
-    if (saveBtn) saveBtn.disabled = false;
+    clearInterval(temporizador);
+    setBarraIndeterminada(false);
+    const textReset = document.getElementById("uploadProgressText");
+    if (textReset) textReset.dataset.subiendo = "0";
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.textContent = textoBotonOriginal || "Guardar en la nube";
+    }
     if (clearBtn) clearBtn.style.display = "none";
     if (fileInput) fileInput.value = "";
     if (nameInput) nameInput.value = "";
     setTimeout(() => {
       if (uploadProgressContainer) uploadProgressContainer.style.display = "none";
       if (uploadFilesList) uploadFilesList.innerHTML = "";
-    }, 3000);
+    }, 4000);
   }
 }
   
@@ -653,10 +695,19 @@ export function updateFileStatus(fileName, status, errorMsg = "", index = 0) {
   if (el) {
     const statusEl = el.querySelector(".file-status");
     if (statusEl) {
-      statusEl.className = "upload-status status-" + status;
-      statusEl.textContent = status === "success" ? "Listo" : status === "error" ? "âš ï¸" + errorMsg : "Pendiente";
+      statusEl.className = "file-status status-" + status;
+      if (status === "success") statusEl.textContent = "✅ Listo";
+      else if (status === "error") statusEl.textContent = "âš ï¸" + errorMsg;
+      else if (status === "uploading") statusEl.textContent = "⏳ Subiendo...";
+      else statusEl.textContent = "Pendiente";
     }
   }
+}
+
+// Marca la barra como indeterminada (animada) mientras fetch sube sin % por byte.
+export function setBarraIndeterminada(activa) {
+  const bar = document.getElementById("uploadProgressBar");
+  if (bar) bar.classList.toggle("indeterminada", !!activa);
 }
 
 export function updateUploadProgress(uploaded, total, message) {
