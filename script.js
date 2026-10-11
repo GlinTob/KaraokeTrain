@@ -5,7 +5,7 @@ export function safeAdd(id, event, handler) {
   if (el) {
     el.addEventListener(event, handler);
   } else {
-    console.warn(`âš ï¸ No se encontrÃ³ el elemento con ID: ${id} para registrar el evento [${event}]`);
+    console.warn(`⚠️ No se encontró el elemento con ID: ${id} para registrar el evento [${event}]`);
   }
 }
 
@@ -16,9 +16,9 @@ export const state = {
 };
 
 // FIX #6: eliminada la variable local `autoScrollEnabled` que duplicaba la de
-// `estudio.js`. Ahora el botÃ³n consulta el estado real via `toggleAutoScrollEstudio()`
-// (que retorna el valor actualizado) para evitar desincronizaciÃ³n en hot-reload
-// o reimportaciones del mÃ³dulo.
+// `estudio.js`. Ahora el botón consulta el estado real via `toggleAutoScrollEstudio()`
+// (que retorna el valor actualizado) para evitar desincronización en hot-reload
+// o reimportaciones del módulo.
 const allKaraokeThemes = ["theme-clasico", "theme-moderno", "theme-disco", "theme-acustico", "theme-fiesta", "theme-retrowave"];
 
 // ============================================
@@ -127,20 +127,20 @@ export async function showTab(tabId) {
 
   try {
     if (normalizedTabId === "config") {
-      console.log("âš™ï¸ [Lazy Load] Cargando configuraciones de hardware...");
+      console.log("⚙️ [Lazy Load] Cargando configuraciones de hardware...");
       const { initSettings, loadAvailableMics } = await import("./modules/config.js?v=9");
       if (navAhora !== navSeq) return;
       if (typeof initSettings === "function") initSettings();
       if (typeof loadAvailableMics === "function") await loadAvailableMics();
     } else if (normalizedTabId === "biblioteca") {
-      console.log("ðŸ“ [Lazy Load] Cargando visor de Base de Datos...");
+      console.log("📁 [Lazy Load] Cargando visor de Base de Datos...");
       const { initBiblioteca, renderLibrary } = await import("./modules/biblioteca.js?v=4");
       if (navAhora !== navSeq) return;
       if (typeof initBiblioteca === "function" && initUnaVez("biblioteca")) {
         initBiblioteca();
       }
       } else if (normalizedTabId === "estudio") {
-      console.log("ðŸŽ§ [Lazy Load] Cargando entorno de sincronizaciÃ³n y listados...");
+      console.log("🎧 [Lazy Load] Cargando entorno de sincronización y listados...");
       const { initEstudio, refreshStudioChecklist, reattachTapKeys } = await import("./modules/estudio.js");
       if (navAhora !== navSeq) return;
       if (typeof initEstudio === "function" && initUnaVez("estudio")) {
@@ -150,18 +150,18 @@ export async function showTab(tabId) {
       // Si había taps en curso al salir, re-enganchar el teclado.
       if (typeof reattachTapKeys === "function") reattachTapKeys();
     } else if (normalizedTabId === "afinador") {
-      console.log("ðŸŽµ [Lazy Load] MÃ³dulo Afinador Vocal listo.");
+      console.log("🎵 [Lazy Load] Módulo Afinador Vocal listo.");
       const { initAfinadorUI } = await import("./modules/afinador.js?v=1");
       if (navAhora !== navSeq) return;
       if (typeof initAfinadorUI === "function") initAfinadorUI();
     } else if (normalizedTabId === "cambiar-tono") {
-      console.log("ðŸŽ¼ [Lazy Load] MÃ³dulo Cambiar Tono listo.");
+      console.log("🎼 [Lazy Load] Módulo Cambiar Tono listo.");
       const { initCambiarTono, loadPitchKaraokeOptions } = await import("./modules/cambiar-tono.js?v=6");
       if (navAhora !== navSeq) return;
       if (typeof initCambiarTono === "function" && initUnaVez("cambiar-tono")) initCambiarTono();
       if (typeof loadPitchKaraokeOptions === "function") await loadPitchKaraokeOptions();
     } else if (normalizedTabId === "karaoke") {
-      console.log("ðŸŽ¤ [Lazy Load] Inicializando Canvas e HistÃ³ricos de Canto...");
+      console.log("🎤 [Lazy Load] Inicializando Canvas e Históricos de Canto...");
       const { loadTrackOptionsInKaraoke, loadKaraokeSong } = await import("./modules/karaoke.js?v=18");
       const { inicializarEscenarioDesdeMemoria } = await import("./modules/config.js?v=9");
       if (navAhora !== navSeq) return;
@@ -180,9 +180,9 @@ export async function showTab(tabId) {
         track.dataset.loadedId = kid;
       }
     }
-    console.log(`âœ… [NavegaciÃ³n] PestaÃ±a [${normalizedTabId.toUpperCase()}] cargada y visualizada.`);
+    console.log(`✅ [Navegación] Pestaña [${normalizedTabId.toUpperCase()}] cargada y visualizada.`);
   } catch (error) {
-    console.error(`âŒ [Lazy Load Error] FallÃ³ el mÃ³dulo [${normalizedTabId}]:`, error);
+    console.error(`❌ [Lazy Load Error] Falló el módulo [${normalizedTabId}]:`, error);
   }
 }
 
@@ -192,7 +192,7 @@ export async function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2 
   const canvas = $("karaokeCanvas");
   if (!canvas) return;
 
-  // Cachear la referencia al renderizador para evitar un import dinÃ¡mico por cada repintado
+  // Cachear la referencia al renderizador para evitar un import dinámico por cada repintado
   if (!_karaokeRenderPincel) {
     const { drawKaraokeMonitor: renderPincel } = await import('./modules/karaoke.js?v=18');
     _karaokeRenderPincel = renderPincel;
@@ -266,16 +266,16 @@ function ocultarBienvenida(marcarVista = true) {
 window.mostrarBienvenida = () => mostrarBienvenida();
 
 function iniciarAplicacion() {
-  console.log("ðŸ [karaokeTrain] El nÃºcleo del sistema ha arrancado exitosamente.");
+  console.log("🏁 [karaokeTrain] El núcleo del sistema ha arrancado exitosamente.");
   if (!leerBienvenidaVista()) mostrarBienvenida();
   showTab("Config");
 }
 
 // ============================================
-// DomContentLoaded â€” CAPA GENERAL DE INYECCIÃ“N DE EVENTOS
+// DomContentLoaded — CAPA GENERAL DE INYECCIÓN DE EVENTOS
 // ============================================
 document.addEventListener("DOMContentLoaded", async () => {
-  // --- INICIALIZACIÃ“N DE SUPABASE CON RETRY ---
+  // --- INICIALIZACIÓN DE SUPABASE CON RETRY ---
   const initSupabaseWithRetry = async (retries = 8, delay = 500) => {
     for (let i = 0; i < retries; i++) {
       if (window.supabase) {
@@ -283,19 +283,19 @@ document.addEventListener("DOMContentLoaded", async () => {
           const { initSupabase } = await import("./modules/biblioteca.js?v=4");
           if (typeof initSupabase === "function") {
             await initSupabase();
-            console.log("âœ… Supabase inicializado correctamente.");
+            console.log("✅ Supabase inicializado correctamente.");
             window.supabaseReady = true;
             return true;
           }
         } catch (err) {
-          console.warn(`âš ï¸ Intento ${i + 1} de inicializar Supabase fallÃ³:`, err);
+          console.warn(`⚠️ Intento ${i + 1} de inicializar Supabase falló:`, err);
         }
       }
-      console.log(`â³ Esperando a Supabase... (intento ${i + 1}/${retries})`);
+      console.log(`⏳ Esperando a Supabase... (intento ${i + 1}/${retries})`);
       await new Promise(resolve => setTimeout(resolve, delay));
       delay = Math.min(delay * 1.5, 3000);
     }
-    console.error("âŒ No se pudo inicializar Supabase tras varios intentos.");
+    console.error("❌ No se pudo inicializar Supabase tras varios intentos.");
     window.supabaseReady = false;
     toast("No se pudo conectar con la base de datos. Revisa tu conexión y recarga.", "error", 6000);
     return false;
@@ -351,7 +351,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   }
 
-  // --- NAVEGACIÃ“N SIDEBAR ---
+  // --- NAVEGACIÓN SIDEBAR ---
   safeAdd("btnAfinador", "click", () => showTab("afinador"));
   safeAdd("btnEstudio", "click", () => showTab("estudio"));
   safeAdd("btnBiblioteca", "click", () => showTab("biblioteca"));
@@ -385,14 +385,14 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     safeAdd("toggleAutoScrollBtn", "click", async () => {
     // FIX #6: ahora pedimos a estudio.js que togglee Y nos devuelva el estado
-    // actualizado. No guardamos una copia local para evitar desincronizaciÃ³n.
+    // actualizado. No guardamos una copia local para evitar desincronización.
     const estudioModule = await import("./modules/estudio.js");
     const enabled = typeof estudioModule.toggleAutoScrollEstudio === "function"
       ? estudioModule.toggleAutoScrollEstudio()
       : !document.getElementById("toggleAutoScrollBtn")?.textContent.includes("ON");
     const btn = $("toggleAutoScrollBtn");
     if (btn) {
-      btn.textContent = enabled ? "ðŸ”’ Auto-scroll: ON" : "ðŸ”“ Auto-scroll: OFF";
+      btn.textContent = enabled ? "🔒 Auto-scroll: ON" : "🔓 Auto-scroll: OFF";
       btn.style.background = enabled ? "#f59e0b" : "#6b7280";
     }
   });
@@ -512,7 +512,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (typeof mixKaraoke === "function") mixKaraoke();
   });
 
-  // --- EVENTOS CONFIGURACIÃ“N HARDWARE MICS ---
+  // --- EVENTOS CONFIGURACIÓN HARDWARE MICS ---
   safeAdd("refreshMicsBtn", "click", async () => {
     const { loadAvailableMics } = await import("./modules/config.js?v=9");
     if (typeof loadAvailableMics === "function") loadAvailableMics();
@@ -558,7 +558,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (typeof loadAvailableMics === "function") await loadAvailableMics();
     if (typeof toggleMic2Visibility === "function") toggleMic2Visibility();
   } catch (e) {
-    console.warn("InicializaciÃ³n inicial diferida para interacciÃ³n con usuario.");
+    console.warn("Inicialización inicial diferida para interacción con usuario.");
   }
 
   iniciarAplicacion();
