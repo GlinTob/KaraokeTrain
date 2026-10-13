@@ -1058,7 +1058,33 @@ export function toggleAutoScrollEstudio() {
   return autoScrollEnabled;
 }
 
+// Puerta anti doble-clic: el aplicado tarda (red + pitch) y un segundo clic
+// duplicaba guardados. Mientras está en curso se ignora y el botón se ve
+// oscuro/deshabilitado hasta terminar.
+let finishTapEnCurso = false;
+
+function setBotonesAplicarTaps(trabajando) {
+  const aplicar = $("applyTapSyncBtn");
+  if (aplicar) {
+    if (trabajando) {
+      if (!aplicar.dataset.textoOriginal) aplicar.dataset.textoOriginal = aplicar.textContent;
+      aplicar.disabled = true;
+      aplicar.textContent = "⏳ Aplicando TAPS... no cierres ni repitas el clic";
+    } else {
+      aplicar.disabled = false;
+      if (aplicar.dataset.textoOriginal) aplicar.textContent = aplicar.dataset.textoOriginal;
+    }
+  }
+  const reintentar = $("redoTapSyncBtn");
+  if (reintentar) reintentar.disabled = !!trabajando;
+}
+
 export async function finishTapSync() {
+  if (finishTapEnCurso) {
+    console.log("⏳ Aplicado de TAPS ya en curso, se ignora el clic repetido.");
+    return;
+  }
+  finishTapEnCurso = true;
   tapSyncMode = false;
 
   if (tapSyncTimestamps.length !== tapSyncLines.length) {
@@ -1071,6 +1097,7 @@ export async function finishTapSync() {
       `¿Deseas aplicar de todos modos?`
     )) {
       // "No" = seguir donde iba (sin borrar taps), no cancelar todo.
+      finishTapEnCurso = false;
       resumeTapSync();
       return;
     }
@@ -1096,9 +1123,14 @@ export async function finishTapSync() {
     const status = $(statusId);
     if (status) status.textContent = "Estado: ⚠️ guarda la letra/voz en Biblioteca y vuelve a cargar para sincronizar.";
     alert("⚠️ Para terminar la sincronización, la voz o la letra deben venir de la Biblioteca (cárgalas en el Estudio y repite los taps). Tus taps se conservan.");
+    finishTapEnCurso = false;
     resumeTapSync();
     return;
   }
+
+  // Validaciones listas: empieza el trabajo largo (red + pitch). Se oscurece
+  // e inhabilita el botón hasta terminar para evitar clics repetidos.
+  setBotonesAplicarTaps(true);
 
   const statusId = selectedVoiceId ? "selectedVoiceStatus" : "selectedTextStatus";
   const status = $(statusId);
@@ -1268,6 +1300,9 @@ export async function finishTapSync() {
     console.error("Error al finalizar sincronización:", error);
     if (status) status.textContent = "Estado: Error al guardar la sincronización";
     alert("❌ Error al aplicar taps y analizar pitch: " + error.message);
+  } finally {
+    finishTapEnCurso = false;
+    setBotonesAplicarTaps(false);
   }
 }
 
