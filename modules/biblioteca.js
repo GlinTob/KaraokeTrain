@@ -6,6 +6,19 @@ import { $ } from "./utils.js";
 
 let db = null;
 
+// Buscador de biblioteca: texto actual y carpeta activa para re-render.
+let librarySearchText = "";
+let libraryCurrentFilter = "todos";
+let librarySearchTimer = null;
+
+// Normaliza para buscar sin importar mayúsculas ni tildes.
+function normalizarBusqueda(texto) {
+  return String(texto ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
 // Escapa texto para interpolar en innerHTML (nombres de archivo vienen del
 // usuario o de la nube y podrían inyectar HTML/JS).
 export function escapeHTML(text) {
@@ -51,6 +64,32 @@ export function initBiblioteca() {
   if (clearBtn && !clearBtn.dataset.bound) {
     clearBtn.addEventListener("click", clearUploadSelection);
     clearBtn.dataset.bound = "true";
+  }
+
+  const searchInput = $("librarySearchInput");
+  const searchClear = $("clearLibrarySearchBtn");
+  if (searchInput && !searchInput.dataset.bound) {
+    searchInput.dataset.bound = "true";
+    searchInput.addEventListener("input", () => {
+      librarySearchText = searchInput.value;
+      if (searchClear) {
+        searchClear.style.display = searchInput.value ? "inline-block" : "none";
+      }
+      // Pausa breve para no consultar a Supabase en cada tecla.
+      clearTimeout(librarySearchTimer);
+      librarySearchTimer = setTimeout(() => {
+        renderLibrary(libraryCurrentFilter);
+      }, 250);
+    });
+  }
+  if (searchClear && !searchClear.dataset.bound) {
+    searchClear.dataset.bound = "true";
+    searchClear.addEventListener("click", () => {
+      if (searchInput) searchInput.value = "";
+      librarySearchText = "";
+      searchClear.style.display = "none";
+      renderLibrary(libraryCurrentFilter);
+    });
   }
 }
 
@@ -273,6 +312,7 @@ export async function saveToLibrary(blob, options = {}) {
 export async function renderLibrary(filter = "todos") {
   const container = $("libraryList");
   if (!container) return;
+  libraryCurrentFilter = filter;
 
   // 1. Manejo visual de botones de carpeta activos (los botones usan
   // data-filter + addEventListener, no onclick: comparar el dataset).
@@ -306,11 +346,23 @@ export async function renderLibrary(filter = "todos") {
       return item.type === filter;
     });
 
+    // 🔍 Buscador por nombre (insensible a mayúsculas y tildes).
+    const consulta = normalizarBusqueda(librarySearchText).trim();
+    const searchedItems = consulta
+      ? filteredItems.filter(item => normalizarBusqueda(item.name).includes(consulta))
+      : filteredItems;
+
     // ✅ CONTADOR: Refleja el número de archivos según la carpeta activa
     const countEl = document.getElementById("libraryCount");
-    if (countEl) countEl.textContent = String(filteredItems.length);
+    if (countEl) countEl.textContent = String(searchedItems.length);
+
+    if (searchedItems.length === 0) {
+      container.innerHTML = consulta
+        ? `<p style="color: var(--text-muted);">Sin resultados para "${escapeHTML(librarySearchText.trim())}".</p>`
+        : "<p style=\"color: var(--text-muted);\">No hay archivos en esta carpeta.</p>";
+    }
     
-    filteredItems.forEach(item => {
+    searchedItems.forEach(item => {
       const div = document.createElement("div");
       div.className = "library-item"; // Conserva tus estilos neón oscuros
   
