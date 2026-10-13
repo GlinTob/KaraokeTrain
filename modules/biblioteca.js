@@ -10,6 +10,9 @@ let db = null;
 let librarySearchText = "";
 let libraryCurrentFilter = "todos";
 let librarySearchTimer = null;
+// Turno de render: si dos renderLibrary se solapan (tecleo rápido + red
+// lenta), el viejo se descarta y no duplica la lista.
+let libraryRenderSeq = 0;
 
 // Normaliza para buscar sin importar mayúsculas ni tildes.
 function normalizarBusqueda(texto) {
@@ -313,6 +316,7 @@ export async function renderLibrary(filter = "todos") {
   const container = $("libraryList");
   if (!container) return;
   libraryCurrentFilter = filter;
+  const turno = ++libraryRenderSeq;
 
   // 1. Manejo visual de botones de carpeta activos (los botones usan
   // data-filter + addEventListener, no onclick: comparar el dataset).
@@ -324,6 +328,12 @@ export async function renderLibrary(filter = "todos") {
 
   try {
     const library = await getAllLibraryItemsFromSupabase();
+    // Si arrancó otro render mientras esperábamos la red, este ya es viejo:
+    // se descarta para no duplicar la lista.
+    if (turno !== libraryRenderSeq) return;
+    // Re-limpiar aquí (no solo antes del fetch): un render viejo que termine
+    // tarde agregaría sus tarjetas sobre las del render nuevo.
+    container.innerHTML = "Archivos de la biblioteca";
     // ✅ CORRECCIÓN DE FILTRO: Mapeamos los filtros visuales con los datos reales
     const filteredItems = library.filter(item => {
       if (filter === "todos") return true;
@@ -421,6 +431,7 @@ export async function renderLibrary(filter = "todos") {
     
   } catch (err) {
     console.error("Error al renderizar biblioteca:", err);
+    if (turno !== libraryRenderSeq) return;
     container.innerHTML = "Error al cargar los elementos de la biblioteca.";
   }
 }
