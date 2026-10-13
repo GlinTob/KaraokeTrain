@@ -1722,3 +1722,17 @@ body[data-theme="otono"] {
 .welcome-nav button[hidden] {
   display: none;
 }
+
+/* ==========================================
+   TAPS: botón aplicar deshabilitado (anti doble-clic)
+========================================== */
+#applyTapSyncBtn:disabled {
+  background: #14532d !important;
+  opacity: 0.65;
+  cursor: wait;
+}
+
+#redoTapSyncBtn:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
