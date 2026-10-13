@@ -1545,6 +1545,13 @@ body[data-theme="otono"] {
   margin-bottom: 15px;
 }
 
+/* Buscador de biblioteca: el input crece, el botón ✖ queda al lado */
+#librarySearchInput {
+  flex: 1 1 180px;
+  width: auto;
+  margin-top: 0;
+}
+
 .file-chosen-text {
   color: #94a3b8;
   font-size: 0.95rem;
