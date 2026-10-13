@@ -114,10 +114,20 @@ export async function initSupabase() {
 export async function getAllLibraryItemsFromSupabase() {
   if (!db) await initSupabase();
   try {
-    const { data, error } = await db.from('library').select('*').order('date', { ascending: false }).range(0, 199);
-    if (error) throw new Error(`❌ Error al leer la Biblioteca: ${error.message}`);
-    console.log(`✅ Se recuperaron ${data.length} elementos desde Supabase.`);
-    return data;
+    // Sin tope: con más de 200 filas, el .range(0, 199) escondía los registros
+    // viejos en Biblioteca (pero sí salían en Karaoke, que no pagina). Se pagina.
+    const PAGE = 500;
+    let desde = 0;
+    let todos = [];
+    for (;;) {
+      const { data, error } = await db.from('library').select('*').order('date', { ascending: false }).range(desde, desde + PAGE - 1);
+      if (error) throw new Error(`❌ Error al leer la Biblioteca: ${error.message}`);
+      todos = todos.concat(data || []);
+      if (!data || data.length < PAGE) break;
+      desde += PAGE;
+    }
+    console.log(`✅ Se recuperaron ${todos.length} elementos desde Supabase.`);
+    return todos;
   } catch (error) {
     console.error(error.message);
     throw error;
