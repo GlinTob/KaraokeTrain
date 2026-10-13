@@ -734,6 +734,33 @@ audio {
   border-radius: 12px;
 }
 
+/* Carpetas de biblioteca: base apagada, activa en verde para ver dónde estás */
+.folder-controls {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.folder-btn {
+  background: linear-gradient(180deg, #334155 0%, #1e293b 100%);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  color: var(--text-muted);
+}
+
+.folder-btn:hover {
+  background: linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%);
+  border-color: transparent;
+  color: #ffffff;
+}
+
+.folder-btn.active {
+  background: linear-gradient(180deg, #22c55e 0%, #15803d 100%);
+  border-color: transparent;
+  color: #ffffff;
+  box-shadow: 0 0 14px rgba(34, 197, 94, 0.45);
+}
+
 .biblioteca-search {
   flex: 1;
   min-width: 250px;
