@@ -1,2271 +1,877 @@
-import { $, toast } from "./utils.js";
-import { getLibraryItemsByIdFromSupabase, getLibraryItemsByTypeFromSupabase, saveToLibrary } from "./biblioteca.js?v=4";
-// FIX #17: removido `destroyAudioController` del import. Se mantiene el
-// singleton vivo durante toda la sesión (no se destruye en flujos normales)
-// para evitar romper las promesas en vuelo de otros consumidores (afina-dor).
-// El encode WAV ahora corre en el worker (encodeWavToBlob) para no bloquear
-// el hilo principal con mezclas largas.
-import { getAudioController } from "./audio-controller.js";
-import { loadVocalGateProcessor, createVocalGateNode } from "./worklets.js?v=5";
-import { getSelectedMicId, getPentagramTolerance, getPentagramDifficultyLabel } from "./config.js?v=9";
-import { midiToNoteName } from "./afinador.js?v=1";
+import { $ } from "./utils.js"; 
 
-let textSegments = [];
-let karaokeLoadedLyrics = [];
-let pitchHistory = [];
-let pitchHistoryP1 = [];
-let pitchHistoryP2 = [];
-let karaokePitchP1 = -1;
-let karaokePitchP2 = -1;
-let karaokeDuoSplitMode = false;
+/** 
+ * MÓDULO BIBLIOTECA — Gestor de Almacenamiento Remoto, Sincronización Supabase y Cargas R2
+ */
 
-let karaokeAudioController = null;
-let karaokeStream = null;
-let karaokeStream2 = null;
-let karaokeChunks = [];
-let karaokeRecordedBlob = null;
-let karaokeMediaRecorder = null;
-// Dúo: segundo micrófono con recorder propio (agnóstico al hardware:
-// USB, 3.5mm o mixto; cada mic conserva su reloj y su encoding).
-let karaokePitchBuf1 = null;
-let karaokePitchBuf2 = null;
-// Puntaje por frase: frames totales/afinados por índice de segmento y cantante.
-let scoreData = { P1: [], P2: [] };
-let karaokeChunks2 = [];
-let karaokeRecordedBlob2 = null;
-let karaokeMediaRecorder2 = null;
-let duoPitchTurn = 0;
-// Diagnóstico/endurecido dúo: P2 activo solo si su recorder arrancó de
-// verdad; combinado listo para Mezclar; watchdog por si un onstop no llega.
-let karaokeDuoP2Active = false;
-let karaokeDuoCombined = false;
-let karaokeFinalizeTimeout = null;
-let karaokePitchDetectionAudioCtx = null;
-let karaokePitchDetectionAnalyser = null;
-let karaokeSplitAnalyser2 = null;
-let karaokePitchLoopRafId = null;
-let karaokeLoopBusy = false;
-let karaokeRecordingActive = false;
-let loopTick = 0;
-let karaokeSelectedTrackBlob = null;
-let karaokeSelectedTrackName = "";
-let karaokeLoadedItem = null;
-let avatarCache = { P1: null, P2: null }; 
-let avatarImageCache = { P1: null, P2: null };
+let db = null;
 
-window.karaokeMediaRecorder = null;
+// Buscador de biblioteca: texto actual y carpeta activa para re-render.
+let librarySearchText = "";
+let libraryCurrentFilter = "todos";
+let librarySearchTimer = null;
+// Turno de render: si dos renderLibrary se solapan (tecleo rápido + red
+// lenta), el viejo se descarta y no duplica la lista.
+let libraryRenderSeq = 0;
 
-export function toggleKaraokeDuoSplitMode() {
-  karaokeDuoSplitMode = !karaokeDuoSplitMode;
-  const btn = $("karaokeDuoSplitToggleBtn");
-  if (btn) {
-    btn.textContent = karaokeDuoSplitMode
-      ? "🎤🎤 Modo Dúo Split: ON (activo)"
-      : "👩‍🎤🧔‍🎤 Modo Dúo Split: Inactivo. Haz click aquí para activarlo.";
-    btn.style.background = karaokeDuoSplitMode ? "#22c55e" : "#3b82f6";
-  }
-  const hint = $("karaokeDuoSplitHint");
-  if (hint) hint.textContent = karaokeDuoSplitMode ? "Monitor dividido + 2 micrófonos." : "Monitor dividido.";
-
-  pitchHistory = [];
-  pitchHistoryP1 = [];
-  pitchHistoryP2 = [];
-  karaokePitchP1 = -1;
-  karaokePitchP2 = -1;
-
-  drawKaraokeMonitor(0, -1, -1);
-
-  console.log("🎤 Modo Dúo Split:", karaokeDuoSplitMode ? "ON" : "OFF");
+// Normaliza para buscar sin importar mayúsculas ni tildes.
+function normalizarBusqueda(texto) {
+  return String(texto ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
 }
 
-function obtenerPaleta(hue = 0) {
-  const temaActual = localStorage.getItem("karaokeTrain_stage") || "theme-clasico";
-  let config = { fondo: "#111827", lineas: "#333333", etiquetas: "#666666", barraFutura: "#1e40af", bordeFuturo: "#3b82f6", tamanoTexto: "15px" };
+// Escapa texto para interpolar en innerHTML (nombres de archivo vienen del
+// usuario o de la nube y podrían inyectar HTML/JS).
+export function escapeHTML(text) {
+  return String(text ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+} 
 
-  switch (temaActual) {
-    case "theme-clasico": config = { fondo: "#111827", lineas: "#333333", etiquetas: "#666666", barraFutura: "#1e40af", bordeFuturo: "#3b82f6", tamanoTexto: "15px" }; break;
-    case "theme-moderno": config = { fondo: "#082f49", lineas: "rgba(6, 182, 212, 0.2)", etiquetas: "#06b6d4", barraFutura: "#1e3a8a", bordeFuturo: "#06b6d4", tamanoTexto: "16px" }; break;
-    case "theme-disco": config = { fondo: "#2e1065", lineas: "rgba(219, 39, 119, 0.25)", etiquetas: "#facc15", barraFutura: "#701a75", bordeFuturo: "#db2777", tamanoTexto: "18px" }; break;
-    case "theme-acustico": config = { fondo: "#451a03", lineas: "rgba(120, 53, 15, 0.4)", etiquetas: "#fcd34d", barraFutura: "#78350f", bordeFuturo: "#b45309", tamanoTexto: "14px" }; break;
-    case "theme-fiesta": config = { fondo: `hsl(${hue}, 40%, 12%)`, lineas: "rgba(255, 255, 255, 0.15)", etiquetas: "#ff007f", barraFutura: `hsl(${(hue + 180) % 360}, 50%, 25%)`, bordeFuturo: `hsl(${(hue + 180) % 360}, 70%, 50%)`, tamanoTexto: "19px" }; break;
-    case "theme-retrowave": config = { fondo: "#1a1155", lineas: "rgba(255, 45, 149, 0.35)", etiquetas: "#00e5ff", barraFutura: "#3b0764", bordeFuturo: "#00e5ff", tamanoTexto: "17px" }; break;
-  }
-  return config;
-}
+export function initBiblioteca() {
+  console.log("[biblioteca.js] Inicializado con Éxito");
 
-export function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2) {
-  const canvas = $("karaokeCanvas");
-  if (!canvas) return;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return;
+  const fileInput = $("libraryFileInput");
+  const selectBtn = $("selectLibraryFileBtn");
+  const clearBtn = $("clearUploadBtn");
+  const typeSelect = $("libraryFileType");
 
-  if (typeof currentFreq === "number") karaokePitchP1 = currentFreq;
-  if (typeof currentFreq2 === "number") karaokePitchP2 = currentFreq2;
-
-  const paleta = obtenerPaleta(Math.floor((currentTime || 0) * 50) % 360);
-  const AVATAR_BLOCK_W = karaokeDuoSplitMode ? 110 : 0;
-
-  ctx.fillStyle = paleta.fondo;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  // Rastros con marca de tiempo: ventana de ~2 s independiente del framerate
-  // (a 120 Hz el rastro duraba la mitad que a 60 Hz con el tope de 80 muestras).
-  const now = performance.now();
-  const pushPitch = (hist, f) => {
-    hist.push({ f: f > 0 ? f : null, t: now });
-    while (hist.length && (now - hist[0].t) > 2200) hist.shift();
-    if (hist.length > 400) hist.splice(0, hist.length - 400);
-  };
-
-  if (karaokeDuoSplitMode) {
-    const TELE_H = 100;
-    const GAP = 20;
-    const regionH = (canvas.height - TELE_H - 40 - GAP) / 2;
-
-    pushPitch(pitchHistoryP1, currentFreq);
-    pushPitch(pitchHistoryP2, currentFreq2);
-
-    drawRegion(20, 20 + regionH, karaokePitchP1, pitchHistoryP1, "P1", "P1", paleta, currentTime, canvas, AVATAR_BLOCK_W, "#38bdf8", now);
-    drawRegion(20 + regionH + GAP, 20 + regionH * 2 + GAP, karaokePitchP2, pitchHistoryP2, "P2", "P2", paleta, currentTime, canvas, AVATAR_BLOCK_W, "#fb923c", now);
-  } else {
-    pushPitch(pitchHistory, currentFreq);
-    drawRegion(20, canvas.height - 122, karaokePitchP1, pitchHistory, null, null, paleta, currentTime, canvas, 0, "#facc15", now);
+  if (selectBtn && fileInput && !selectBtn.dataset.bound) {
+    selectBtn.addEventListener("click", () => fileInput.click());
+    selectBtn.dataset.bound = "true";
   }
 
-  drawLyricsBar(canvas, ctx, currentTime);
-  drawDifficultyBadge(canvas, ctx);
-}
-
-// Insignia de dificultad: el usuario siempre ve el nivel activo y su
-// tolerancia en semitonos, arriba a la derecha del monitor.
-function drawDifficultyBadge(canvas, ctx) {
-  try {
-    const label = getPentagramDifficultyLabel();
-    const tol = getPentagramTolerance();
-    const txt = `Dificultad: ${label} (±${tol} st)`;
-    ctx.font = "bold 22px Arial";
-    const w = ctx.measureText(txt).width;
-    const pad = 12;
-    const bx = canvas.width - w - pad * 2 - 16;
-    const by = 8;
-    const bh = 36;
-    ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
-    ctx.beginPath();
-    if (ctx.roundRect) ctx.roundRect(bx, by, w + pad * 2, bh, 8);
-    else ctx.rect(bx, by, w + pad * 2, bh);
-    ctx.fill();
-    ctx.fillStyle = "white";
-    ctx.textAlign = "left";
-    ctx.textBaseline = "middle";
-    ctx.fillText(txt, bx + pad, by + bh / 2);
-    ctx.textBaseline = "alphabetic";
-  } catch (e) {}
-}
-
-function drawRegion(pTop, pBottom, pVal, pHist, filtro, etiqueta, paleta, currentTime, canvas, avatarBlockW, trailColor, now) {
-  const TRAIL = trailColor || "#facc15";
-  const PX_PER_MS = 0.18; // ~180 px/s: el rastro cubre ~2 s hacia la izquierda
-  const DOT_R = 9;
-  const ctx = canvas.getContext("2d");
-  const pHeight = pBottom - pTop;
-  const pixelsPerSecond = (canvas.width - 150) / 7;
-  const dynLineX = 130 + avatarBlockW;
-  const pentagramStartX = 35 + avatarBlockW;
-  const noteLabelsX = 28 + avatarBlockW;
-
-  // FIX: escala del pentagrama sin medios tonos: solo las notas naturales de
-  // la escala de Do mayor, de C3 (48) a E5 (76). Los sostenidos/bemoles caen
-  // entre líneas. Notas fuera del rango se pinzan a los extremos.
-  const MIN_MIDI = 48; // C3
-  const MAX_MIDI = 76; // E5
-  const MAJOR_NATURALS = [0, 2, 4, 5, 7, 9, 11];
-  const midiToY = (midi) => pTop + ((MAX_MIDI - Math.min(MAX_MIDI, Math.max(MIN_MIDI, midi > 0 ? midi : MIN_MIDI))) / (MAX_MIDI - MIN_MIDI) * pHeight);
-
-  if (etiqueta) drawAvatarBlock(pTop, pBottom, etiqueta, avatarBlockW, ctx);
-
-  // Pentagrama: una línea (más gruesa/oscura) por cada nota natural C..B.
-  ctx.strokeStyle = paleta.lineas;
-  ctx.lineWidth = 2;
-  for (let m = MIN_MIDI; m <= MAX_MIDI; m++) {
-    if (!MAJOR_NATURALS.includes(m % 12)) continue;
-    const y = midiToY(m);
-    ctx.beginPath();
-    ctx.moveTo(pentagramStartX, y);
-    ctx.lineTo(canvas.width, y);
-    ctx.stroke();
-  }
-  ctx.lineWidth = 1;
-
-  // Etiquetas de TODAS las notas naturales. Solo en regiones muy pequeñas
-  // se omiten algunas para evitar que el texto se solape.
-  ctx.fillStyle = paleta.etiquetas;
-  ctx.font = "bold 18px Arial";
-  ctx.textAlign = "right";
-  ctx.textBaseline = "alphabetic";
-  let lastLabelY = -1000;
-  for (let m = MIN_MIDI; m <= MAX_MIDI; m++) {
-    if (!MAJOR_NATURALS.includes(m % 12)) continue;
-    const y = midiToY(m);
-    if (y - lastLabelY < 8) continue;
-    lastLabelY = y;
-    ctx.fillText(midiToNoteName(m), noteLabelsX, y + 7);
+  if (fileInput && !fileInput.dataset.bound) {
+    fileInput.addEventListener("change", handleFileSelection);
+    fileInput.dataset.bound = "true";
   }
 
-  // Símbolo de pentagrama (clave de sol) en modo solitario; en dúo ese
-  // espacio izquierdo lo ocupan los avatares. Se sitúa entre las etiquetas
-  // de nota y la línea de disparo, detrás de las barras.
-  if (!etiqueta) {
-    const clefY = (pTop + pBottom) / 2;
-    ctx.fillStyle = paleta.lineas;
-    ctx.font = `bold ${Math.round(pHeight * 0.42)}px "Segoe UI Symbol", "Noto Music", Arial`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText("\uD834\uDD1E", 85, clefY);
-  }
+    if (typeSelect && !typeSelect.dataset.bound) {
+    typeSelect.addEventListener("change", () => {
+      if (!fileInput) return;
 
-  if (Array.isArray(textSegments)) {
-    textSegments.forEach(seg => {
-      if (filtro && seg.parte !== filtro && seg.parte !== "DUO") return;
-      if (seg.start > currentTime + 8 || seg.end < currentTime - 1) return;
-      (seg.words || []).forEach(w => {
-        if (w.end < currentTime - 1 || w.start > currentTime + 8) return;
-        const x = dynLineX + (w.start - currentTime) * pixelsPerSecond;
-        if (x < pentagramStartX) return;
-        const y = midiToY(w.midi || seg.midi || 60);
-        const width = Math.max(25, (w.end - w.start) * pixelsPerSecond);
-        const h = Math.max(10, pHeight / 14);
-        const isPast = currentTime > w.end;
-        const isActive = !isPast && currentTime >= w.start;
-        const tol = getPentagramTolerance();
-        const targetMidi = w.midi || seg.midi || 60;
-
-        // Banda de tolerancia sobre la palabra activa: su ANCHO visual es la
-        // dificultad (Fácil ±3 ancha, Difícil ±1 angosta). Se pinta detrás de
-        // la barra para que el usuario vea la zona que cuenta como afinada.
-        if (isActive) {
-          const yT = midiToY(targetMidi + tol);
-          const yB = midiToY(targetMidi - tol);
-          const bandH = Math.max(2, yB - yT);
-          ctx.fillStyle = "rgba(255, 255, 255, 0.08)";
-          ctx.fillRect(x, yT, width, bandH);
-          ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
-          ctx.lineWidth = 1;
-          if (ctx.setLineDash) ctx.setLineDash([6, 4]);
-          ctx.strokeRect(x, yT, width, bandH);
-          if (ctx.setLineDash) ctx.setLineDash([]);
-        }
-
-        let barColor = paleta.barraFutura;
-        let strokeColor = paleta.bordeFuturo;
-        if (isPast) {
-          barColor = "#4b5563";
-        } else if (isActive && pVal > 0) {
-          const userMidi = Math.round(12 * Math.log2(pVal / 440) + 69);
-          const isCorrect = Math.abs(userMidi - targetMidi) <= tol;
-          barColor = isCorrect ? "#22c55e" : "#f59e0b";
-          strokeColor = "white";
-        }
-
-        ctx.fillStyle = barColor;
-        ctx.beginPath();
-        if (ctx.roundRect) ctx.roundRect(x, y - h / 2, width, h, 5);
-        else ctx.fillRect(x, y - h / 2, width, h);
-        ctx.fill();
-
-        if (isActive || !isPast) {
-          ctx.strokeStyle = strokeColor;
-          ctx.lineWidth = isActive ? 3 : 1;
-          ctx.stroke();
-        }
-
-        ctx.fillStyle = "white";
-        ctx.font = `bold ${paleta.tamanoTexto || "15px"} Arial`;
-        ctx.textAlign = "center";
-        ctx.textBaseline = "alphabetic";
-        ctx.fillText(w.word || w.text || "", x + width / 2, y + 5);
-      });
-    });
-  }
-
-  // Rastro: se pinta siempre desde el historial (en silencio se desvanece
-  // hacia la izquierda en vez de desaparecer de golpe). Se corta el trazo
-  // en los huecos para no dibujar diagonales falsas entre frases.
-  if (Array.isArray(pHist) && pHist.length) {
-    const tNow = now || performance.now();
-    ctx.beginPath();
-    ctx.strokeStyle = TRAIL;
-    ctx.globalAlpha = 0.75;
-    ctx.lineWidth = 4;
-    let started = false;
-    for (let i = 0; i < pHist.length; i++) {
-      const entry = pHist[i];
-      const f = entry && typeof entry === "object" ? entry.f : entry;
-      if (!(f && f > 0)) { started = false; continue; }
-      const age = tNow - (entry && typeof entry === "object" && entry.t ? entry.t : tNow);
-      if (age > 2000) continue;
-      const x = dynLineX - age * PX_PER_MS;
-      // continue (no break): el historial va de viejo a nuevo; las muestras
-      // viejas quedan fuera de pantalla pero las recientes sí son visibles.
-      if (x < pentagramStartX) continue;
-      const yPos = midiToY(Math.round(12 * Math.log2(f / 440) + 69));
-      if (!started) { ctx.moveTo(x, yPos); started = true; }
-      else { ctx.lineTo(x, yPos); }
-    }
-    ctx.stroke();
-    ctx.globalAlpha = 1;
-  }
-
-  // Punto actual: solo con pitch válido y sujeto dentro de la región.
-  if (pVal > 0) {
-    const userMidi = Math.round(12 * Math.log2(pVal / 440) + 69);
-    const userY = Math.min(pBottom - DOT_R, Math.max(pTop + DOT_R, midiToY(userMidi)));
-
-    ctx.beginPath();
-    ctx.fillStyle = TRAIL;
-    ctx.arc(dynLineX, userY, DOT_R, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = "white";
-    ctx.lineWidth = 2;
-    ctx.stroke();
-  }
-
-  ctx.strokeStyle = "#ef4444";
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(dynLineX, pTop - 2);
-  ctx.lineTo(dynLineX, pBottom + 2);
-  ctx.stroke();
-}
-
-
-function getAvatarForUser(user) {
-  try {
-    if (avatarCache[user]) return avatarCache[user];
-    if (typeof window.getAvatarForUser === "function") {
-      const info = window.getAvatarForUser(user);
-      if (info && info.avatar) {
-        avatarCache[user] = info;
-        return info;
-      }
-    }
-  } catch (e) {}
-  return null;
-}
-
-function drawAvatarBlock(pTop, pBottom, parte, avatarBlockW, ctx) {
-  if (!parte || parte === "DUO") return;
-
-  const isP1 = parte === "P1";
-  const user = isP1 ? "P1" : "P2";
-  const info = getAvatarForUser(user);
-
-  const nombre = info && info.userName
-    ? info.userName
-    : (info && info.avatar && info.avatar.name
-        ? info.avatar.name
-        : (isP1 ? "Usuario 1" : "Usuario 2"));
-  const emoji1 = info && info.emoji1 ? info.emoji1 : (isP1 ? "⚛️" : "🐱");
-  const emoji2 = info && info.emoji2 ? info.emoji2 : (isP1 ? "🤖" : "🤔");
-
-  const cx = 5 + avatarBlockW / 2;
-  const blockTop = pTop + 10;
-  const avatarSize = 56;
-  const halfSize = 28;
-  const nameH = 22;
-  const gap = 6;
-
-  ctx.fillStyle = "white";
-  ctx.font = "bold 16px Arial";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "alphabetic";
-  ctx.fillText(nombre, cx, blockTop + nameH - 4);
-
-  const avTop = blockTop + nameH + gap;
-
-  if (info && info.avatar && info.avatar.img) {
-    let img = avatarImageCache[user];
-
-    if (!img || img.datasetSrc !== info.avatar.img) {
-      img = new Image();
-      img.datasetSrc = info.avatar.img;
-      img.onload = () => {
-        const track = $("karaokeTrack") || $("karaokeAudio") || $("audioKaraoke") || $("trackPlayer");
-        const currentTime = track ? track.currentTime : 0;
-        drawKaraokeMonitor(currentTime, karaokePitchP1, karaokePitchP2);
-      };
-      img.src = info.avatar.img;
-      avatarImageCache[user] = img;
-    }
-
-    if (img.complete) {
-      ctx.save();
-      ctx.beginPath();
-      if (ctx.roundRect) {
-        ctx.roundRect(cx - avatarSize / 2, avTop, avatarSize, avatarSize, 10);
+      if (typeSelect.value === "texto" || typeSelect.value === "texto_plano" || typeSelect.value === "letra" || typeSelect.value === "ultrastar_txt") {
+        fileInput.setAttribute("accept", ".txt,text/plain");
       } else {
-        ctx.rect(cx - avatarSize / 2, avTop, avatarSize, avatarSize);
+        fileInput.setAttribute("accept", "audio/*,.mp3,.wav,.ogg,.webm,.m4a,.mp4");
       }
-      ctx.clip();
-      ctx.drawImage(img, cx - avatarSize / 2, avTop, avatarSize, avatarSize);
-      ctx.restore();
+    });
+    typeSelect.dataset.bound = "true";
+  }
 
-      ctx.strokeStyle = "rgba(255,255,255,0.35)";
-      ctx.lineWidth = 2;
-      ctx.strokeRect(cx - avatarSize / 2, avTop, avatarSize, avatarSize);
-    }
+  if (clearBtn && !clearBtn.dataset.bound) {
+    clearBtn.addEventListener("click", clearUploadSelection);
+    clearBtn.dataset.bound = "true";
+  }
+
+  const searchInput = $("librarySearchInput");
+  const searchClear = $("clearLibrarySearchBtn");
+  if (searchInput && !searchInput.dataset.bound) {
+    searchInput.dataset.bound = "true";
+    searchInput.addEventListener("input", () => {
+      librarySearchText = searchInput.value;
+      if (searchClear) {
+        searchClear.style.display = searchInput.value ? "inline-block" : "none";
+      }
+      // Pausa breve para no consultar a Supabase en cada tecla.
+      clearTimeout(librarySearchTimer);
+      librarySearchTimer = setTimeout(() => {
+        renderLibrary(libraryCurrentFilter);
+      }, 250);
+    });
+  }
+  if (searchClear && !searchClear.dataset.bound) {
+    searchClear.dataset.bound = "true";
+    searchClear.addEventListener("click", () => {
+      if (searchInput) searchInput.value = "";
+      librarySearchText = "";
+      searchClear.style.display = "none";
+      renderLibrary(libraryCurrentFilter);
+    });
+  }
+}
+
+// ============================================
+// ☁️ INTERACCIONES DIRECTAS CON SUPABASE Y R2
+// ============================================ 
+
+export async function initSupabase() {
+  if (typeof window.supabaseApp !== "undefined" || typeof window.getSupabaseClient === "function") {
+    db = window.getSupabaseClient ? window.getSupabaseClient() : window.supabaseApp;
+    console.log("Base de datos Supabase conectada en Biblioteca");
+    return db;
   } else {
-    const avatarEmoji = isP1 ? "👩" : "🧔🏾";
-    ctx.font = `${avatarSize}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",Arial`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(avatarEmoji, cx, avTop + avatarSize / 2);
+    console.error("Error: No se encontró la configuración de Supabase.");
+    throw new Error("Supabase configuration missing");
   }
+} 
 
-  const rowTop = avTop + avatarSize + gap;
-  const iconHalfFont = `${halfSize}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",Arial`;
-
-  ctx.font = iconHalfFont;
-  ctx.fillStyle = "white";
-  ctx.textBaseline = "middle";
-  ctx.textAlign = "center";
-
-  if (isP1) {
-    const sqX = cx - halfSize - gap / 2;
-    ctx.fillStyle = "#7c3aed";
-    ctx.fillRect(sqX, rowTop, halfSize, halfSize);
-    ctx.strokeStyle = "#a855f7";
-    ctx.lineWidth = 1;
-    ctx.strokeRect(sqX, rowTop, halfSize, halfSize);
-    ctx.fillText(emoji1, sqX + halfSize / 2, rowTop + halfSize / 2);
-    ctx.fillText(emoji2, cx + halfSize / 2 + gap / 2, rowTop + halfSize / 2);
-  } else {
-    ctx.fillText(emoji1, cx - halfSize / 2 - gap / 2, rowTop + halfSize / 2);
-    ctx.fillText(emoji2, cx + halfSize / 2 + gap / 2, rowTop + halfSize / 2);
-  }
-
-  ctx.textBaseline = "alphabetic";
-}
-
-function drawLyricsBar(canvas, ctx, currentTime) {
-  if (!karaokeRecordingActive) return;
-  if (!Array.isArray(textSegments) || !textSegments.length) return;
-
-  const idx = textSegments.findIndex(s =>
-    currentTime >= (s.start || 0) && currentTime <= ((s.end || 0) + 1.5)
-  );
-  let currentIdx = idx;
-  if (currentIdx === -1) {
-    currentIdx = textSegments.findIndex(s => (s.start || 0) > currentTime);
-    if (currentIdx === -1) currentIdx = textSegments.length - 1;
-  }
-
-  const seg = textSegments[currentIdx];
-  const parteActual = seg.parte || "P1";
-  const prefijo = karaokeDuoSplitMode
-    ? (parteActual === "DUO" ? "🟪 DÚO · " : parteActual === "P2" ? "🟧 P2 · " : "🟦 P1 · ")
-    : "";
-
-  ctx.fillStyle = "rgba(0, 0, 0, 0.8)";
-  ctx.fillRect(0, canvas.height - 100, canvas.width, 100);
-
-  ctx.textAlign = "center";
-  ctx.fillStyle = "white";
-  ctx.font = "bold 30px Arial";
-  ctx.textBaseline = "alphabetic";
-  ctx.fillText(prefijo + (seg.text || ""), canvas.width / 2, canvas.height - 65);
-
-  const next = textSegments[currentIdx + 1];
-  if (next) {
-    ctx.fillStyle = "#94a3b8";
-    ctx.font = "italic 22px Arial";
-    ctx.fillText(next.text || "", canvas.width / 2, canvas.height - 25);
-  }
-}
-
-let meterBuf = null;
-function setBarWidth(barId, analyser) {
-  const bar = document.getElementById(barId);
-  if (!bar || !analyser) return;
-  if (!meterBuf || meterBuf.length !== analyser.fftSize) meterBuf = new Uint8Array(analyser.fftSize);
-  const data = meterBuf;
-  analyser.getByteTimeDomainData(data);
-  let sum = 0;
-  for (let i = 0; i < data.length; i++) {
-    const v = (data[i] - 128) / 128;
-    sum += v * v;
-  }
-  const rms = Math.sqrt(sum / data.length);
-  bar.style.width = Math.min(100, rms * 220) + "%";
-}
-
-function updateDuoLevels() {
-  setBarWidth("karaokeDuoMic1Level", karaokePitchDetectionAnalyser);
-  setBarWidth("karaokeDuoMic2Level", karaokeSplitAnalyser2);
-}
-
-// --- PUNTAJE DE AFINACIÓN POR FRASE (usa la tolerancia del pentagrama) ---
-function escHtml(s) {
-  return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-
-function targetMidiAt(time, parte) {
-  if (!Array.isArray(textSegments)) return null;
-  for (let i = 0; i < textSegments.length; i++) {
-    const seg = textSegments[i];
-    if (seg.parte !== parte && seg.parte !== "DUO") continue;
-    if (time < (seg.start || 0) || time > (seg.end || 0)) continue;
-    let target = Number.isFinite(seg.midi) ? seg.midi : 60;
-    if (Array.isArray(seg.words)) {
-      for (const w of seg.words) {
-        const ws = Number.isFinite(w.start) ? w.start : -1;
-        const we = Number.isFinite(w.end) ? w.end : -1;
-        if (time >= ws && time <= we) {
-          if (Number.isFinite(w.midi)) target = w.midi;
-          break;
-        }
-      }
-    }
-    return { idx: i, target };
-  }
-  return null;
-}
-
-function accumulateScore(quien, time, freq) {
-  if (!(freq > 0)) return;
-  const hit = targetMidiAt(time, quien);
-  if (!hit) return;
-  const tol = getPentagramTolerance();
-  const userMidi = Math.round(12 * Math.log2(freq / 440) + 69);
-  let slot = scoreData[quien][hit.idx];
-  if (!slot) slot = scoreData[quien][hit.idx] = { total: 0, ok: 0 };
-  slot.total++;
-  if (Math.abs(userMidi - hit.target) <= tol) slot.ok++;
-}
-
-function starStr(pct) {
-  const n = pct >= 90 ? 5 : pct >= 75 ? 4 : pct >= 60 ? 3 : pct >= 40 ? 2 : 1;
-  return "★".repeat(n) + "☆".repeat(5 - n);
-}
-
-function summarizeScore(quien) {
-  const slots = scoreData[quien];
-  let t = 0, ok = 0, n = 0, best = null, worst = null;
-  for (let i = 0; i < slots.length; i++) {
-    const s = slots[i];
-    if (!s || s.total < 5) continue;
-    n++;
-    t += s.total;
-    ok += s.ok;
-    const p = Math.round(100 * s.ok / s.total);
-    const txt = (textSegments[i] && textSegments[i].text) || `Línea ${i + 1}`;
-    if (!best || p > best.p) best = { p, txt };
-    if (!worst || p < worst.p) worst = { p, txt };
-  }
-  if (!n) return null;
-  return { pct: Math.round(100 * ok / t), n, best, worst };
-}
-
-function renderScoreboard() {
-  const box = $("karaokeScore");
-  const s1 = summarizeScore("P1");
-  const s2 = karaokeDuoSplitMode ? summarizeScore("P2") : null;
-  const line = (tag, s) => s
-    ? `<div style="margin-top:8px;"><b>${tag}: ${s.pct}/100 ${starStr(s.pct)}</b> <span style="color:var(--text-muted);">(${s.n} líneas)</span><br><small>✅ Mejor: ${escHtml(s.best.txt)} (${s.best.p}%) · ⚠️ A pulir: ${escHtml(s.worst.txt)} (${s.worst.p}%)</small></div>`
-    : "";
-  const html = line(karaokeDuoSplitMode ? "🟦 P1" : "🎤 Tu puntaje", s1) + (s2 ? line("🟧 P2", s2) : "");
-  if (box) {
-    box.innerHTML = html ? `<h4 style="margin:0 0 4px 0;">🏆 Puntaje de afinación</h4>${html}` : "";
-    box.style.display = html ? "block" : "none";
-  }
-  if (s1 && !s2) return `Puntaje: ${s1.pct}/100 ${starStr(s1.pct)}`;
-  if (s1 && s2) return `P1: ${s1.pct} · P2: ${s2.pct}`;
-  return "";
-}
-
-// Constraints agnósticos al hardware (USB / 3.5mm / mixto): SIN cancelación
-// de eco ni supresión de ruido (el AEC/NS toma al segundo cantante como
-// "eco/ruido" y lo deja bajo y entrecortado), pero CON control automático
-// de ganancia: sin AGC el nivel crudo de muchos mics queda en ~-55 dBFS
-// (inaudible) y ningún balance posterior lo rescata.
-function buildMicConstraints(micId) {
-  const base = { echoCancellation: false, noiseSuppression: false, autoGainControl: true };
-  if (micId) return { audio: { ...base, deviceId: { exact: micId } } };
-  return { audio: { ...base } };
-}
-
-async function requestMicStream(micId) {
+export async function getAllLibraryItemsFromSupabase() {
+  if (!db) await initSupabase();
   try {
-    return await navigator.mediaDevices.getUserMedia(buildMicConstraints(micId));
-  } catch (err) {
-    // Fallback agnóstico: si el deviceId exacto falla (dispositivo ocupado,
-    // mismo hardware elegido dos veces, jack 3.5 compartido), reintentar sin
-    // deviceId pero manteniendo el procesamiento desactivado.
-    if (micId && (err?.name === "OverconstrainedError" || err?.name === "NotFoundError")) {
-      console.warn("Reintentando micrófono sin deviceId exacto:", err?.message || err);
-      return await navigator.mediaDevices.getUserMedia(buildMicConstraints(null));
+    // Sin tope: con más de 200 filas, el .range(0, 199) escondía los registros
+    // viejos en Biblioteca (pero sí salían en Karaoke, que no pagina). Se pagina.
+    const PAGE = 500;
+    let desde = 0;
+    let todos = [];
+    for (;;) {
+      const { data, error } = await db.from('library').select('*').order('date', { ascending: false }).range(desde, desde + PAGE - 1);
+      if (error) throw new Error(`❌ Error al leer la Biblioteca: ${error.message}`);
+      todos = todos.concat(data || []);
+      if (!data || data.length < PAGE) break;
+      desde += PAGE;
     }
-    throw err;
+    console.log(`✅ Se recuperaron ${todos.length} elementos desde Supabase.`);
+    return todos;
+  } catch (error) {
+    console.error(error.message);
+    throw error;
   }
 }
 
-function rmsOfAudioBuffer(buffer) {
-  if (!buffer || !buffer.length) return 0;
-  const data = buffer.getChannelData(0);
-  let sum = 0;
-  for (let i = 0; i < data.length; i++) sum += data[i] * data[i];
-  return Math.sqrt(sum / data.length);
-}
-
-// RMS robusto (percentil 90 por ventanas de 100 ms): las pausas entre frases
-// no diluyen la medida, así el balance y la normalización usan el nivel REAL
-// del canto y no el silencio. Agnóstico al hardware.
-function singingRmsOfBuffer(buffer) {
-  if (!buffer || !buffer.length) return 0;
-  const data = buffer.getChannelData(0);
-  const win = Math.max(1, Math.floor(buffer.sampleRate / 10));
-  const rmsList = [];
-  for (let start = 0; start < data.length; start += win) {
-    const end = Math.min(data.length, start + win);
-    let sum = 0;
-    for (let i = start; i < end; i++) sum += data[i] * data[i];
-    rmsList.push(Math.sqrt(sum / (end - start)));
-  }
-  if (!rmsList.length) return 0;
-  rmsList.sort((a, b) => a - b);
-  return rmsList[Math.min(rmsList.length - 1, Math.floor(rmsList.length * 0.9))];
-}
-
-// Mezcla las dos voces del dúo en un solo blob WAV con balance automático
-// de niveles: el mic más bajito (p.ej. 3.5mm frente a USB) se sube hasta
-// +12 dB para igualarlo al más fuerte. Así el fix no depende del hardware.
-async function combineDuoVoiceBlobs(blob1, blob2) {
-  // Offline: solo decodifica (luego remuestrea al mezclar), sin warnings.
-  const decodeCtx = new OfflineAudioContext(1, 1, 44100);
+export async function updateLibraryItemsFromSupabase(id, changes) {
+  if (!db) await initSupabase();
   try {
-    const [buf1, buf2] = await Promise.all([
-      decodeCtx.decodeAudioData((await blob1.arrayBuffer()).slice(0)),
-      decodeCtx.decodeAudioData((await blob2.arrayBuffer()).slice(0))
-    ]);
-    const rms1 = singingRmsOfBuffer(buf1);
-    const rms2 = singingRmsOfBuffer(buf2);
-    // Piso de silencio realista: los mics loguearon RMS ~0.001 cantando flojo.
-    // Objetivo 0.055 (no 0.07): al sumar DOS voces la energía total sube
-    // (+3~6 dB si cantan lo mismo con sangrado); con 0.055 el dúo combinado
-    // queda al mismo nivel total que un solo, y la mezcla final no deja la
-    // pista enterrada bajo las voces.
-    const SILENCE_FLOOR = 0.0008;
-    const VOICE_TARGET = 0.055;
-    let g1 = 1, g2 = 1;
-    const audible1 = rms1 > SILENCE_FLOOR;
-    const audible2 = rms2 > SILENCE_FLOOR;
-    if (audible1 && audible2) {
-      // Igualar el mic bajito al fuerte (hasta +18 dB) y luego llevar el
-      // conjunto al nivel objetivo (hasta +21 dB extra).
-      if (rms1 >= rms2) g2 = Math.min(8, rms1 / rms2);
-      else g1 = Math.min(8, rms2 / rms1);
-      const master = Math.min(12, VOICE_TARGET / Math.max(rms1 * g1, rms2 * g2));
-      g1 *= master;
-      g2 *= master;
-    } else if (audible1 || audible2) {
-      const loud = Math.max(rms1, rms2);
-      const master = Math.min(12, VOICE_TARGET / loud);
-      g1 *= master;
-      g2 *= master;
-    } else {
-      console.warn("🎤🎤 Ambas voces bajo el piso de silencio: acerca los mics y sube el volumen de entrada en Windows.");
-    }
-    const HEADROOM = 0.8;
-    // Duración (no muestras): las fuentes se remuestrean solas al rate del
-    // contexto, pero el largo debe calcularse en segundos (USB 48k vs 44.1k).
-    const sampleRate = buf1.sampleRate;
-    const length = Math.ceil(
-      Math.max(buf1.length / buf1.sampleRate, buf2.length / buf2.sampleRate) * sampleRate
-    );
-    const offline = new OfflineAudioContext(1, length, sampleRate);
-    const src1 = offline.createBufferSource();
-    src1.buffer = buf1;
-    const gain1 = offline.createGain();
-    gain1.gain.value = g1 * HEADROOM;
-    src1.connect(gain1);
-    gain1.connect(offline.destination);
-    const src2 = offline.createBufferSource();
-    src2.buffer = buf2;
-    const gain2 = offline.createGain();
-    gain2.gain.value = g2 * HEADROOM;
-    src2.connect(gain2);
-    gain2.connect(offline.destination);
-    src1.start(0);
-    src2.start(0);
-    const rendered = await offline.startRendering();
-    console.log(`🎤🎤 Dúo balanceado: rms1=${rms1.toFixed(4)} g1=${g1.toFixed(2)}, rms2=${rms2.toFixed(4)} g2=${g2.toFixed(2)}`);
-    return await getAudioController().encodeWavToBlob(rendered);
-  } finally {
-    if (typeof decodeCtx.close === "function") {
-      try { await decodeCtx.close(); } catch (e) {}
-    }
+    const { data, error } = await db
+      .from('library')
+      .update(changes)
+      .eq('id', id)
+      .select(); 
+
+    if (error) throw new Error(error.message);
+    if (!data || data.length === 0) throw new Error(`No se encontró el Item con ID: ${id}`);
+
+    console.log("Registro actualizado con Éxito en Supabase");
+    return data[0];
+
+  } catch (error) {
+    console.error(error.message);
+    throw error;
   }
 }
 
-let karaokePreviewUrl = null;
-let karaokeMixUrl = null;
-let karaokeMonitorOn = false;
-
-function revokePreviewUrl() {
-  if (karaokePreviewUrl) {
-    try { URL.revokeObjectURL(karaokePreviewUrl); } catch (e) {}
-    karaokePreviewUrl = null;
-  }
-}
-
-function publishVoicePreview(blob, enableMix = true) {
-  revokePreviewUrl();
-  const voicePlayer = $("karaokeVoicePlayer");
-  if (voicePlayer) {
-    karaokePreviewUrl = URL.createObjectURL(blob);
-    voicePlayer.src = karaokePreviewUrl;
-    voicePlayer.controls = true;
-  }
-  const mixBtn = $("karaokeMixBtn");
-  if (mixBtn) mixBtn.disabled = !enableMix;
-}
-
-function duoStatus(text) {
-  console.log(text);
-  const statusEl = $("karaokeStatus");
-  if (statusEl) statusEl.textContent = text;
-}
-
-function clearFinalizeWatchdog() {
-  if (karaokeFinalizeTimeout) {
-    clearTimeout(karaokeFinalizeTimeout);
-    karaokeFinalizeTimeout = null;
-  }
-}
-
-// En dúo, la vista previa final se publica cuando AMBOS recorders entregaron
-// su blob; ahí se combinan con balance automático y ese combinado es lo que
-// luego usa mixKaraoke. Si P2 nunca arrancó, se publica P1 para no perderlo.
-async function tryFinalizeDuoVoice() {
-  if (!karaokeDuoSplitMode) return;
-  if (karaokeMediaRecorder || karaokeMediaRecorder2) return;
-  if (karaokeDuoCombined) return;
-  // Dúo parcial: si solo llegó P2, publicarla como fallback con aviso.
-  if (!karaokeRecordedBlob && karaokeRecordedBlob2) {
-    clearFinalizeWatchdog();
-    karaokeRecordedBlob = karaokeRecordedBlob2;
-    karaokeDuoCombined = true;
-    duoStatus(`⚠️ Solo llegó la voz P2 (${karaokeRecordedBlob2.size} bytes). Revisa el mic 1 en Config. Escúchala abajo.`);
-    publishVoicePreview(karaokeRecordedBlob2);
-    releaseKaraokeCaptureStreams();
-    return;
-  }
-  if (!karaokeRecordedBlob) return;
-  if (!karaokeDuoP2Active || !karaokeRecordedBlob2) {
-    // P2 no aportó audio: se publica P1 con aviso en vez de silencio total.
-    clearFinalizeWatchdog();
-    karaokeDuoCombined = true;
-    duoStatus(`⚠️ Solo llegó la voz P1 (${karaokeRecordedBlob.size} bytes). Revisa el mic 2 en Config. Escúchala abajo.`);
-    publishVoicePreview(karaokeRecordedBlob);
-    releaseKaraokeCaptureStreams();
-    return;
-  }
+export async function deleteLibraryItemsFromSupabase(id) {
+  if (!db) await initSupabase();
   try {
-    const combinado = await combineDuoVoiceBlobs(karaokeRecordedBlob, karaokeRecordedBlob2);
-    karaokeRecordedBlob = combinado;
-    karaokeDuoCombined = true;
-    clearFinalizeWatchdog();
-    duoStatus(`✅ Dúo listo: P1+P2 combinadas (${combinado.size} bytes). Escucha tu voz abajo.`);
-    publishVoicePreview(combinado);
-  } catch (err) {
-    console.error("No se pudieron combinar las voces del dúo:", err);
-    karaokeDuoCombined = true;
-    clearFinalizeWatchdog();
-    duoStatus(`⚠️ No se pudieron combinar; se publica la voz P1 (${karaokeRecordedBlob.size} bytes).`);
-    publishVoicePreview(karaokeRecordedBlob);
-  }
-  releaseKaraokeCaptureStreams();
-}
-
-// Watchdog: si tras Detener un onstop no llega (navegador/timing), publicar
-// lo que haya en vez de dejar al usuario sin voz y sin mensaje.
-function scheduleFinalizeWatchdog() {
-  clearFinalizeWatchdog();
-  if (!karaokeDuoSplitMode) return;
-  karaokeFinalizeTimeout = setTimeout(() => {
-    karaokeFinalizeTimeout = null;
-    if (karaokeDuoCombined) return;
-    if (karaokeMediaRecorder || karaokeMediaRecorder2) return;
-    if (karaokeRecordedBlob && !karaokeRecordedBlob2) {
-      karaokeDuoCombined = true;
-      duoStatus(`⚠️ Solo llegó la voz P1 (${karaokeRecordedBlob.size} bytes). Escúchala abajo; revisa el mic 2.`);
-      publishVoicePreview(karaokeRecordedBlob);
-      releaseKaraokeCaptureStreams();
-    } else if (!karaokeRecordedBlob && karaokeRecordedBlob2) {
-      karaokeDuoCombined = true;
-      karaokeRecordedBlob = karaokeRecordedBlob2;
-      duoStatus(`⚠️ Solo llegó la voz P2 (${karaokeRecordedBlob2.size} bytes). Escúchala abajo; revisa el mic 1.`);
-      publishVoicePreview(karaokeRecordedBlob2);
-      releaseKaraokeCaptureStreams();
-    } else if (!karaokeRecordedBlob) {
-      duoStatus("❌ No llegó ninguna voz (0 chunks). Abre F12 → Consola, filtra 🎤 y envíame lo que salga.");
-      releaseKaraokeCaptureStreams();
-    }
-  }, 8000);
-}
-
-function logStreamInfo(tag, stream) {
-  try {
-    const tracks = (stream?.getAudioTracks() || []).map(t => ({
-      label: t.label, readyState: t.readyState, muted: t.muted, enabled: t.enabled
-    }));
-    console.log(`🎤 ${tag}:`, JSON.stringify(tracks));
-  } catch (e) {
-    console.warn(`🎤 ${tag}: no se pudo inspeccionar el stream.`);
-  }
-}
-
-export async function startKaraokeRecording() {
-  try {
-    const track = $("karaokeTrack") || $("karaokeAudio") || $("audioKaraoke") || $("trackPlayer");
-    if (!track || !track.src) {
-      toast("Primero selecciona un karaoke desde la Biblioteca.", "warn");
-      return;
-    }
-
-    if (karaokeMediaRecorder && karaokeMediaRecorder.state !== "inactive") {
-      // FIX #18: este recorder queda descartado (nueva sesión). Al no ser ya
-      // la sesión actual, su onstop no debe publicar blob ni tocar streams.
-      karaokeMediaRecorder.onstop = null;
-      try { karaokeMediaRecorder.stop(); } catch (e) {}
-    }
-    if (karaokeMediaRecorder2 && karaokeMediaRecorder2.state !== "inactive") {
-      karaokeMediaRecorder2.onstop = null;
-      try { karaokeMediaRecorder2.stop(); } catch (e) {}
-    }
-    karaokeMediaRecorder2 = null;
-    karaokeChunks = [];
-    karaokeChunks2 = [];
-    karaokeRecordedBlob = null;
-    karaokeRecordedBlob2 = null;
-    duoPitchTurn = 0;
-    karaokeDuoP2Active = false;
-    karaokeDuoCombined = false;
-    clearFinalizeWatchdog();
-    scoreData = { P1: [], P2: [] };
-    const scoreBoxAtStart = $("karaokeScore");
-    if (scoreBoxAtStart) { scoreBoxAtStart.innerHTML = ""; scoreBoxAtStart.style.display = "none"; }
-
-    // Durante una grabación nueva no hay voz lista; se habilita "Mezclar"
-    // recién cuando el onstop construye el blob (FIX #18).
-    const mixBtnAtStart = $("karaokeMixBtn");
-    if (mixBtnAtStart) mixBtnAtStart.disabled = true;
-
-    if (karaokePitchDetectionAudioCtx) {
-      try { karaokePitchDetectionAudioCtx.close(); } catch (e) {}
-      karaokePitchDetectionAudioCtx = null;
-    }
-    karaokePitchDetectionAnalyser = null;
-    karaokeSplitAnalyser2 = null;
-    if (karaokeStream) { karaokeStream.getTracks().forEach(t => t.stop()); karaokeStream = null; }
-    if (karaokeStream2) { karaokeStream2.getTracks().forEach(t => t.stop()); karaokeStream2 = null; }
-
-    const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
-
-    // FIX: reproducir la pista ANTES de pedir el micrófono, dentro del gesto
-    // del usuario (click). Llamarlo después de `getUserMedia` solía provocar
-    // NotAllowedError de autoplay y la pista quedaba muda.
-    let trackPlaybackFailed = false;
-    try {
-      track.volume = 0.5;
-      await track.play();
-    } catch (e) {
-      trackPlaybackFailed = true;
-      console.warn("No se pudo reproducir la pista:", e);
-    }
-
-    karaokePitchDetectionAudioCtx = new AudioContextCtor();
-    if (karaokePitchDetectionAudioCtx.state === "suspended") {
-      await karaokePitchDetectionAudioCtx.resume();
-    }
-
-    const mic1 = getSelectedMicId(1);
-    const mic2 = karaokeDuoSplitMode ? getSelectedMicId(2) : null;
-
-    // En dúo hay que elegir dos micrófonos distintos en Config. Con el mismo
-    // hardware (típico con jacks 3.5 compartidos) el segundo getUserMedia
-    // falla o devuelve el mismo dispositivo duplicado.
-    if (karaokeDuoSplitMode && mic1 && mic2 && mic1 === mic2) {
-      if (track) { try { track.pause(); } catch (e) {} }
-      try { karaokePitchDetectionAudioCtx && await karaokePitchDetectionAudioCtx.close(); } catch (e) {}
-      karaokePitchDetectionAudioCtx = null;
-      const statusEl = $("karaokeStatus");
-      if (statusEl) statusEl.textContent = "⚠️ Elige dos micrófonos distintos en Config (Mic 1 ≠ Mic 2) para el dúo.";
-      alert("⚠️ Para el dúo elige dos micrófonos distintos en Config (Mic 1 ≠ Mic 2).");
-      karaokeRecordingActive = false;
-      return;
-    }
-
-    karaokeStream = await requestMicStream(mic1);
-    logStreamInfo("Mic 1 abierto", karaokeStream);
-
-    if (karaokeDuoSplitMode) {
-      try {
-        karaokeStream2 = await requestMicStream(mic2);
-        logStreamInfo("Mic 2 abierto", karaokeStream2);
-        // El fallback sin deviceId (jack 3.5 compartido) puede devolver EL
-        // MISMO mic dos veces: P1 y P2 grabarían la misma voz duplicada.
-        {
-          const label1 = karaokeStream.getAudioTracks()[0]?.label || "";
-          const label2 = karaokeStream2.getAudioTracks()[0]?.label || "";
-          if (label1 && label2 && label1 === label2) {
-            console.error("🎤🎤 Mic 1 y Mic 2 son el mismo dispositivo:", label1);
-            if (karaokeStream) { karaokeStream.getTracks().forEach(t => t.stop()); karaokeStream = null; }
-            if (karaokeStream2) { karaokeStream2.getTracks().forEach(t => t.stop()); karaokeStream2 = null; }
-            if (track) { try { track.pause(); } catch (e) {} }
-            try { karaokePitchDetectionAudioCtx && await karaokePitchDetectionAudioCtx.close(); } catch (e) {}
-            karaokePitchDetectionAudioCtx = null;
-            karaokePitchDetectionAnalyser = null;
-            karaokeSplitAnalyser2 = null;
-            const statusEl = $("karaokeStatus");
-            if (statusEl) statusEl.textContent = "⚠️ Ambos mics abrieron el mismo dispositivo. Usa dos micrófonos distintos en Config.";
-            alert("⚠️ Mic 1 y Mic 2 abrieron el MISMO dispositivo (" + label1 + "). Para el dúo necesitas dos micrófonos distintos.");
-            karaokeRecordingActive = false;
-            return;
-          }
-        }
-      } catch (err2) {
-        console.error("No se pudo abrir el segundo micrófono:", err2);
-        if (karaokeStream) { karaokeStream.getTracks().forEach(t => t.stop()); karaokeStream = null; }
-        if (track) { try { track.pause(); } catch (e) {} }
-        try { karaokePitchDetectionAudioCtx && await karaokePitchDetectionAudioCtx.close(); } catch (e) {}
-        karaokePitchDetectionAudioCtx = null;
-        const statusEl = $("karaokeStatus");
-        if (statusEl) statusEl.textContent = "❌ No se pudo abrir el micrófono 2. Revisa Config y los permisos.";
-        alert("❌ No se pudo abrir el micrófono 2. Revisa en Config que esté conectado y permitido.");
-        karaokeRecordingActive = false;
-        return;
-      }
-    }
-
-    const source1 = karaokePitchDetectionAudioCtx.createMediaStreamSource(karaokeStream);
-
-    // El micrófono se usa SOLO para análisis (pitch) y grabación.
-    // NUNCA se conecta al altavoz: así no se escucha la voz del usuario mientras canta.
-    // La voz se graba en crudo y se reproduce después para que el usuario la evalúe.
-    karaokePitchDetectionAnalyser = karaokePitchDetectionAudioCtx.createAnalyser();
-    karaokePitchDetectionAnalyser.fftSize = 2048;
-    // El pitch/dot solo reaccionaba gritando porque la señal cruda queda bajo
-    // el umbral RMS de detectPitch. Ganancia x3 SOLO en análisis (la
-    // grabación sigue en crudo); con AGC del mic suele bastar, esto ayuda a
-    // mics flojos sin tocar lo grabado.
-    const pitchInputGain = karaokePitchDetectionAudioCtx.createGain();
-    pitchInputGain.gain.value = 3;
-    source1.connect(pitchInputGain);
-    pitchInputGain.connect(karaokePitchDetectionAnalyser);
-
-    if (karaokeDuoSplitMode && karaokeStream2) {
-      const source2 = karaokePitchDetectionAudioCtx.createMediaStreamSource(karaokeStream2);
-      karaokeSplitAnalyser2 = karaokePitchDetectionAudioCtx.createAnalyser();
-      karaokeSplitAnalyser2.fftSize = 2048;
-const pitchInputGain2 = karaokePitchDetectionAudioCtx.createGain();
-    pitchInputGain2.gain.value = 3;
-    source2.connect(pitchInputGain2);
-    pitchInputGain2.connect(karaokeSplitAnalyser2);
-    }
-
-    // Monitoreo opcional (apagado por defecto): escucharse mientras se canta.
-    // Voz con compresor para que vaya al frente sin picos que acoplen, y la
-    // pista se atenúa un poco para dejarle espacio. Con altavoces puede haber
-    // acople: se recomiendan audífonos. Los nodos mueren con el AudioContext.
-    const monitorChk = $("karaokeMonitorChk");
-    karaokeMonitorOn = !!(monitorChk && monitorChk.checked);
-    if (karaokeMonitorOn) {
-      // Volumen elegido por el usuario (0-100). El compresor doma los picos.
-      const volEl = $("karaokeMonitorVol");
-      const volParsed = volEl ? parseInt(volEl.value || "80", 10) : 80;
-      const monitorVol = Math.max(0, Math.min(100, Number.isFinite(volParsed) ? volParsed : 80)) / 100;
-      const wireMonitor = (src) => {
-        const comp = karaokePitchDetectionAudioCtx.createDynamicsCompressor();
-        comp.threshold.value = -16;
-        comp.knee.value = 6;
-        comp.ratio.value = 6;
-        comp.attack.value = 0.003;
-        comp.release.value = 0.2;
-        const monitorGain = karaokePitchDetectionAudioCtx.createGain();
-        monitorGain.gain.value = monitorVol;
-        src.connect(comp);
-        comp.connect(monitorGain);
-        monitorGain.connect(karaokePitchDetectionAudioCtx.destination);
-      };
-      wireMonitor(source1);
-      if (karaokeDuoSplitMode && karaokeStream2) {
-        try {
-          wireMonitor(karaokePitchDetectionAudioCtx.createMediaStreamSource(karaokeStream2));
-        } catch (e) {
-          console.warn("No se pudo monitorear el mic 2:", e);
-        }
-      }
-      if (track) track.volume = 0.35;
-      console.log("🎧 Monitoreo activado: te escuchas mientras cantas (usa audífonos).");
-    }
-
-    karaokeAudioController = getAudioController();
-
-    try {
-      // FIX #18: chunks POR SESIÓN. Si un recorder viejo (p.ej. de un
-      // "Volver a intentar") dispara su onstop DESPUÉS de iniciar una sesión
-      // nueva, no debe leer ni mezclarse con los chunks de la sesión nueva.
-      karaokeChunks = [];
-      karaokeChunks2 = [];
-      karaokeRecordedBlob2 = null;
-      karaokeDuoP2Active = false;
-      karaokeDuoCombined = false;
-      const sessionChunks = karaokeChunks;
-      karaokeMediaRecorder = new MediaRecorder(karaokeStream);
-      window.karaokeMediaRecorder = karaokeMediaRecorder;
-      const recorder = karaokeMediaRecorder;
-      karaokeMediaRecorder.ondataavailable = (e) => {
-        if (e.data && e.data.size > 0) sessionChunks.push(e.data);
-      };
-      karaokeMediaRecorder.onerror = (e) => {
-        console.error("🎤 Error en MediaRecorder P1:", e?.error || e);
-      };
-      karaokeMediaRecorder.onstop = () => {
-        // FIX #18: el blob de la voz solo está completo AQUÍ (evento async
-        // tras stop()). Por eso liberamos los tracks del micrófono en este
-        // punto y NO en stopKaraokeRecording(): si se paran antes, Chrome
-        // puede entregar un chunk final vacío y la voz "no se graba"
-        // (karaokeRecordedBlob queda null → "primero canta").
-        // Solo actúa si ESTE recorder sigue siendo el actual (un onstop
-        // tardío de un "Volver a intentar" no debe pisar la sesión nueva).
-        if (karaokeMediaRecorder !== recorder) return;
-        if (sessionChunks.length) {
-          karaokeRecordedBlob = new Blob(sessionChunks, { type: recorder.mimeType || "audio/webm" });
-          console.log("🎤 Voz P1 finalizada:", sessionChunks.length, "chunks,", karaokeRecordedBlob.size, "bytes, mime:", recorder.mimeType || "audio/webm");
-          if (!karaokeDuoSplitMode) {
-            publishVoicePreview(karaokeRecordedBlob);
-            releaseKaraokeCaptureStreams();
-          } else {
-            // Vista previa temporal de P1 (sin habilitar Mezclar): si P2
-            // falla, el usuario al menos escucha esta voz con su aviso.
-            publishVoicePreview(karaokeRecordedBlob, false);
-            const statusEl = $("karaokeStatus");
-            if (statusEl) statusEl.textContent = "🎤 Voz P1 lista… esperando la voz P2 para combinar.";
-            tryFinalizeDuoVoice();
-          }
-        } else {
-          console.warn("🎤 No se capturaron chunks de voz P1 (grabación muy corta o chunk final vacío).");
-        }
-        karaokeMediaRecorder = null;
-        window.karaokeMediaRecorder = null;
-        if (!karaokeDuoSplitMode) releaseKaraokeCaptureStreams();
-        else tryFinalizeDuoVoice();
-      };
-      // timeslice: entrega los chunks en intervalos; si el chunk final se
-      // perdiera por cualquier razón, la grabación conserva los anteriores.
-      karaokeMediaRecorder.start(500);
-
-      // Dúo: recorder independiente para el mic 2. Cada mic se codifica con
-      // su propio reloj (USB, 3.5mm o mixto) y se combinan al final con
-      // balance automático; así ningún mic queda fuera de la mezcla.
-      // Va en try/catch PROPIO: si P2 falla al construir, P1 sigue grabando
-      // y al final se publica P1 con aviso (nunca silencio total).
-      if (karaokeDuoSplitMode && karaokeStream2) {
-        try {
-          const liveTracks = karaokeStream2.getAudioTracks().filter(t => t.readyState === "live");
-          if (!liveTracks.length) throw new Error("El stream del mic 2 no tiene pistas de audio activas.");
-          karaokeMediaRecorder2 = new MediaRecorder(karaokeStream2);
-          const recorderB = karaokeMediaRecorder2;
-          const sessionChunksB = karaokeChunks2;
-          karaokeMediaRecorder2.ondataavailable = (e) => {
-            if (e.data && e.data.size > 0) sessionChunksB.push(e.data);
-          };
-          karaokeMediaRecorder2.onerror = (e) => {
-            console.error("🎤 Error en MediaRecorder P2:", e?.error || e);
-          };
-          karaokeMediaRecorder2.onstop = () => {
-            if (karaokeMediaRecorder2 !== recorderB) return;
-            if (sessionChunksB.length) {
-              karaokeRecordedBlob2 = new Blob(sessionChunksB, { type: recorderB.mimeType || "audio/webm" });
-              console.log("🎤 Voz P2 finalizada:", sessionChunksB.length, "chunks,", karaokeRecordedBlob2.size, "bytes, mime:", recorderB.mimeType || "audio/webm");
-            } else {
-              console.warn("🎤 No se capturaron chunks de voz P2.");
-            }
-            karaokeMediaRecorder2 = null;
-            tryFinalizeDuoVoice();
-          };
-          karaokeMediaRecorder2.start(500);
-          karaokeDuoP2Active = true;
-        } catch (errRec2) {
-          console.error("🎤 No se pudo grabar el mic 2, se continúa solo con P1:", errRec2);
-          karaokeMediaRecorder2 = null;
-          karaokeDuoP2Active = false;
-          const statusEl = $("karaokeStatus");
-          if (statusEl) statusEl.textContent = "⚠️ El mic 2 no pudo grabarse; se graba solo P1. Revisa Config.";
-        }
-      }
-    } catch (e) {
-      console.warn("MediaRecorder no disponible en este navegador:", e);
-      karaokeMediaRecorder = null;
-      karaokeMediaRecorder2 = null;
-      karaokeDuoP2Active = false;
-      window.karaokeMediaRecorder = null;
-    }
-
-    if (trackPlaybackFailed) {
-      const warnEl = $("karaokeStatus");
-      if (warnEl) warnEl.textContent = "⚠️ La pista no pudo reproducirse (autoplay/CORS). Grabando la voz de todos modos.";
-    }
-
-    const duoIndicator = $("karaokeDuoIndicator");
-    if (duoIndicator) {
-      duoIndicator.style.display = karaokeDuoSplitMode ? "block" : "none";
-    }
-    const soloMicIndicator = $("karaokeSoloMicIndicator");
-    if (soloMicIndicator) {
-      soloMicIndicator.style.display = karaokeDuoSplitMode ? "none" : "block";
-    }
-
-    const statusEl = $("karaokeStatus");
-    if (statusEl) {
-      statusEl.textContent = karaokeDuoSplitMode
-        ? "🎤🎤 ¡Grabando DÚO! Canta y sigue las notas."
-        : "🎤 ¡Grabando! Canta y sigue las notas.";
-    }
-
-    karaokeLoopBusy = false;
-    karaokeRecordingActive = true;
-    loop();
-  } catch (err) {
-    console.error("Error al iniciar karaoke:", err);
-    const statusEl = $("karaokeStatus");
-    if (statusEl) {
-      statusEl.textContent = "❌ Error al iniciar: " + (err?.message || err);
-    }
-    if (karaokeStream) { karaokeStream.getTracks().forEach(t => t.stop()); karaokeStream = null; }
-    if (karaokeStream2) { karaokeStream2.getTracks().forEach(t => t.stop()); karaokeStream2 = null; }
-    if (track) { try { track.pause(); } catch (e) {} }
-    // El AudioContext de análisis se creó antes de pedir el mic: cerrarlo
-    // aquí para no dejarlo corriendo en segundo plano tras el fallo.
-    if (karaokePitchDetectionAudioCtx) {
-      try { await karaokePitchDetectionAudioCtx.close(); } catch (e) {}
-      karaokePitchDetectionAudioCtx = null;
-    }
-    karaokePitchDetectionAnalyser = null;
-    karaokeSplitAnalyser2 = null;
-    karaokeRecordingActive = false;
-    alert("❌ No se pudo iniciar la grabación. Revisa que el micrófono esté permitido.");
-  }
-}
-
-export async function startKaraokePitchDetection() {
-  if (!karaokeStream) {
-    console.warn("⚠️ No hay stream principal para detección de pitch en karaoke.");
-    return;
-  }
-  if (!karaokeAudioController) karaokeAudioController = getAudioController();
-  karaokeLoopBusy = false;
-  loop();
-}
-
-async function loop() {
-  if (karaokeLoopBusy) return;
-  karaokeLoopBusy = true;
-
-  try {
-    const track = $("karaokeTrack") || $("karaokeAudio") || $("audioKaraoke") || $("trackPlayer");
-    const currentTime = track ? track.currentTime : 0;
-    const isRecording = !!((karaokeMediaRecorder && karaokeMediaRecorder.state === "recording") || (karaokeMediaRecorder2 && karaokeMediaRecorder2.state === "recording"));
-    const trackEnded = !!(track && track.ended);
-    // FIX #19: si el usuario "detiene la pista" (pausa o termina el audio),
-    // hay que FINALIZAR la grabación aquí mismo. Antes solo se finalizaba en
-    // `track.ended` o con el botón "Detener"; si la pista se pausaba de otra
-    // forma, el MediaRecorder seguía en "recording" para siempre, nunca llegaba
-    // el onstop y la voz jamás aparecía en el player (y "Mezclar" decía
-    // "primero canta"). `currentTime > 0.15` evita detener por una pausa
-    // momentánea del arranque (buffering) antes de que empiece a sonar.
-    const trackPaused = !!(track && track.paused && !track.ended && track.currentTime > 0.15);
-    // Solo se autofinaliza al TERMINAR la pista. Pausar para respirar ya no
-    // mata la toma: se avisa una vez y la grabación sigue hasta Detener.
-    const shouldFinalize = isRecording && trackEnded;
-    if (isRecording && trackPaused && !track.dataset.pauseWarned) {
-      track.dataset.pauseWarned = "1";
-      toast("Pista en pausa: tu voz se sigue grabando. Pulsa Detener para terminar.", "warn", 5000);
-    }
-    if (!trackPaused && track) delete track.dataset.pauseWarned;
-
-    // FIX #20 (entrecortado del mic): el MediaRecorder corre en el hilo
-    // principal y Chrome suelta tramas si el hilo está saturado. El análisis
-    // de pitch + repintado del canvas cada frame (~60fps) satura el hilo y la
-    // voz grabada sale entrecortada. Limitamos el trabajo pesado a ~30fps
-// (un frame sí, uno no): el monitor no nota la diferencia y la grabación
-// deja de laggear. El chequeo de finalizar grabación se mantiene siempre.
-    loopTick ^= 1;
-    const heavyFrame = (loopTick & 1) === 0;
-
-    // Dúo: ping-pong de pitch (un mic por heavy-frame). Detectar P1+P2 en el
-    // mismo frame duplicaba la carga del worker y agravaba el entrecortado
-    // del MediaRecorder; alternando se mantiene ~30fps visual con la mitad
-    // de trabajo pesado. Agnóstico al hardware.
-    const detectP1ThisFrame = !karaokeDuoSplitMode || (duoPitchTurn & 1) === 0;
-    const detectP2ThisFrame = karaokeDuoSplitMode && (duoPitchTurn & 1) === 1;
-    if (heavyFrame && karaokeDuoSplitMode) duoPitchTurn ^= 1;
-
-    // Buffers reutilizados: antes se alocaba un Float32Array(2048) por frame
-    // (~30/s) presionando al GC y agravando el entrecortado del FIX #20.
-    if (heavyFrame && detectP1ThisFrame && karaokePitchDetectionAnalyser && karaokePitchDetectionAudioCtx && karaokeAudioController) {
-      try {
-        const size = karaokePitchDetectionAnalyser.fftSize;
-        if (!karaokePitchBuf1 || karaokePitchBuf1.length !== size) karaokePitchBuf1 = new Float32Array(size);
-        karaokePitchDetectionAnalyser.getFloatTimeDomainData(karaokePitchBuf1);
-        karaokePitchP1 = await karaokeAudioController.detectPitch(karaokePitchBuf1, karaokePitchDetectionAudioCtx.sampleRate);
-      } catch (error) {
-        console.error("Error detectando pitch P1 en karaoke:", error);
-        karaokePitchP1 = -1;
-      }
-    }
-
-    if (heavyFrame && detectP2ThisFrame && karaokeSplitAnalyser2 && karaokePitchDetectionAudioCtx && karaokeAudioController) {
-      try {
-        const size2 = karaokeSplitAnalyser2.fftSize;
-        if (!karaokePitchBuf2 || karaokePitchBuf2.length !== size2) karaokePitchBuf2 = new Float32Array(size2);
-        karaokeSplitAnalyser2.getFloatTimeDomainData(karaokePitchBuf2);
-        karaokePitchP2 = await karaokeAudioController.detectPitch(karaokePitchBuf2, karaokePitchDetectionAudioCtx.sampleRate);
-      } catch (error) {
-        karaokePitchP2 = -1;
-      }
-    }
-
-    if (heavyFrame) {
-      if (!karaokeDuoSplitMode) karaokePitchP2 = -1;
-
-      if (karaokeDuoSplitMode) updateDuoLevels();
-      else setBarWidth("karaokeMic1Level", karaokePitchDetectionAnalyser);
-
-      // Puntaje: solo mientras se graba (no en previsualización).
-      if (karaokeRecordingActive) {
-        accumulateScore("P1", currentTime, karaokePitchP1);
-        if (karaokeDuoSplitMode) accumulateScore("P2", currentTime, karaokePitchP2);
-      }
-    }
-
-    drawKaraokeMonitor(currentTime, karaokePitchP1, karaokePitchP2);
-
-    if (!isRecording || shouldFinalize) {
-      karaokePitchLoopRafId = null;
-      if (shouldFinalize) stopKaraokeRecording();
-      return;
-    }
-
-    karaokePitchLoopRafId = requestAnimationFrame(() => {
-      loop();
-    });
-  } finally {
-    karaokeLoopBusy = false;
-  }
-}
-
-// FIX #18: liberación idempotente de los streams del micrófono. Se invoca
-// desde el onstop del MediaRecorder (una vez que el blob de la voz ya está
-// finalizado) o inmediatamente cuando no hay recorder pendiente.
-function releaseKaraokeCaptureStreams() {
-  if (karaokeStream) {
-    try { karaokeStream.getTracks().forEach(t => t.stop()); } catch (e) {}
-    karaokeStream = null;
-  }
-  if (karaokeStream2) {
-    try { karaokeStream2.getTracks().forEach(t => t.stop()); } catch (e) {}
-    karaokeStream2 = null;
-  }
-}
-
-export function stopKaraokeRecording() {
-  // Sin grabación en curso ni voz lista no hay nada que detener: antes se
-  // mostraba "Grabación detenida. Escucha tu voz abajo." en vacío.
-  const recActiva = (karaokeMediaRecorder && karaokeMediaRecorder.state !== "inactive") ||
-    (karaokeMediaRecorder2 && karaokeMediaRecorder2.state !== "inactive");
-  if (!karaokeRecordingActive && !recActiva && !karaokeRecordedBlob) {
-    toast("No hay grabación en curso.", "info");
-    return;
-  }
-  if (karaokePitchLoopRafId) {
-    cancelAnimationFrame(karaokePitchLoopRafId);
-    karaokePitchLoopRafId = null;
-  }
-
-  // Flags explícitos de stop pedido: leer `.state` DESPUÉS de stop() no es
-  // fiable (varios navegadores ya reportan "inactive" en cuanto stop()
-  // retorna) y liberaría los tracks del mic antes del onstop, truncando la
-  // cola de la voz (el bug que el FIX #18 intentaba evitar).
-  let pendingA = false;
-  let pendingB = false;
-  const recorder = karaokeMediaRecorder;
-  if (recorder && recorder.state !== "inactive") {
-    pendingA = true;
-    try {
-      recorder.stop();
-    } catch (e) {
-      pendingA = false;
-      console.warn("No se pudo detener MediaRecorder:", e);
-    }
-  }
-  const recorderB = karaokeMediaRecorder2;
-  if (recorderB && recorderB.state !== "inactive") {
-    pendingB = true;
-    try {
-      recorderB.stop();
-    } catch (e) {
-      pendingB = false;
-      console.warn("No se pudo detener MediaRecorder P2:", e);
-    }
-  }
-  window.karaokeMediaRecorder = null;
-
-  // Si algún recorder está pending (stop() pedido), su onstop construirá el
-  // blob Y liberará los tracks (FIX #18: no parar el mic antes de que el
-  // blob finalice, o el chunk final llega vacío y la voz "no se graba").
-  if (!pendingA && !pendingB) {
-    releaseKaraokeCaptureStreams();
-  } else if (karaokeDuoSplitMode) {
-    // Watchdog por si algún onstop no llega: publica lo que haya.
-    scheduleFinalizeWatchdog();
-  }
-
-  if (karaokePitchDetectionAudioCtx && karaokePitchDetectionAudioCtx.state !== "closed") {
-    try { karaokePitchDetectionAudioCtx.close(); } catch (e) {}
-  }
-  karaokePitchDetectionAudioCtx = null;
-  karaokePitchDetectionAnalyser = null;
-  karaokeSplitAnalyser2 = null;
-
-  // NOTA: los streams del mic se liberan en releaseKaraokeCaptureStreams().
-  // No parar los tracks aquí si el recorder está pending: ya lo comentamos
-  // (FIX #18), parar antes del onstop pierde el blob final.
-
-  // FIX #17: NO destruimos el singleton de audio controller aquí. El worker
-  // se comparte con el afinador y otros módulos. Destruirlo rompería sus
-  // promesas en vuelo y la próxima iteración de su bucle de detección.
-  // El siguiente `getAudioController()` devolverá la misma instancia sana
-  // (chequea `isTerminated` y solo recrea si es necesario).
-  // Si en el futuro algún módulo realmente necesita un worker dedicado,
-  // se debe refactorizar `audio-controller.js` a un pool, no a un singleton
-  // global compartido.
-  karaokeAudioController = null; // solo soltamos la referencia local
-
-  karaokeLoopBusy = false;
-  karaokeRecordingActive = false;
-
-  const duoIndicator = $("karaokeDuoIndicator");
-  if (duoIndicator) duoIndicator.style.display = "none";
-  const soloMicIndicator = $("karaokeSoloMicIndicator");
-  if (soloMicIndicator) soloMicIndicator.style.display = "none";
-
-  const track = $("karaokeTrack") || $("karaokeAudio") || $("audioKaraoke") || $("trackPlayer");
-  if (track) {
-    try { track.pause(); } catch (e) {}
-    // Restaurar el volumen de la pista si el monitoreo lo había atenuado.
-    if (karaokeMonitorOn) track.volume = 0.5;
-  }
-  karaokeMonitorOn = false;
-
-  const scoreTxt = renderScoreboard();
-  const statusEl = $("karaokeStatus");
-  if (statusEl) {
-    statusEl.textContent = scoreTxt
-      ? `⏹️ Grabación detenida. ${scoreTxt}. Escucha tu voz abajo.`
-      : "⏹️ Grabación detenida. Escucha tu voz abajo.";
-  }
-
-  // El botón Mezclar se habilita en el onstop del recorder, cuando la voz ya
-  // está construida (FIX #18). Aquí NO se habilita: si el blob aún no existe,
-  // el usuario vería el aviso "primero canta" sin motivo.
-
-  const startBtn = $("karaokeStartBtn");
-  if (startBtn) startBtn.disabled = false;
-
-  console.log("🛑 Grabación de karaoke detenida.");
-}
-
-// Limpieza al salir del tab: si hay grabación activa se finaliza (así el
-// onstop publica la voz) y la pista se pausa. Sin esto, mic, pista, RAF y
-// AudioContext seguían vivos en otras pestañas.
-function clearMixResult() {
-  if (karaokeMixUrl) {
-    try { URL.revokeObjectURL(karaokeMixUrl); } catch (e) {}
-    karaokeMixUrl = null;
-  }
-  const resultDiv = $("karaokeMixResult");
-  if (resultDiv) resultDiv.innerHTML = "";
-}
-
-export function destroyKaraoke() {
-  const track = $("karaokeTrack") || $("karaokeAudio") || $("audioKaraoke") || $("trackPlayer");
-  const recA = karaokeMediaRecorder && karaokeMediaRecorder.state !== "inactive";
-  const recB = karaokeMediaRecorder2 && karaokeMediaRecorder2.state !== "inactive";
-  if (karaokeRecordingActive || recA || recB) {
-    console.log("🧹 Saliendo de karaoke a mitad de grabación: deteniendo.");
-    stopKaraokeRecording();
-  } else if (track && !track.paused) {
-    try { track.pause(); } catch (e) {}
-  }
-  clearMixResult();
-}
-
-export async function restartKaraokeRecording() {
-  const track = $("karaokeTrack") || $("karaokeAudio") || $("trackPlayer");
-  if (track) {
-    try { track.pause(); } catch (e) {}
-    track.currentTime = 0;
-  }
-  const voicePlayer = $("karaokeVoicePlayer");
-  revokePreviewUrl();
-  if (voicePlayer) voicePlayer.src = "";
-  clearMixResult();
-  karaokeChunks = [];
-  karaokeChunks2 = [];
-  karaokeRecordedBlob = null;
-  karaokeRecordedBlob2 = null;
-  karaokeDuoP2Active = false;
-  karaokeDuoCombined = false;
-  clearFinalizeWatchdog();
-
-  const statusEl = $("karaokeStatus");
-  if (statusEl) statusEl.textContent = "Estado: Reiniciando grabación...";
-
-  await startKaraokeRecording();
-}
-
-export function syncKaraokeMonitor(currentTime) {
-  const lines = document.querySelectorAll(".karaoke-live-line");
-  if (!lines.length) return;
-
-  lines.forEach(line => {
-    const start = parseFloat(line.dataset.start);
-    const end = parseFloat(line.dataset.end) + 1.5;
-
-    line.classList.remove("active", "past");
-
-    if (currentTime >= start && currentTime <= end) {
-      line.classList.add("active");
-    } else if (currentTime > end) {
-      line.classList.add("past");
-    }
-
-    const words = line.querySelectorAll(".karaoke-live-word");
-    words.forEach(word => {
-      const wordStart = parseFloat(word.dataset.start);
-      const wordEnd = parseFloat(word.dataset.end);
-
-      word.classList.remove("active-word", "past-word");
-
-      if (currentTime >= wordStart && currentTime <= wordEnd) {
-        word.classList.add("active-word");
-      } else if (currentTime > wordEnd) {
-        word.classList.add("past-word");
-      }
-    });
-  });
-  // Sin auto-scroll: el teleprompter solo ilumina la línea/palabra activa,
-  // sin mover la vista (el scroll automático arrastraba toda la página).
-}
-
-
-function normalizeKaraokeSegments(rawSegments = []) {
-  if (!Array.isArray(rawSegments)) return [];
-
-  // Detectar si es una lista plana de palabras (con .word/.text y sin .words[])
-  const isWordList = rawSegments.length > 0 &&
-    rawSegments.every(item => item && typeof item === 'object' &&
-      (item.word || item.text) &&
-      !Array.isArray(item.words));
-
-  if (isWordList) {
-    const withTimes = rawSegments.every(item =>
-      Number.isFinite(item.start) || Number.isFinite(item.startTime));
-    if (withTimes) {
-      return groupFlatWordsIntoSegments(rawSegments);
-    }
-    // Lista de palabras sin tiempos (p.ej. segmentarTextoPlano): agrupar por renglón
-    return groupWordsByLineIntoSegments(rawSegments);
-  }
-
-  return rawSegments.map((seg) => {
-    const rawWords = Array.isArray(seg.words) ? seg.words : [];
-
-    const words = rawWords.map((w, wordIndex) => {
-      const start = Number.isFinite(w.start)
-        ? w.start
-        : (Number.isFinite(w.startTime) ? w.startTime : 0);
-
-      const nextWord = rawWords[wordIndex + 1];
-      const end = Number.isFinite(w.end)
-        ? w.end
-        : (
-            Number.isFinite(nextWord?.start)
-              ? nextWord.start
-              : Number.isFinite(nextWord?.startTime)
-                ? nextWord.startTime
-                : start + 0.35
-          );
-
-      return {
-        word: w.word || w.text || "",
-        text: w.text || w.word || "",
-        start,
-        end,
-        midi: Number.isFinite(w.midi) ? w.midi : null,
-        parte: w.parte || seg.parte || "P1"
-      };
-    });
-
-    const segStart = Number.isFinite(seg.start)
-      ? seg.start
-      : (words[0]?.start ?? 0);
-
-    const segEnd = Number.isFinite(seg.end)
-      ? seg.end
-      : (words[words.length - 1]?.end ?? segStart + 0.5);
-
-    return {
-      start: segStart,
-      end: segEnd,
-      text: seg.text || words.map(w => w.word).join(" "),
-      parte: seg.parte || words[0]?.parte || "P1",
-      midi: Number.isFinite(seg.midi)
-        ? seg.midi
-        : (Number.isFinite(words[0]?.midi) ? words[0].midi : 60),
-      words
-    };
-  });
-}
-
-/**
- * Agrupa una lista plana de palabras SIN tiempos en segmentos por renglón.
- * Usa el campo `.renglon` (segmentarTextoPlano) para reconstruir las líneas;
- * si no existe, agrupa en bloques de MAX_LINE_WORDS palabras.
- */
-function groupWordsByLineIntoSegments(flatWords) {
-  if (!flatWords.length) return [];
-
-  const MAX_LINE_WORDS = 10;
-  const lines = [];
-  let currentRenglon = null;
-  let currentLine = null;
-
-  const pushLine = () => {
-    if (!currentLine || !currentLine.words.length) return;
-    lines.push({
-      renglon: currentLine.renglon,
-      text: currentLine.words.map(w => w.word).join(" "),
-      parte: currentLine.words[0].parte || "P1",
-      midi: 60,
-      words: currentLine.words
-    });
-    currentLine = null;
-  };
-
-  flatWords.forEach((w) => {
-    const text = (w.word || w.text || "").trim();
-    if (!text) return;
-
-    let renglon = null;
-    if (w.renglon !== undefined && w.renglon !== null && String(w.renglon).trim() !== "") {
-      renglon = Number(w.renglon);
-      if (!Number.isFinite(renglon)) renglon = null;
-    }
-
-    if (!currentLine ||
-        (renglon !== null && renglon !== currentRenglon) ||
-        currentLine.words.length >= MAX_LINE_WORDS) {
-      pushLine();
-      currentRenglon = (renglon !== null) ? renglon : (currentRenglon ?? 0);
-      currentLine = { renglon: currentRenglon, words: [] };
-    }
-
-    currentLine.words.push({
-      word: text,
-      text,
-      start: null,
-      end: null,
-      midi: Number.isFinite(w.midi) ? w.midi : null,
-      parte: w.parte || "P1"
-    });
-  });
-
-  pushLine();
-
-  return lines;
-}
-
-/**
- * Agrupa palabras en formato plano en segmentos de karaoke
- * Agrupa por proximidad temporal (gap > 1.5s = nuevo segmento) y por parte
- */
-function groupFlatWordsIntoSegments(flatWords) {
-  if (!flatWords.length) return [];
-  
-  // Normalizar palabras primero
-  const normalizedWords = flatWords.map((w, idx) => ({
-    word: w.word || w.text || "",
-    text: w.text || w.word || "",
-    start: Number.isFinite(w.start) ? w.start : (Number.isFinite(w.startTime) ? w.startTime : 0),
-    end: Number.isFinite(w.end) ? w.end : null,
-    midi: Number.isFinite(w.midi) ? w.midi : null,
-    parte: w.parte || "P1",
-    originalIndex: idx
-  })).sort((a, b) => a.start - b.start);
-  
-  // Calcular end para palabras que no lo tienen (basado en la siguiente palabra)
-  for (let i = 0; i < normalizedWords.length; i++) {
-    if (!Number.isFinite(normalizedWords[i].end)) {
-      const nextWord = normalizedWords[i + 1];
-      if (nextWord && Number.isFinite(nextWord.start)) {
-        normalizedWords[i].end = nextWord.start;
-      } else {
-        normalizedWords[i].end = normalizedWords[i].start + 0.35;
-      }
-    }
-  }
-  
-  // FIX: si ninguna palabra trae tiempo (start=0), repartirlas uniformemente
-  // para que las barras no se amontonen en una línea continua.
-  const hasRealStart = normalizedWords.some(w => (w.start || 0) !== 0);
-  if (!hasRealStart && normalizedWords.length > 1) {
-    const step = 0.5;
-    normalizedWords.forEach((w, i) => {
-      w.start = +(i * step).toFixed(3);
-      w.end = +(w.start + 0.45).toFixed(3);
-    });
-  }
-  
-  // Agrupar en segmentos
-  const segments = [];
-  let currentSegment = {
-    words: [normalizedWords[0]],
-    parte: normalizedWords[0].parte
-  };
-  
-  for (let i = 1; i < normalizedWords.length; i++) {
-    const word = normalizedWords[i];
-    const prevWord = normalizedWords[i - 1];
-    const gap = word.start - prevWord.end;
-    const sameParte = word.parte === currentSegment.parte;
-    
-    // Nuevo segmento si: gap grande (>1.5s), cambio de parte, o es la primera palabra
-    if (gap > 1.5 || !sameParte) {
-      // Finalizar segmento actual
-      segments.push(createSegmentFromWords(currentSegment.words));
-      // Iniciar nuevo segmento
-      currentSegment = {
-        words: [word],
-        parte: word.parte
-      };
-    } else {
-      currentSegment.words.push(word);
-    }
-  }
-  
-  // Agregar el último segmento
-  if (currentSegment.words.length > 0) {
-    segments.push(createSegmentFromWords(currentSegment.words));
-  }
-  
-  return segments;
-}
-
-function createSegmentFromWords(words) {
-  if (!words.length) return null;
-  
-  const segStart = words[0].start;
-  const segEnd = words[words.length - 1].end;
-  const parte = words[0].parte;
-  const midi = words.find(w => Number.isFinite(w.midi))?.midi ?? 60;
-  
-  return {
-    start: segStart,
-    end: segEnd,
-    text: words.map(w => w.word).join(" "),
-    parte,
-    midi,
-    words: words.map(w => ({
-      word: w.word,
-      text: w.text,
-      start: w.start,
-      end: w.end,
-      midi: w.midi,
-      parte: w.parte
-    }))
-  };
-}
-
-/**
- * FIX: cuando los segmentos llegan SIN tiempos reales (letra plana), reparte
- * los RENGLONES a lo largo de la duración total (para que el monitor muestre
- * una línea a la vez, no toda la letra junta) y las palabras DENTRO de cada
- * renglón (para que el canvas pinte las barras y el teleprompter ilumine
- * palabra por palabra en su línea).
- */
-function ensureTextLineTimings(segments, totalDuration) {
-  if (!Array.isArray(segments) || !segments.length) return segments;
-
-  const starts = segments.map(s => Number.isFinite(s.start) ? s.start : 0);
-  const ends = segments.map(s => Number.isFinite(s.end) ? s.end : starts[segments.indexOf(s)]);
-  const span = Math.max(...ends) - Math.min(...starts);
-  if (span >= 0.8) return segments; // ya tienen tiempos reales
-
-  const dur = (Number.isFinite(totalDuration) && totalDuration > 1)
-    ? totalDuration
-    : Math.max(3, segments.length * 2.4);
-  const usable = Math.max(2, dur - 1.0);
-  const step = usable / segments.length;
-
-  return segments.map((seg, i) => {
-    const lineStart = 0.5 + i * step;
-    const lineEnd = 0.5 + (i + 1) * step;
-    const rawWords = (Array.isArray(seg.words) && seg.words.length)
-      ? seg.words
-      : null;
-
-    let words = [];
-    if (rawWords) {
-      const totalChars = rawWords.reduce((sum, w) => {
-        const txt = (w.text || w.word || "").trim();
-        return sum + Math.max(1, txt.length);
-      }, 0) || rawWords.length;
-      let cursor = lineStart;
-      words = rawWords.map((w, wi) => {
-        const txt = (w.text || w.word || "").trim();
-        const weight = Math.max(1, txt.length) / totalChars;
-        let wDur = (lineEnd - lineStart) * weight;
-        if (wi === rawWords.length - 1) wDur = Math.max(0.05, lineEnd - cursor);
-        const start = Math.round(cursor * 1000) / 1000;
-        cursor += wDur;
-        const end = Math.round(Math.min(lineEnd, cursor) * 1000) / 1000;
-        return {
-          word: w.word || w.text || txt,
-          text: w.text || w.word || txt,
-          start,
-          end,
-          midi: Number.isFinite(w.midi) ? w.midi : null,
-          parte: w.parte || seg.parte || "P1"
-        };
-      });
-    }
-
-    return {
-      start: Math.round(lineStart * 1000) / 1000,
-      end: Math.round(lineEnd * 1000) / 1000,
-      text: seg.text || words.map(w => w.word).join(" "),
-      parte: seg.parte || words[0]?.parte || "P1",
-      midi: Number.isFinite(seg.midi)
-        ? seg.midi
-        : (Number.isFinite(words[0]?.midi) ? words[0].midi : 60),
-      words
-    };
-  });
-}
-
-export function cargarLetrasEnMonitor() {
-  const container = $("karaokeLiveLyrics");
-  if (!container) return;
-  container.innerHTML = "";
-  if (!Array.isArray(textSegments) || !textSegments.length) return;
-
-  textSegments.forEach(seg => {
-    const line = document.createElement("div");
-    line.className = "karaoke-live-line";
-    line.dataset.start = String(seg.start);
-    line.dataset.end = String(seg.end);
-
-    const items = (seg.words && seg.words.length) ? seg.words : [seg];
-    items.forEach((w, i) => {
-      const span = document.createElement("span");
-      span.className = "karaoke-live-word";
-      span.dataset.start = String(w.start);
-      span.dataset.end = String(w.end);
-      span.textContent = (i > 0 ? " " : "") + (w.word || w.text || "");
-      line.appendChild(span);
-    });
-
-    container.appendChild(line);
-  });
-}
-window.cargarLetrasEnMonitor = cargarLetrasEnMonitor;
-
-let karaokeLoadSeq = 0;
-export async function loadKaraokeSong(id) {
-  const mySeq = ++karaokeLoadSeq;
-  try {
-    limpiarVariablesMonitor();
-
     const item = await getLibraryItemsByIdFromSupabase(id);
-    if (mySeq !== karaokeLoadSeq) return;
-    if (!item) {
-      alert("⚠️ No se encontró el karaoke.");
+    const r2Key = item?.file_path;
+
+    // Textos planos (sin binario): solo se borra el registro.
+    if (!r2Key || r2Key === "null") {
+      const { error: textErr } = await db.from('library').delete().eq('id', id);
+      if (textErr) throw new Error(textErr.message);
+      console.log(`Registro con ID ${id} eliminado de Supabase (texto, sin R2).`);
       return;
     }
 
-    const urlAudioCloud = item.file_url || item.karaoke || item.audioUrl || item.audioBlob;
-    if (!urlAudioCloud) {
-      alert("⚠️ Este karaoke no tiene audio en la nube.");
-      return;
+    // 1. Borrar PRIMERO el binario en R2. Si falla, se conserva el registro
+    // para reintentar y no queda un binario huerfano (con costo) en R2.
+    if (typeof window === 'undefined' || !window.CloudflareStorage) {
+      throw new Error("Sin acceso a R2: no se borra el registro para no dejar huérfano.");
+    }
+    {
+      const ok = await window.CloudflareStorage.deleteFileFromCloudflare(r2Key);
+      if (!ok) throw new Error("No se pudo eliminar el binario de R2; el registro se conserva para reintentar.");
+      console.log(`Archivo binario eliminado de Cloudflare R2: ${r2Key}`);
     }
 
-    karaokeLoadedItem = item;
-    karaokeSelectedTrackBlob = urlAudioCloud;
-    karaokeSelectedTrackName = item.name || "Karaoke";
-    window.currentTapSyncModeType = item.tapModeStyle || "linea";
+    // 2. Luego el registro en Supabase.
+    const { error } = await db.from('library').delete().eq('id', id);
+    if (error) throw new Error(error.message + " (el binario de R2 ya fue eliminado)");
+    console.log(`Registro con ID ${id} eliminado de Supabase.`);
 
-    const track = $("karaokeTrack") || $("karaokeAudio") || $("audioKaraoke") || $("trackPlayer");
-    if (track) {
-      try { track.pause(); } catch (e) {}
-      track.currentTime = 0;
-      track.src = urlAudioCloud;
-      track.dataset.objectUrl = "";
-      track.dataset.karaokeId = String(item.id);
-      track.dataset.karaokeLoaded = "1";
-      track.volume = 0.5;
-      track.load();
+  } catch (error) {
+    console.error("Error al eliminar el registro:", error.message);
+    throw error;
+  }
+}
 
-      // addEventListener (no asignación): no pisa handlers de otros módulos.
-      // El token descarta metadatos obsoletos si se cargó otro tema después.
-      track.addEventListener("loadedmetadata", () => {
-        if (mySeq !== karaokeLoadSeq) return;
-        textSegments = ensureTextLineTimings(karaokeLoadedLyrics, track.duration);
-        cargarLetrasEnMonitor();
-        drawKaraokeMonitor(track.currentTime || 0, -1, -1);
-      }, { once: true });
-    }
-
-    if (Array.isArray(item.lyrics) && item.lyrics.length) {
-      textSegments = normalizeKaraokeSegments(item.lyrics);
-      karaokeLoadedLyrics = textSegments;
-    } else if (Array.isArray(item.transcription) && item.transcription.length) {
-      textSegments = normalizeKaraokeSegments(item.transcription);
-      karaokeLoadedLyrics = textSegments;
+export async function getLibraryItemsByTypeFromSupabase(type) {
+  if (!db) await initSupabase();
+  try {
+    // ✅ PERMISOS FLEXIBLES: Si el frontend pide "texto", buscamos tanto "texto" como "letra" en Supabase
+    let query = db.from('library').select('*');
+    
+    if (type === "texto" || type === "letra" || type === "letras") {
+      query = query.or(`type.eq.texto,type.eq.letra,type.eq.texto_plano`);
     } else {
-      textSegments = [];
-      karaokeLoadedLyrics = [];
+      query = query.eq('type', type);
     }
 
-    textSegments = ensureTextLineTimings(karaokeLoadedLyrics, track?.duration);
+    const { data, error } = await query;
+    if (error) throw new Error(`Error de Supabase: ${error.message}`);
+    
+    console.log(`Buscando '${type}': se encontraron ${data.length} coincidencias.`);
+    return data;
+  } catch (error) {
+    console.error(error.message);
+    throw error;
+  }
+}
 
-    cargarLetrasEnMonitor();
+export async function getLibraryItemsByIdFromSupabase(id) {
+  if (!db) await initSupabase();
+  try {
+    const { data, error } = await db.from('library').select('*').eq('id', id).single();
+    if (error) throw new Error(error.message);
+    if (!data) throw new Error(`No se encontró ningún elemento con el ID: ${id}`);
+    return data;
+  } catch (error) {
+    console.error(error.message);
+    throw error;
+  }
+}
 
-    drawKaraokeMonitor(0, -1, -1);
+export async function saveLibraryItemToSupabase({ name, type, blob, transcription = [], metadata = {} }) {
+  if (!db) await initSupabase(); 
 
-    const status = $("karaokeStatus");
-    if (status) {
-      status.textContent = `Estado: "${item.name}" cargada. ¡A cantar! 🎤`;
-    }
+  const mimeType = blob.type || "application/octet-stream";
+  
+  // 1. Obtener extensión correcta basada en el MIME Type
+  const extension = mimeType.includes("wav") ? "wav" 
+    : mimeType.includes("mpeg") || mimeType.includes("mp3") ? "mp3" 
+    : mimeType.includes("webm") ? "webm" 
+    : mimeType.includes("ogg") ? "ogg" 
+    : mimeType.includes("mp4") || mimeType.includes("m4a") ? "m4a" 
+    : "bin"; 
 
-    console.log("✅ Karaoke cargado desde Supabase con éxito:", {
-      id: item.id,
-      name: item.name,
-      trackSrc: track?.src
+  // 2. Quitar la extensión original si el nombre ya la incluye (ej: "pista.mp3" -> "pista")
+  let baseName = name;
+  if (name.toLowerCase().endsWith(`.${extension}`)) {
+    baseName = name.substring(0, name.length - (extension.length + 1));
+  } else if (name.match(/\.[a-zA-Z0-9]{3,4}$/)) {
+    // Por si trae otra extensión diferente (ej: .mpeg o .txt), se la removemos también
+    baseName = name.substring(0, name.lastIndexOf('.'));
+  }
+
+  // 3. Limpiar solo el cuerpo del nombre de forma segura
+  let cleanName = baseName
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9_]/g, "_") // Reemplazar caracteres inválidos por underscore
+    .replace(/_+/g, "_"); 
+
+  // 4. Unir el nombre limpio con la extensión final una sola vez
+  const fileName = `${cleanName}.${extension}`;
+  console.log(`Generando archivo seguro: ${fileName}`);
+
+  const { filePath, fileUrl } = await window.CloudflareStorage.uploadFileToCloudflare(blob, fileName, mimeType, type); 
+
+  // Si el insert falla tras subir a R2, compensar borrando el binario para
+  // no dejar huerfanos (mismo patron que saveLibraryItemToCloudflare).
+  try {
+  const { data, error } = await db
+    .from("library")
+    .insert([
+      {
+        name: baseName, // Guardamos el nombre limpio sin extensión en la BD
+        type,
+        file_path: filePath,
+        file_url: fileUrl,
+        transcription,
+        metadata,
+        date: new Date().toISOString()
+      }
+    ])
+    .select(); 
+
+  if (error) throw error;
+  return data?.[0]; // Retornar el registro insertado con su ID
+  } catch (insertErr) {
+    try {
+      await window.CloudflareStorage.deleteFileFromCloudflare(filePath);
+      console.log("Binario huerfano compensado en R2 tras fallo de insert.");
+    } catch (_) {}
+    throw insertErr;
+  }
+}
+
+export async function saveToLibrary(blob, options = {}) {
+  if (!blob) {
+    console.error("No hay audio para guardar");
+    return;
+  } 
+
+  try {
+        const result = await saveLibraryItemToSupabase({
+      name: options.name || "Archivo",
+        type: options.type === "audio" || !options.type ? "pista" : options.type,
+      blob: blob,
+      transcription: options.transcription || [],
+      metadata: { textoPlano: options.textoPlano || null }
+    }); 
+
+        console.log("Guardado en biblioteca correctamente (Supabase + Cloudflare R2)");
+
+    const filtroActual = options.type || 'todos';
+    await renderLibrary(filtroActual);
+    return result;
+
+  } catch (error) {
+    console.error("Error detallado:", error);
+    alert("No se pudo guardar en la nube: " + error.message);
+  }
+} 
+
+// ============================================
+// 🎨 RENDERIZADO Dinámico de la Interfaz
+// ============================================ 
+
+export async function renderLibrary(filter = "todos") {
+  const container = $("libraryList");
+  if (!container) return;
+  libraryCurrentFilter = filter;
+  const turno = ++libraryRenderSeq;
+
+  // 1. Manejo visual de botones de carpeta activos (los botones usan
+  // data-filter + addEventListener, no onclick: comparar el dataset).
+  document.querySelectorAll(".folder-btn").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.filter === filter);
+  });
+
+  container.innerHTML = "Archivos de la biblioteca";
+
+  try {
+    const library = await getAllLibraryItemsFromSupabase();
+    // Si arrancó otro render mientras esperábamos la red, este ya es viejo:
+    // se descarta para no duplicar la lista.
+    if (turno !== libraryRenderSeq) return;
+    // Re-limpiar aquí (no solo antes del fetch): un render viejo que termine
+    // tarde agregaría sus tarjetas sobre las del render nuevo.
+    container.innerHTML = "Archivos de la biblioteca";
+    // ✅ CORRECCIÓN DE FILTRO: Mapeamos los filtros visuales con los datos reales
+    const filteredItems = library.filter(item => {
+      if (filter === "todos") return true;
+  
+      // Si el usuario da clic en la carpeta "KARAOKE", mostramos cualquier archivo 
+      // que tenga la bandera 'isSincronizada' en verdadero o cuyo tipo sea 'karaoke'
+      if (filter === "karaoke") {
+        return item.isSincronizada === true || item.type === "karaoke";
+      }
+  
+      if (filter === "letras" || filter === "letra") {
+        return item.type === "texto" || item.type === "letra" || item.type === "texto_plano" || item.type === "ultrastar_txt";
+      }
+  
+      if (filter === "voz" || filter === "voces") {
+        return item.type === "voz";
+      }
+
+      // Filtro por defecto para carpetas exactas (pistas, etc.)
+      return item.type === filter;
     });
-  } catch (error) {
-    console.error("Error cargando karaoke:", error);
-    alert("❌ Error al cargar el karaoke.");
-  }
-}
 
-export async function loadTrackOptionsInKaraoke() {
-  try {
-    const items = await getLibraryItemsByTypeFromSupabase("karaoke");
-    // Orden alfabético: lo recién migrado se anexaba al fondo y parecía ausente.
-    const sorted = (items || []).slice().sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "es"));
-    const select = $("karaokeTrackSelect");
-    if (select) {
-      select.innerHTML = '<option value="">Selecciona un karaoke</option>';
-      sorted.forEach(item => {
-        const opt = document.createElement("option");
-        opt.value = String(item.id);
-        opt.textContent = item.name || "Karaoke";
-        select.appendChild(opt);
-      });
+    // 🔍 Buscador por nombre (insensible a mayúsculas y tildes).
+    const consulta = normalizarBusqueda(librarySearchText).trim();
+    const searchedItems = consulta
+      ? filteredItems.filter(item => normalizarBusqueda(item.name).includes(consulta))
+      : filteredItems;
+
+    // ✅ CONTADOR: Refleja el número de archivos según la carpeta activa
+    const countEl = document.getElementById("libraryCount");
+    if (countEl) countEl.textContent = String(searchedItems.length);
+
+    if (searchedItems.length === 0) {
+      container.innerHTML = consulta
+        ? `<p style="color: var(--text-muted);">Sin resultados para "${escapeHTML(librarySearchText.trim())}".</p>`
+        : "<p style=\"color: var(--text-muted);\">No hay archivos en esta carpeta.</p>";
     }
-    const list = $("karaokeSongList");
-    if (list) {
-      list.innerHTML = "";
-      sorted.forEach(item => {
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.textContent = `🎤 ${item.name || "Karaoke"}`;
-        btn.onclick = () => loadKaraokeSong(item.id);
-        list.appendChild(btn);
-      });
-    }
-  } catch (error) {
-    console.warn("No se pudieron cargar los karaokes:", error);
-  }
-}
-
-export async function mixKaraoke() {
-  // FIX #19: si por lo que sea la pista se detuvo sin pasar por el onstop
-  // (recorder aún en "recording"), finalizamos la grabación aquí y esperamos
-  // el blob. Así "Mezclar" funciona aunque el usuario haya "detenido la pista"
-  // de cualquier forma.
-  if (!karaokeRecordedBlob && karaokeMediaRecorder && karaokeMediaRecorder.state !== "inactive") {
-    console.log("🎤 Mezclar detectó recorder activo; finalizando grabación...");
-    stopKaraokeRecording();
-    for (let i = 0; i < 10 && !karaokeRecordedBlob; i++) {
-      await new Promise(r => setTimeout(r, 150));
-    }
-  }
-
-  // Dúo: esperar a que P1+P2 se combinen antes de mezclar. Sin esta espera,
-  // "Mezclar" podía usar la vista previa temporal de P1 y dejar fuera a P2.
-  if (karaokeDuoSplitMode && karaokeDuoP2Active && !karaokeDuoCombined) {
-    for (let i = 0; i < 40 && !karaokeDuoCombined; i++) {
-      await new Promise(r => setTimeout(r, 250));
-    }
-    if (!karaokeDuoCombined) {
-      alert("⚠️ Aún se están combinando las voces del dúo. Espera unos segundos y vuelve a pulsar Mezclar.");
-      return;
-    }
-  }
-
-  if (!karaokeRecordedBlob) {
-    toast("Tu voz no se grabó. Inicia grabación, canta y detén antes de mezclar.", "warn", 5000);
-    return;
-  }
-  if (!karaokeSelectedTrackBlob) {
-    toast("No hay pista seleccionada. Elige un karaoke desde la Biblioteca.", "warn");
-    return;
-  }
-
-  // FIX #7: validar que los Blobs no estén vacíos antes de intentar decodificar.
-  // Sin esta guarda, un Blob de 0 bytes produce un EncodingError genérico
-  // dentro de decodeAudioData(), que el catch de abajo muestra como
-  // "Hubo un error al mezclar" sin contexto útil para el usuario.
-  const isBlob = (v) => v instanceof Blob;
-  if (
-    (isBlob(karaokeSelectedTrackBlob) && karaokeSelectedTrackBlob.size === 0) ||
-    (isBlob(karaokeRecordedBlob) && karaokeRecordedBlob.size === 0)
-  ) {
-    alert("⚠️ La pista o la grabación están vacías. Vuelve a grabar tu voz y/o selecciona otra pista.");
-    return;
-  }
-
-  const trackFile = karaokeSelectedTrackBlob;
-  const btn = $("karaokeMixBtn");
-  const resultDiv = $("karaokeMixResult");
-
-  if (btn) {
-    btn.textContent = "🎧 Mezclando audios... ⏳";
-    btn.disabled = true;
-  }
-
-  if (resultDiv) {
-    resultDiv.innerHTML = "<p style='color: var(--text-muted);'>Uniendo la pista y tu voz. Esto puede tardar unos segundos...</p>";
-  }
-
-  let audioCtx = null;
-  try {
-    // Offline: solo se decodifica, sin sonar ni pedir gesto (un AudioContext
-    // normal quedaría "suspended" con warning en consola).
-    audioCtx = new OfflineAudioContext(1, 1, 44100);
-
-    // FIX #5: distinguir entre URL remota y Blob/objeto local para evitar
-    // TypeError "Failed to fetch" cuando trackFile es un Blob (no string).
-    // Antes, trackFile.startsWith("http") crasheaba si trackFile era un Blob
-    // local en vez de una URL remota.
-    let trackArrayBuffer;
-    if (trackFile instanceof Blob) {
-      trackArrayBuffer = await trackFile.arrayBuffer();
-    } else if (typeof trackFile === "string") {
-      const fetchOptions = /^https?:\/\//i.test(trackFile) ? { mode: "cors" } : {};
-      const response = await fetch(trackFile, fetchOptions);
-      if (!response.ok) {
-        throw new Error(`No se pudo descargar el archivo de audio base (Código: ${response.status})`);
+    
+    searchedItems.forEach(item => {
+      const div = document.createElement("div");
+      div.className = "library-item"; // Conserva tus estilos neón oscuros
+  
+      // 1. Selección visual del icono según tu interfaz
+      let iconoVisual = "🎵";
+      if (item.type === "letra" || item.type === "texto" || item.type === "texto_plano") {
+        iconoVisual = "📝";
+      } else if (item.type === "karaoke" || item.isSincronizada) {
+        iconoVisual = "🎧";
       }
-      const audioBlobFromCloud = await response.blob();
-      trackArrayBuffer = await audioBlobFromCloud.arrayBuffer();
-    } else {
-      throw new Error("Tipo de track no soportado: se esperaba URL (string) o Blob.");
-    }
 
-    const voiceArrayBuffer = await karaokeRecordedBlob.arrayBuffer();
-
-    const trackBuffer = await audioCtx.decodeAudioData(trackArrayBuffer.slice(0));
-    const voiceBuffer = await audioCtx.decodeAudioData(voiceArrayBuffer.slice(0));
-
-    // Si la voz es puro silencio/hiss, no entregar "mezcla de ruido".
-    const preVoiceRms = singingRmsOfBuffer(voiceBuffer);
-    if (!(preVoiceRms > 0.0008)) {
-      toast("Tu voz quedó en silencio. Vuelve a grabar acercándote al mic.", "warn", 5000);
-      return;
-    }
-
-    // Duración (no muestras): USB a 48k y jack a 44.1k no son comparables.
-    const sampleRate = trackBuffer.sampleRate;
-    const renderLength = Math.max(
-      trackBuffer.length,
-      Math.ceil((voiceBuffer.length / voiceBuffer.sampleRate) * sampleRate)
-    );
-    const renderChannels = Math.max(trackBuffer.numberOfChannels, voiceBuffer.numberOfChannels);
-
-    const offlineCtx = new OfflineAudioContext(
-      renderChannels,
-      renderLength,
-      sampleRate
-    );
-
-    // Balance de la pista: compresor suave para uniformar el volumen base
-    const trackCompressor = offlineCtx.createDynamicsCompressor();
-    trackCompressor.threshold.value = -14;
-    trackCompressor.knee.value = 8;
-    trackCompressor.ratio.value = 3;
-    trackCompressor.attack.value = 0.005;
-    trackCompressor.release.value = 0.2;
-
-    // Limitador maestro: la suma voz+pista puede superar 0 dBFS y recortar
-    // en digital (esa distorsión se percibe como pista "destemplada").
-    // Techo a -1 dB antes de codificar el WAV.
-    const masterLimiter = offlineCtx.createDynamicsCompressor();
-    masterLimiter.threshold.value = -3;
-    masterLimiter.knee.value = 0;
-    masterLimiter.ratio.value = 20;
-    masterLimiter.attack.value = 0.002;
-    masterLimiter.release.value = 0.1;
-    const masterGain = offlineCtx.createGain();
-    // Techo real a -1 dB (0.89): con threshold -3 el limitador deja picos
-    // cerca de 0 dBFS; este -1 dB final evita el recorte al codificar el WAV.
-    masterGain.gain.value = 0.89;
-    masterLimiter.connect(masterGain);
-    masterGain.connect(offlineCtx.destination);
-
-    // Maquillaje ANTES del compresor: levanta las notas suaves hasta el rango
-    // de trabajo del compresor (que luego controla los picos). Objetivo 0.09
-    // con tope x8 (antes 0.11/x12): en dúo la voz ya viene normalizada por
-    // combineDuoVoiceBlobs y el doble boost dejaba los mics muy altos y la
-    // pista enterrada (el limitador compartido además aplastaba la pista).
-    const voiceSingRms = singingRmsOfBuffer(voiceBuffer);
-    const voiceMakeup = (voiceSingRms > 0.0008 && voiceSingRms < 0.09)
-      ? Math.min(8, 0.09 / voiceSingRms)
-      : 1;
-    if (voiceMakeup > 1) console.log(`🎤 Maquillaje de voz en mezcla: rms=${voiceSingRms.toFixed(4)} x${voiceMakeup.toFixed(1)}`);
-
-    // Pista presente: ganancia adaptativa según el RMS real de pista y voz.
-    // Antes era fija 0.38 y con pistas flojas la voz (normalizada a 0.09)
-    // la enterraba; ahora se apunta a pista ≈ voz −2.5 dB (factor 0.75),
-    // con límites 0.3–1.2 para no destrozar pistas muy altas o muy bajas.
-    const VOICE_LEVEL = 0.55;
-    const trackSingRms = singingRmsOfBuffer(trackBuffer);
-    const voiceFinalEst = Math.min(0.09, Math.max(voiceSingRms, 0.0008) * voiceMakeup) * VOICE_LEVEL;
-    let trackGainValue = 0.6;
-    if (trackSingRms > 0.0008) {
-      trackGainValue = (voiceFinalEst * 0.75) / trackSingRms;
-      trackGainValue = Math.max(0.3, Math.min(1.2, trackGainValue));
-    }
-    console.log(`🎧 Balance pista/voz: pista rms=${trackSingRms.toFixed(4)} voz rms=${voiceSingRms.toFixed(4)} makeup x${voiceMakeup.toFixed(1)} → pista x${trackGainValue.toFixed(2)} voz x${VOICE_LEVEL.toFixed(2)}`);
-    const trackGain = offlineCtx.createGain();
-    trackGain.gain.value = trackGainValue;
-    const trackSource = offlineCtx.createBufferSource();
-    trackSource.buffer = trackBuffer;
-    trackSource.connect(trackCompressor);
-    trackCompressor.connect(trackGain);
-    trackGain.connect(masterLimiter);
-
-    // Balance de la voz: compresor dinámico para equilibrar el volumen de la voz
-    // (reduce picos y sube el nivel promedio), sin depender del volumen del archivo.
-    const voiceCompressor = offlineCtx.createDynamicsCompressor();
-    voiceCompressor.threshold.value = -18;
-    voiceCompressor.knee.value = 10;
-    voiceCompressor.ratio.value = 4;
-    voiceCompressor.attack.value = 0.003;
-    voiceCompressor.release.value = 0.25;
-
-    const makeupGain = offlineCtx.createGain();
-    makeupGain.gain.value = voiceMakeup;
-
-    const voiceLevel = offlineCtx.createGain();
-    // Voz al frente pero sin enterrar la pista (0.55 en vez de 0.65).
-    voiceLevel.gain.value = VOICE_LEVEL;
-    const voiceSource = offlineCtx.createBufferSource();
-    voiceSource.buffer = voiceBuffer;
-    // Limpieza automática de la voz: paso-alto 90 Hz (retumbos/graves) +
-    // vocal-gate (expansor por RMS: cierra en silencios y respiraciones),
-    // todo antes del compresor. Si el worklet no carga, se mezcla sin gate.
-    const voiceHighpass = offlineCtx.createBiquadFilter();
-    voiceHighpass.type = "highpass";
-    voiceHighpass.frequency.value = 90;
-    let voiceGate = null;
-    try {
-      await loadVocalGateProcessor(offlineCtx);
-      voiceGate = createVocalGateNode(offlineCtx, renderChannels);
-    } catch (gateErr) {
-      console.warn("Vocal gate no disponible, se mezcla sin gate:", gateErr);
-    }
-    voiceSource.connect(makeupGain);
-    makeupGain.connect(voiceHighpass);
-    if (voiceGate) {
-      voiceHighpass.connect(voiceGate);
-      voiceGate.connect(voiceCompressor);
-    } else {
-      voiceHighpass.connect(voiceCompressor);
-    }
-    voiceCompressor.connect(voiceLevel);
-    voiceLevel.connect(masterLimiter);
-
-    trackSource.start(0);
-    voiceSource.start(0);
-
-    const renderedBuffer = await offlineCtx.startRendering();
-    // Diagnóstico: pico real de la mezcla (si roza 1.0 el limitador trabajó).
-    try {
-      let peak = 0;
-      for (let c = 0; c < renderedBuffer.numberOfChannels; c++) {
-        const d = renderedBuffer.getChannelData(c);
-        for (let i = 0; i < d.length; i += 7) {
-          const a = d[i] >= 0 ? d[i] : -d[i];
-          if (a > peak) peak = a;
-        }
+      // 2. ✅ COMPROBACIÓN CRÍTICA: Si el archivo ya está sincronizado por Taps, 
+      // preparamos el botón rosa de exportación al monitor de canto
+      let botonCantarHTML = "";
+        if (item.isSincronizada || item.type === "karaoke" || filter === "karaoke") {
+          botonCantarHTML = `
+          <button class="send-to-monitor-btn" data-id="${item.id}">Cantar</button>
+        `;
       }
-      console.log(`🎧 Mezcla renderizada: pico ${peak.toFixed(3)} (limitador a -3 dB).`);
-    } catch (e) {}
-    const finalWavBlob = await getAudioController().encodeWavToBlob(renderedBuffer);
-    if (karaokeMixUrl) {
-      try { URL.revokeObjectURL(karaokeMixUrl); } catch (e) {}
-    }
-    karaokeMixUrl = URL.createObjectURL(finalWavBlob);
-    const finalUrl = karaokeMixUrl;
 
-    // Nombre seguro para el atributo download: comillas y caracteres raros
-    // romperían el HTML e inyectarían atributos (el nombre viene de la BD).
-    const safeMixName = String(karaokeSelectedTrackName || "Karaoke").replace(/["<>:;|?*\\/[\]]/g, "_").slice(0, 80);
-    if (resultDiv) {
-      resultDiv.innerHTML = `
-        <h4 style="color: #22c55e;">✅ ¡Mezcla completada!</h4>
-        <audio controls src="${finalUrl}" style="width: 100%; margin-bottom: 15px; border-radius: 8px;"></audio>
-        <div style="display: flex; gap: 10px;">
-          <a href="${finalUrl}" download="Mezcla_${safeMixName}.wav" style="flex: 1;">
-            <button type="button" style="width: 100%; background: #22c55e; color: black;">💾 Descargar Archivo</button>
-          </a>
-          <button id="saveMixToLibBtn" type="button" style="flex: 1; background: #3b82f6; color: white;">📁 Guardar en Biblioteca</button>
+      // 3. Inyectamos la estructura combinando los botones
+      div.innerHTML = `
+        <div class="item-info">
+          <span class="item-icon">${iconoVisual}</span>
+          <span class="item-name">${escapeHTML(item.name)}</span>
+        </div>
+        <div class="item-actions">
+          ${botonCantarHTML}
+          <button class="delete-library-btn" data-id="${item.id}"</button>
         </div>
       `;
 
-      const saveBtn = $("saveMixToLibBtn");
-      if (saveBtn) {
-        saveBtn.onclick = async () => {
-          saveBtn.textContent = "Guardando...";
-          saveBtn.disabled = true;
-          await saveToLibrary(finalWavBlob, {
-            name: `Mezcla - ${karaokeSelectedTrackName || "Canción"}`,
-            type: "grabacion"
+      // 4. ✅ CAPTURAR EL CLIC DEL BOTÓN ROSA DE EXPORTACIÓN
+      if (item.isSincronizada || item.type === "karaoke" || filter === "karaoke") {
+        const btnCantar = div.querySelector(".send-to-monitor-btn");
+        if (btnCantar) {
+          btnCantar.addEventListener("click", async (e) => {
+            e.stopPropagation(); // Evita interferencias con otros clics de la tarjeta
+            console.log(`[Biblioteca] Exportando al Monitor Karaoke: ${item.name}`);
+        
+            try {
+              // LLAMAMOS AL PROCESO DE REDIRECCIÓN AUTOMÁTICA
+              await enviarAlMonitorKaraoke(item);
+            } catch (err) {
+              console.error("Error al exportar:", err);
+            }
           });
-          saveBtn.textContent = "✅ ¡Guardado en Biblioteca!";
+        }
+      }
+
+      container.appendChild(div);
+    });
+
+    // Volver a enlazar los eventos de eliminación a los nuevos botones creados
+    asignarEventosBiblioteca(filter);
+    
+  } catch (err) {
+    console.error("Error al renderizar biblioteca:", err);
+    if (turno !== libraryRenderSeq) return;
+    container.innerHTML = "Error al cargar los elementos de la biblioteca.";
+  }
+}
+
+export function asignarEventosBiblioteca(filter) {
+  document.querySelectorAll(".delete-library-btn").forEach((btn) => {
+    btn.removeEventListener("click", btn._handler);
+    btn._handler = async () => {
+      if (confirm("¿Estás seguro de eliminar este archivo?")) {
+        const id = btn.dataset.id;
+        await deleteLibraryItem(id, filter);
+      }
+    };
+    btn.addEventListener("click", btn._handler);
+  });
+}
+
+export async function deleteLibraryItem(id, currentFilter = 'todos') {
+  try {
+    await deleteLibraryItemsFromSupabase(id);
+    await renderLibrary(currentFilter);
+    console.log(`Archivo ${id} eliminado correctamente.`);
+  } catch (error) {
+    console.error("Error al eliminar:", error);
+    alert("No se pudo eliminar el archivo. Inténtalo de nuevo.");
+  }
+}
+
+export async function saveManualFileToLibrary() {
+  const fileInput = $("libraryFileInput");
+  const typeSelect = $("libraryFileType");
+  const nameInput = $("libraryFileName");
+  const files = fileInput?.files;
+  const rawType = typeSelect?.value || "pista";
+  // Unificar: el tipo legacy "audio" se guarda como "pista" para que el filtro lo encuentre.
+  const type = rawType === "audio" ? "pista" : rawType;
+
+  if (!files || files.length === 0) {
+    alert(type === "texto" || type === "texto_plano" || type === "ultrastar_txt" ? "Selecciona un .txt" : "Selecciona al menos un archivo");
+    return;
+  }
+
+  // ✅ CORRECCIÓN 1: Homologar los tipos de texto para que coincidan con la validación
+  const validation = validateFilesForUpload(files, type);
+  if (!validation.valid) {
+    alert("⚠️" + validation.error);
+    return;
+  }
+
+  // Pre-cargar estudio.js para exponer segmentarTextoPlano en window (sin dependencia circular)
+  try {
+    if (typeof window.segmentarTextoPlano !== "function") {
+      await import("./estudio.js");
+    }
+  } catch (e) {
+    console.warn("No se pudo pre-cargar estudio.js:", e);
+  }
+
+  if (!window.CloudflareStorage?.getCloudflareConfig) {
+    showStatus("Cloudflare R2 no está configurado. Define VITE_CLOUDFLARE_R2_BASE_URL en .env y reinicia el servidor.", "error");
+    return;
+  }
+
+  const r2Config = window.CloudflareStorage.getCloudflareConfig();
+  if (!r2Config) {
+    showStatus("Cloudflare R2 no configurado. Verifica VITE_CLOUDFLARE_R2_BASE_URL en .env y reinicia el servidor (npm run dev).", "error");
+    return;
+  }
+
+  const uploadProgressContainer = $("uploadProgressContainer");
+  const uploadFilesList = $("uploadFilesList");
+  const saveBtn = $("saveLibraryFileBtn");
+  const clearBtn = $("clearUploadBtn");
+
+  if (uploadProgressContainer) uploadProgressContainer.style.display = "block";
+  const textoBotonOriginal = saveBtn ? saveBtn.textContent : "";
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.textContent = "⏳ Subiendo... no cierres la página";
+  }
+  if (clearBtn) clearBtn.style.display = "inline-block";
+  showStatus("⏳ Enviando archivos a la nube, puede tardar con archivos grandes...", "info");
+
+  // Cronómetro visible: demuestra que sigue trabajando aunque la red vaya lenta.
+  const inicioSubida = Date.now();
+  const temporizador = setInterval(() => {
+    const s = Math.round((Date.now() - inicioSubida) / 1000);
+    const text = document.getElementById("uploadProgressText");
+    if (text && text.dataset.subiendo === "1") {
+      text.textContent = `${text.dataset.base || "Subiendo..."} (${s}s)`;
+    }
+  }, 1000);
+
+  try {
+    let uploadedCount = 0;
+    const totalFiles = files.length;
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const tamMB = (file.size / 1024 / 1024).toFixed(1);
+      const base = `⏳ Subiendo ${i + 1}/${totalFiles}: ${file.name} (${tamMB} MB)`;
+      // ✅ CORRECCIÓN 2: Pasar el índice 'i' para evitar conflictos de ID duplicados
+      updateUploadProgress(uploadedCount, totalFiles, base);
+      const text = document.getElementById("uploadProgressText");
+      if (text) {
+        text.dataset.subiendo = "1";
+        text.dataset.base = base;
+      }
+      setBarraIndeterminada(true);
+      addFileToUploadList(uploadFilesList, file.name, "pending", i);
+      updateFileStatus(file.name, "uploading", "", i);
+
+      try {
+        const isTextType = ["texto", "texto_plano", "letra", "ultrastar_txt"].includes(type);
+        let saveResult = null;
+        if (isTextType) {
+          const text = await file.text();
+          console.log(`Guardando archivo de texto: ${file.name}`);
+          saveResult = await window.CloudflareStorage.saveLibraryItemToCloudflare({
+            name: file.name,
+            type,
+            blob: file,
+            textoPlano: text,
+            transcription: [],
+            metadata: {}
+          });
+        } else {
+          console.log(`Subiendo audio: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+          saveResult = await window.CloudflareStorage.saveLibraryItemToCloudflare({
+            name: file.name,
+            type,
+            blob: file,
+            transcription: [],
+            metadata: {}
+          });
+        }
+
+        updateFileStatus(file.name, "success", "", i);
+        uploadedCount++;
+        setBarraIndeterminada(false);
+        const textOk = document.getElementById("uploadProgressText");
+        if (textOk) textOk.dataset.subiendo = "0";
+        updateUploadProgress(uploadedCount, totalFiles, `✅ ${uploadedCount}/${totalFiles} enviados`);
+
+        // 🔄 AUTO-CARGA EN ESTUDIO: refrescar y cargar el ítem recién guardado
+        try {
+          const estudio = await import("./estudio.js");
+          if (typeof estudio.autoLoadSelectedInEstudio === "function") {
+            await estudio.autoLoadSelectedInEstudio(type, saveResult?.id);
+          }
+        } catch (autoErr) {
+          console.warn("No se pudo auto-cargar en Estudio:", autoErr);
+        }
+
+        await new Promise(r => setTimeout(r, 200));
+      } catch (err) {
+        console.error(`Error subiendo ${file.name}:`, err);
+        updateFileStatus(file.name, "error", err.message, i);
+        setBarraIndeterminada(false);
+        const textErr = document.getElementById("uploadProgressText");
+        if (textErr) textErr.dataset.subiendo = "0";
+        updateUploadProgress(uploadedCount, totalFiles, `⚠️ Falló ${file.name}, sigo con el siguiente...`);
+      }
+    }
+
+    setBarraIndeterminada(false);
+    const textFin = document.getElementById("uploadProgressText");
+    if (textFin) textFin.dataset.subiendo = "0";
+    updateUploadProgress(uploadedCount, totalFiles, "✅ Completado");
+    await renderLibrary("todos");
+
+    if (uploadedCount > 0) {
+      showStatus(`✅ ${uploadedCount}/${totalFiles} archivo(s) guardado(s) correctamente`, "success");
+    }
+    if (uploadedCount < totalFiles) {
+      showStatus(`⚠️ ${totalFiles - uploadedCount} archivo(s) fallaron`, "warning");
+    }
+  } catch (error) {
+    console.error("Error general:", error);
+    showStatus("❌ Error: " + error.message, "error");
+  } finally {
+    clearInterval(temporizador);
+    setBarraIndeterminada(false);
+    const textReset = document.getElementById("uploadProgressText");
+    if (textReset) textReset.dataset.subiendo = "0";
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.textContent = textoBotonOriginal || "Guardar en la nube";
+    }
+    if (clearBtn) clearBtn.style.display = "none";
+    if (fileInput) fileInput.value = "";
+    if (nameInput) nameInput.value = "";
+    setTimeout(() => {
+      if (uploadProgressContainer) uploadProgressContainer.style.display = "none";
+      if (uploadFilesList) uploadFilesList.innerHTML = "";
+    }, 4000);
+  }
+}
+  
+function validateFilesForUpload(files, type) {
+  const isTextType = ["texto", "texto_plano", "letra", "ultrastar_txt"].includes(type);
+  const audioTypes = ["audio/mpeg", "audio/wav", "audio/ogg", "audio/webm", "audio/mp4", "audio/m4a", "audio/mp3", "audio/x-wav"];
+  const textTypes = ["text/plain"];
+  // Tope alineado con el Worker (cloudflare-worker.js rechaza con 413 a
+  // partir de 100 MB): validar aquí para no hacer esperar la subida.
+  const maxSize = 100 * 1024 * 1024; // 100 MB
+
+  for (const file of files) {
+    // 1. Validar tamaño máximo
+    if (file.size > maxSize) {
+      return {
+        valid: false,
+        error: `${file.name}: excede 100 MB (límite de subida)`
+      };
+    }
+
+    // 2. Validar archivos de texto
+    if (isTextType) {
+      const isValidText = textTypes.includes(file.type) || file.name.toLowerCase().endsWith(".txt");
+      if (!isValidText) {
+        return {
+          valid: false,
+          error: `${file.name}: debe ser .txt`
         };
       }
     }
 
-  } catch (err) {
-    console.error("Error al mezclar:", err);
-    if (resultDiv) {
-      resultDiv.innerHTML = "<p style='color: #ef4444;'>❌ Hubo un error al mezclar los audios.</p>";
+    // 3. Validar archivos de audio
+    if (!isTextType) {
+      const hasValidMime = audioTypes.includes(file.type);
+      const hasValidExtension = file.name.match(/\.(mp3|wav|ogg|webm|m4a|mp4)$/i);
+
+      if (!hasValidMime && !hasValidExtension) {
+        return {
+          valid: false,
+          error: `${file.name}: formato de audio no soportado`
+        };
+      }
     }
-  } finally {
-    // El contexto de mezcla se cierra siempre, también en error: antes quedaba
-    // corriendo en segundo plano por cada mezcla fallida. (OfflineAudioContext
-    // no tiene close(): guarda por si vuelve a ser un contexto realtime.)
-    if (audioCtx && typeof audioCtx.close === "function") {
-      try { await audioCtx.close(); } catch (e) {}
+  }
+
+  return { valid: true };
+}
+
+
+// ============================================
+// DRAG & DROP HANDLERS PARA UPLOAD DE BIBLIOTECA
+// ============================================ 
+
+function handleFileSelection(e) {
+  const files = e.target.files;
+  if (!files || files.length === 0) return;
+
+  const uploadOptions = $("uploadOptions");
+  const typeSelect = $("libraryFileType");
+  const uploadProgressContainer = $("uploadProgressContainer");
+  const uploadFilesList = $("uploadFilesList");
+  const clearBtn = $("clearUploadBtn");
+  const chosenText = $("libraryFileChosenText");
+
+  if (chosenText) {
+    chosenText.textContent = files.length === 1
+      ? files[0].name
+      : `${files.length} archivos seleccionados`;
+  }
+
+  if (uploadOptions) {
+    uploadOptions.style.display = "block";
+  }
+
+  if (typeSelect && !typeSelect.value) {
+    typeSelect.value = "pista";
+  }
+
+  if (uploadProgressContainer) uploadProgressContainer.style.display = "block";
+  if (clearBtn) clearBtn.style.display = "inline-block";
+
+  if (uploadFilesList) {
+    uploadFilesList.innerHTML = "";
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const div = document.createElement("div");
+      div.className = "upload-file-item";
+      div.id = `file-${i}-${file.name.replace(/[^a-zA-Z0-9]/g, "-")}`;
+      div.innerHTML = `
+        <span class="file-name"> ${escapeHTML(file.name)} (${(file.size / 1024 / 1024).toFixed(2)} MB)</span>
+        <span class="file-status status-pending"> Listo para subir</span>
+      `;
+      uploadFilesList.appendChild(div);
     }
-    if (btn) {
-      btn.textContent = "🎧 Mezclar Pista + Voz";
-      btn.disabled = false;
+  }
+
+  const bar = document.getElementById("uploadProgressBar");
+  const text = document.getElementById("uploadProgressText");
+  if (bar) bar.style.width = "0%";
+  if (text) text.textContent = `0/${files.length} archivos seleccionados`;
+}
+
+// ============================================
+// 📊 COMPONENTES DE SEGUIMIENTO DE PROGRESO
+// ============================================ 
+
+export function addFileToUploadList(container, fileName, status, index = 0) {
+  // Nota: Esta función ya no duplica elementos porque handleFileSelection limpia el contenedor al inicio
+  if (!container) return;
+  
+  // Si por alguna razón el elemento no existe en la vista previa previa, lo añade de respaldo
+  const existingEl = document.getElementById(`file-${index}-${fileName.replace(/[^a-zA-Z0-9]/g, "-")}`);
+  if (!existingEl) {
+    const div = document.createElement("div");
+    div.className = "upload-file-item";
+    div.id = `file-${index}-${fileName.replace(/[^a-zA-Z0-9]/g, "-")}`;
+    div.innerHTML = `
+      <span class="file-name">${escapeHTML(fileName)}</span>
+      <span class="file-status status-${status}">Pendiente</span>
+    `;
+    container.appendChild(div);
+  }
+}
+
+export function updateFileStatus(fileName, status, errorMsg = "", index = 0) {
+  const el = document.getElementById(`file-${index}-${fileName.replace(/[^a-zA-Z0-9]/g, "-")}`);
+  if (el) {
+    const statusEl = el.querySelector(".file-status");
+    if (statusEl) {
+      statusEl.className = "file-status status-" + status;
+      if (status === "success") statusEl.textContent = "✅ Listo";
+      else if (status === "error") statusEl.textContent = "⚠️" + errorMsg;
+      else if (status === "uploading") statusEl.textContent = "⏳ Subiendo...";
+      else statusEl.textContent = "Pendiente";
     }
   }
 }
 
-function limpiarVariablesMonitor() {
-  textSegments = [];
-  pitchHistory = [];
-  pitchHistoryP1 = [];
-  pitchHistoryP2 = [];
-  karaokePitchP1 = -1;
-  karaokePitchP2 = -1;
-  karaokeLoadedLyrics = [];
+// Marca la barra como indeterminada (animada) mientras fetch sube sin % por byte.
+export function setBarraIndeterminada(activa) {
+  const bar = document.getElementById("uploadProgressBar");
+  if (bar) bar.classList.toggle("indeterminada", !!activa);
 }
 
-window.syncKaraokeMonitor = syncKaraokeMonitor;
+export function updateUploadProgress(uploaded, total, message) {
+  const bar = document.getElementById("uploadProgressBar");
+  const text = document.getElementById("uploadProgressText");
+  if (bar && text) {
+    const percent = total > 0 ? Math.round((uploaded / total) * 100) : 0;
+    bar.style.width = percent + "%";
+    text.textContent = message || (`${uploaded}/${total}`);
+  }
+}
 
-/**
- * Renderiza los segmentos de letras en el monitor del karaoke.
- *
- * Se expone como window.renderKaraokeLyrics porque estudio.js, al ser un módulo
- * dinámico cargado con import(), no puede re-importar este archivo sin crear
- * un ciclo de imports (script.js → showTab → import estudio.js → renderKaraokeLyrics
- * necesita el monitor ya inicializado).
- *
- * Acepta tanto el formato normalizado de karaoke (con .words[]) como el formato
- * plano de segmento de letras (cada item con .text/.start/.end).
- *
- * @param {Array} segments
- */
-export function renderKaraokeLyrics(segments) {
-  if (!Array.isArray(segments)) {
-    console.warn("renderKaraokeLyrics: se esperaba un array de segmentos.");
-    return;
+export function showStatus(message, type) {
+  const el = document.getElementById("uploadStatus");
+  if (el) {
+    el.textContent = message;
+    el.className = "upload-status " + type;
+    el.style.display = "block";
   }
 
-  // Reutilizar el normalizador central para aceptar ambos formatos.
-  const track = $("karaokeTrack") || $("karaokeAudio") || $("audioKaraoke") || $("trackPlayer");
-  textSegments = ensureTextLineTimings(normalizeKaraokeSegments(segments), track?.duration);
-
-  cargarLetrasEnMonitor();
-
-  // Repintar el canvas en t=0 con pitch neutro. Si el karaoke ya está abierto,
-  // usamos el currentTime del reproductor para que el monitor se sincronice
-  // visualmente con la posición actual.
-  const t = track ? (track.currentTime || 0) : 0;
-  drawKaraokeMonitor(t, -1, -1);
-
-  console.log(`📝 [Karaoke] ${textSegments.length} segmentos renderizados en el monitor.`);
+  // ✅ Auto-ocultar la confirmación de éxito tras unos segundos
+  clearTimeout(window.__uploadStatusTimer);
+  if (type === "success") {
+    window.__uploadStatusTimer = setTimeout(() => {
+      if (el) {
+        el.textContent = "";
+        el.className = "upload-status";
+        el.style.display = "none";
+      }
+    }, 4000);
+  }
 }
-window.renderKaraokeLyrics = renderKaraokeLyrics;
 
-/**
- * Alias compatible con el flujo de Estudio: mientras la canción suena en el
- * reproductor `studioPlayer`, se llama repetidamente desde script.js para
- * iluminar la línea/palabra activa en el monitor de letras del karaoke.
- *
- * @param {number} currentTime - tiempo de reproducción en segundos
- */
-export function updateKaraokeHighlight(currentTime) {
-  // `syncKaraokeMonitor` ya hace el trabajo de marcar la línea y palabras
-  // activas; simplemente lo delegamos. Mantenemos la firma para que el
-  // event-listener de `studioPlayer` en script.js funcione sin cambios.
-  if (typeof currentTime !== "number" || !isFinite(currentTime)) return;
-  syncKaraokeMonitor(currentTime);
-}
-window.updateKaraokeHighlight = updateKaraokeHighlight;
+export async function enviarAlMonitorKaraoke(karaokeItem) {
+  if (!karaokeItem) return;
 
-// El escenario elegido en Config se aplica en vivo: actualiza la clase del
-// teleprompter y repinta el canvas (que lee la paleta por frame).
-window.addEventListener("karaokeThemeChanged", () => {
   try {
-    const temas = ["theme-clasico", "theme-moderno", "theme-disco", "theme-acustico", "theme-fiesta", "theme-retrowave"];
-    const tema = localStorage.getItem("karaokeTrain_stage") || "theme-clasico";
-    const live = document.getElementById("karaokeLiveLyrics");
-    if (live) {
-      temas.forEach((t) => live.classList.remove(t));
-      live.classList.add(tema);
+    if (!karaokeItem.file_url) {
+      const { toast: toastFn } = await import("./utils.js");
+      if (typeof toastFn === "function") toastFn("Este karaoke no tiene audio.", "warn");
+      else alert("Este karaoke no tiene audio.");
+      return;
     }
-    const track = $("karaokeTrack") || $("karaokeAudio") || $("audioKaraoke") || $("trackPlayer");
-    drawKaraokeMonitor(track ? track.currentTime || 0 : 0, karaokePitchP1, karaokePitchP2);
-  } catch (e) {}
-});
+    // Flujo central de carga (no réplica manual): resuelve letra, tiempos
+    // (re-timing en loadedmetadata), selector y dataset en un solo lugar.
+    const { loadKaraokeSong } = await import("./karaoke.js?v=18");
+    await loadKaraokeSong(karaokeItem.id);
+    // Marcar como ya cargado: entrar al tab recargaría el mismo tema por red.
+    const track = document.getElementById("karaokeTrack");
+    if (track) track.dataset.loadedId = String(karaokeItem.id);
+    const select = document.getElementById("karaokeTrackSelect");
+    if (select) select.value = String(karaokeItem.id);
 
-window.addEventListener("avatarChanged", () => {
-  avatarCache.P1 = null;
-  avatarCache.P2 = null;
-  avatarImageCache.P1 = null;
-  avatarImageCache.P2 = null;
+    // window.showTab evita importar ../script.js pelado (duplicaría el
+    // módulo y sus listeners de DOMContentLoaded).
+    if (typeof window.showTab === "function") window.showTab("karaoke");
+  } catch (error) {
+    console.error("Error al transferir datos al monitor:", error);
+  }
+}
+export function clearUploadSelection() {
+  const fileInput = document.getElementById("libraryFileInput");
+  const nameInput = document.getElementById("libraryFileName");
+  const uploadProgressContainer = document.getElementById("uploadProgressContainer");
+  const uploadFilesList = document.getElementById("uploadFilesList");
+  const saveBtn = document.getElementById("saveLibraryFileBtn");
+  const clearBtn = document.getElementById("clearUploadBtn");
+  const uploadProgressBar = document.getElementById("uploadProgressBar");
+  const uploadProgressText = document.getElementById("uploadProgressText");
+  const statusEl = document.getElementById("uploadStatus");
+  const uploadOptions = document.getElementById("uploadOptions");
+  const typeSelect = document.getElementById("libraryFileType");
+  const chosenText = document.getElementById("libraryFileChosenText");
 
-  const track = $("karaokeTrack") || $("karaokeAudio") || $("audioKaraoke") || $("trackPlayer");
-  const currentTime = track ? track.currentTime : 0;
-  drawKaraokeMonitor(currentTime, karaokePitchP1, karaokePitchP2);
-});
+  if (fileInput) fileInput.value = "";
+  if (nameInput) nameInput.value = "";
+  if (uploadProgressContainer) uploadProgressContainer.style.display = "none";
+  if (uploadFilesList) uploadFilesList.innerHTML = "";
+  if (saveBtn) saveBtn.disabled = false;
+  if (clearBtn) clearBtn.style.display = "none";
+  if (uploadProgressBar) uploadProgressBar.style.width = "0%";
+  if (uploadProgressText) uploadProgressText.textContent = "";
+  if (uploadOptions) uploadOptions.style.display = "none";
+  if (typeSelect) typeSelect.value = "pista";
+  if (chosenText) chosenText.textContent = "Ningún archivo seleccionado";
+
+  if (statusEl) {
+    statusEl.style.display = "none";
+    statusEl.className = "upload-status";
+    statusEl.textContent = "";
+  }
+
+  console.log("🧼 Interfaz de carga reiniciada de forma segura.");
+}
