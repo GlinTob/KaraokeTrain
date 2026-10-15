@@ -2087,7 +2087,10 @@ export async function mixKaraoke() {
     voiceSource.buffer = voiceBuffer;
     // Limpieza automática de la voz: paso-alto 90 Hz (retumbos/graves) +
     // vocal-gate (expansor por RMS: cierra en silencios y respiraciones),
-    // todo antes del compresor. Si el worklet no carga, se mezcla sin gate.
+    // todo antes del compresor. El gate va ANTES del maquillaje y ve la voz
+    // cruda: si el maquillaje (hasta x8) entrara primero, levantaría también
+    // el ambiente del cuarto por encima del umbral de cierre y el gate ya no
+    // lo distinguiría. Si el worklet no carga, se mezcla sin gate.
     const voiceHighpass = offlineCtx.createBiquadFilter();
     voiceHighpass.type = "highpass";
     voiceHighpass.frequency.value = 90;
@@ -2098,14 +2101,14 @@ export async function mixKaraoke() {
     } catch (gateErr) {
       console.warn("Vocal gate no disponible, se mezcla sin gate:", gateErr);
     }
-    voiceSource.connect(makeupGain);
-    makeupGain.connect(voiceHighpass);
+    voiceSource.connect(voiceHighpass);
     if (voiceGate) {
       voiceHighpass.connect(voiceGate);
-      voiceGate.connect(voiceCompressor);
+      voiceGate.connect(makeupGain);
     } else {
-      voiceHighpass.connect(voiceCompressor);
+      voiceHighpass.connect(makeupGain);
     }
+    makeupGain.connect(voiceCompressor);
     voiceCompressor.connect(voiceLevel);
     voiceLevel.connect(masterLimiter);
 
