@@ -649,28 +649,32 @@ async function combineDuoVoiceBlobs(blob1, blob2) {
     const rms1 = singingRmsOfBuffer(buf1);
     const rms2 = singingRmsOfBuffer(buf2);
     // Piso de silencio realista: los mics loguearon RMS ~0.001 cantando flojo.
+    // Objetivo 0.055 (no 0.07): al sumar DOS voces la energía total sube
+    // (+3~6 dB si cantan lo mismo con sangrado); con 0.055 el dúo combinado
+    // queda al mismo nivel total que un solo, y la mezcla final no deja la
+    // pista enterrada bajo las voces.
     const SILENCE_FLOOR = 0.0008;
-    const VOICE_TARGET = 0.07;
+    const VOICE_TARGET = 0.055;
     let g1 = 1, g2 = 1;
     const audible1 = rms1 > SILENCE_FLOOR;
     const audible2 = rms2 > SILENCE_FLOOR;
     if (audible1 && audible2) {
       // Igualar el mic bajito al fuerte (hasta +18 dB) y luego llevar el
-      // conjunto al nivel objetivo (hasta +23 dB extra).
+      // conjunto al nivel objetivo (hasta +21 dB extra).
       if (rms1 >= rms2) g2 = Math.min(8, rms1 / rms2);
       else g1 = Math.min(8, rms2 / rms1);
-      const master = Math.min(20, VOICE_TARGET / Math.max(rms1 * g1, rms2 * g2));
+      const master = Math.min(12, VOICE_TARGET / Math.max(rms1 * g1, rms2 * g2));
       g1 *= master;
       g2 *= master;
     } else if (audible1 || audible2) {
       const loud = Math.max(rms1, rms2);
-      const master = Math.min(20, VOICE_TARGET / loud);
+      const master = Math.min(12, VOICE_TARGET / loud);
       g1 *= master;
       g2 *= master;
     } else {
       console.warn("🎤🎤 Ambas voces bajo el piso de silencio: acerca los mics y sube el volumen de entrada en Windows.");
     }
-    const HEADROOM = 0.9;
+    const HEADROOM = 0.8;
     // Duración (no muestras): las fuentes se remuestrean solas al rate del
     // contexto, pero el largo debe calcularse en segundos (USB 48k vs 44.1k).
     const sampleRate = buf1.sampleRate;
@@ -2026,13 +2030,38 @@ export async function mixKaraoke() {
     masterLimiter.attack.value = 0.002;
     masterLimiter.release.value = 0.1;
     const masterGain = offlineCtx.createGain();
-    masterGain.gain.value = 1.0;
+    // Techo real a -1 dB (0.89): con threshold -3 el limitador deja picos
+    // cerca de 0 dBFS; este -1 dB final evita el recorte al codificar el WAV.
+    masterGain.gain.value = 0.89;
     masterLimiter.connect(masterGain);
     masterGain.connect(offlineCtx.destination);
 
+    // Maquillaje ANTES del compresor: levanta las notas suaves hasta el rango
+    // de trabajo del compresor (que luego controla los picos). Objetivo 0.09
+    // con tope x8 (antes 0.11/x12): en dúo la voz ya viene normalizada por
+    // combineDuoVoiceBlobs y el doble boost dejaba los mics muy altos y la
+    // pista enterrada (el limitador compartido además aplastaba la pista).
+    const voiceSingRms = singingRmsOfBuffer(voiceBuffer);
+    const voiceMakeup = (voiceSingRms > 0.0008 && voiceSingRms < 0.09)
+      ? Math.min(8, 0.09 / voiceSingRms)
+      : 1;
+    if (voiceMakeup > 1) console.log(`🎤 Maquillaje de voz en mezcla: rms=${voiceSingRms.toFixed(4)} x${voiceMakeup.toFixed(1)}`);
+
+    // Pista presente: ganancia adaptativa según el RMS real de pista y voz.
+    // Antes era fija 0.38 y con pistas flojas la voz (normalizada a 0.09)
+    // la enterraba; ahora se apunta a pista ≈ voz −2.5 dB (factor 0.75),
+    // con límites 0.3–1.2 para no destrozar pistas muy altas o muy bajas.
+    const VOICE_LEVEL = 0.55;
+    const trackSingRms = singingRmsOfBuffer(trackBuffer);
+    const voiceFinalEst = Math.min(0.09, Math.max(voiceSingRms, 0.0008) * voiceMakeup) * VOICE_LEVEL;
+    let trackGainValue = 0.6;
+    if (trackSingRms > 0.0008) {
+      trackGainValue = (voiceFinalEst * 0.75) / trackSingRms;
+      trackGainValue = Math.max(0.3, Math.min(1.2, trackGainValue));
+    }
+    console.log(`🎧 Balance pista/voz: pista rms=${trackSingRms.toFixed(4)} voz rms=${voiceSingRms.toFixed(4)} makeup x${voiceMakeup.toFixed(1)} → pista x${trackGainValue.toFixed(2)} voz x${VOICE_LEVEL.toFixed(2)}`);
     const trackGain = offlineCtx.createGain();
-    // Voz al frente (~65/38): la pista acompaña sin tapar las notas suaves.
-    trackGain.gain.value = 0.38;
+    trackGain.gain.value = trackGainValue;
     const trackSource = offlineCtx.createBufferSource();
     trackSource.buffer = trackBuffer;
     trackSource.connect(trackCompressor);
@@ -2048,20 +2077,12 @@ export async function mixKaraoke() {
     voiceCompressor.attack.value = 0.003;
     voiceCompressor.release.value = 0.25;
 
-    // Maquillaje ANTES del compresor: levanta las notas suaves hasta el rango
-    // de trabajo del compresor (que luego controla los picos). Así lo suave
-    // no se tapa con la pista y lo fuerte no clipea.
-    const voiceSingRms = singingRmsOfBuffer(voiceBuffer);
-    const voiceMakeup = (voiceSingRms > 0.0008 && voiceSingRms < 0.11)
-      ? Math.min(12, 0.11 / voiceSingRms)
-      : 1;
-    if (voiceMakeup > 1) console.log(`🎤 Maquillaje de voz en mezcla: rms=${voiceSingRms.toFixed(4)} x${voiceMakeup.toFixed(1)}`);
     const makeupGain = offlineCtx.createGain();
     makeupGain.gain.value = voiceMakeup;
 
     const voiceLevel = offlineCtx.createGain();
-    // Voz al frente de la mezcla.
-    voiceLevel.gain.value = 0.65;
+    // Voz al frente pero sin enterrar la pista (0.55 en vez de 0.65).
+    voiceLevel.gain.value = VOICE_LEVEL;
     const voiceSource = offlineCtx.createBufferSource();
     voiceSource.buffer = voiceBuffer;
     // Limpieza automática de la voz: paso-alto 90 Hz (retumbos/graves) +
