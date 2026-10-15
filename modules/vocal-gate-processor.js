@@ -19,15 +19,15 @@
 // El paso-alto de gravedad/retumbos se hace con un BiquadFilterNode en el
 // grafo principal (karaoke.js), este processor NO hace filtrado espectral.
 
-const UMBRAL_APERTURA_DB = -24;   // por encima: voz abierta (ganancia 1) - subido para evitar corte en notas suaves
-const UMBRAL_CIERRE_DB = -50;     // por debajo: gate cerrado (ganancia piso) - bajado para ser más sensible
-const PISO_DB = -38;              // ganancia mínima cuando está cerrado - subido un poco
-const RATIO = 2.0;                // expansor más suave 2:1 en la transición
+const UMBRAL_APERTURA_DB = -26;   // por encima: voz abierta (ganancia 1) - la voz con maquillaje llega a ~-21 dB, abre sin problema
+const UMBRAL_CIERRE_DB = -42;     // por debajo: gate cerrado (ganancia piso) - subido desde -50: con mics al 50% el ambiente de cuarto (~-50 dB) quedaba en la zona de transición y se oía
+const PISO_DB = -55;              // ganancia mínima cuando está cerrado - bajado desde -38: antes el "cerrado" dejaba pasar ambiente audible
+const RATIO = 3.0;                // expansor 3:1 en la transición (antes 2:1, muy suave para ambiente)
 
 const ATTACK_S = 0.05;            // env sigue subidas un poco más lento (ataque de la voz)
-const RELEASE_S = 0.8;            // env cae más lento: mantiene la voz abierta entre sílabas cortas (evita "entrecorte")
+const RELEASE_S = 0.4;            // env cae más rápido: antes 0.8 s mantenía el gate abierto entre frases y colaba ambiente
 const G_ATTACK_S = 0.005;         // suavizado de ganancia al abrir
-const G_RELEASE_S = 0.35;         // suavizado de ganancia al cerrar
+const G_RELEASE_S = 0.18;         // suavizado de ganancia al cerrar (antes 0.35: cola de ruido audible)
 
 const PISO_LIN = Math.pow(10, PISO_DB / 20);
 
