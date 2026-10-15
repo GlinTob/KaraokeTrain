@@ -682,22 +682,45 @@ async function combineDuoVoiceBlobs(blob1, blob2) {
       Math.max(buf1.length / buf1.sampleRate, buf2.length / buf2.sampleRate) * sampleRate
     );
     const offline = new OfflineAudioContext(1, length, sampleRate);
+    // Limpieza POR MIC antes de sumar: con los dos mics en el mismo cuarto
+    // cada uno capta al otro cantante con retardo; al sumarlos en mono ese
+    // sangrado produce filtro peine y el mic más flojo suena "encerrado".
+    // El gate por mic cierra el que no está cantando y el sangrado no se suma.
+    // Si el worklet no carga en offline, se suma sin gate (como antes).
+    let duoGate1 = null, duoGate2 = null;
+    try {
+      await loadVocalGateProcessor(offline);
+      duoGate1 = createVocalGateNode(offline, 1);
+      duoGate2 = createVocalGateNode(offline, 1);
+    } catch (gateErr) {
+      console.warn("Gate por mic no disponible, se combinan sin gate:", gateErr?.message || gateErr);
+    }
     const src1 = offline.createBufferSource();
     src1.buffer = buf1;
+    const hp1 = offline.createBiquadFilter();
+    hp1.type = "highpass";
+    hp1.frequency.value = 100;
     const gain1 = offline.createGain();
     gain1.gain.value = g1 * HEADROOM;
-    src1.connect(gain1);
+    src1.connect(hp1);
+    if (duoGate1) { hp1.connect(duoGate1); duoGate1.connect(gain1); }
+    else hp1.connect(gain1);
     gain1.connect(offline.destination);
     const src2 = offline.createBufferSource();
     src2.buffer = buf2;
+    const hp2 = offline.createBiquadFilter();
+    hp2.type = "highpass";
+    hp2.frequency.value = 100;
     const gain2 = offline.createGain();
     gain2.gain.value = g2 * HEADROOM;
-    src2.connect(gain2);
+    src2.connect(hp2);
+    if (duoGate2) { hp2.connect(duoGate2); duoGate2.connect(gain2); }
+    else hp2.connect(gain2);
     gain2.connect(offline.destination);
     src1.start(0);
     src2.start(0);
     const rendered = await offline.startRendering();
-    console.log(`🎤🎤 Dúo balanceado: rms1=${rms1.toFixed(4)} g1=${g1.toFixed(2)}, rms2=${rms2.toFixed(4)} g2=${g2.toFixed(2)}`);
+    console.log(`🎤🎤 Dúo balanceado: rms1=${rms1.toFixed(4)} g1=${g1.toFixed(2)}, rms2=${rms2.toFixed(4)} g2=${g2.toFixed(2)} (gate por mic: ${duoGate1 && duoGate2 ? "sí" : "no"})`);
     return await getAudioController().encodeWavToBlob(rendered);
   } finally {
     if (typeof decodeCtx.close === "function") {
