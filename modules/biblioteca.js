@@ -102,6 +102,12 @@ export function initBiblioteca() {
 
 export async function initSupabase() {
   if (typeof window.supabaseApp !== "undefined" || typeof window.getSupabaseClient === "function") {
+    // FIX #5: el arranque de la app YA no espera al retry de Supabase, así que
+    // una acción del usuario puede llegar antes de que el CDN (defer) cargue.
+    // Esperamos hasta 4 s antes de reventar con el error de "CDN no cargado".
+    for (let i = 0; i < 40 && typeof window.supabase === "undefined"; i++) {
+      await new Promise((r) => setTimeout(r, 100));
+    }
     db = window.getSupabaseClient ? window.getSupabaseClient() : window.supabaseApp;
     console.log("Base de datos Supabase conectada en Biblioteca");
     return db;
@@ -229,6 +235,13 @@ export async function getLibraryItemsByIdFromSupabase(id) {
 
 export async function saveLibraryItemToSupabase({ name, type, blob, transcription = [], metadata = {} }) {
   if (!db) await initSupabase(); 
+  // FIX #25: guard explícito — si el script de Cloudflare Storage no cargó
+  // (bloqueador, CDN caído), window.CloudflareStorage es undefined y el
+  // TypeError llegaba crudo al usuario. Aquí lo interceptamos con mensaje claro.
+  if (typeof window === 'undefined' || !window.CloudflareStorage) {
+    console.error("CloudflareStorage no está disponible (script no cargado o bloqueado).");
+    return { ok: false, error: "El servicio de almacenamiento en la nube (Cloudflare R2) no está disponible. Recarga la página o revisa la conexión." };
+  }
 
   const mimeType = blob.type || "application/octet-stream";
   
@@ -291,10 +304,13 @@ export async function saveLibraryItemToSupabase({ name, type, blob, transcriptio
   }
 }
 
+// FIX #10: contrato explícito { ok, item, error }. Antes retornaba undefined
+// en fallo y el llamador (mezcla karaoke) mostraba "✅ Guardado" igual, con el
+// botón clavado en deshabilitado.
 export async function saveToLibrary(blob, options = {}) {
   if (!blob) {
     console.error("No hay audio para guardar");
-    return;
+    return { ok: false, error: "No hay audio para guardar" };
   } 
 
   try {
@@ -310,11 +326,12 @@ export async function saveToLibrary(blob, options = {}) {
 
     const filtroActual = options.type || 'todos';
     await renderLibrary(filtroActual);
-    return result;
+    return { ok: true, item: result };
 
   } catch (error) {
     console.error("Error detallado:", error);
     alert("No se pudo guardar en la nube: " + error.message);
+    return { ok: false, error };
   }
 } 
 
@@ -411,7 +428,7 @@ export async function renderLibrary(filter = "todos") {
         </div>
         <div class="item-actions">
           ${botonCantarHTML}
-          <button class="delete-library-btn" data-id="${item.id}"</button>
+          <button class="delete-library-btn" data-id="${item.id}" title="Eliminar">🗑</button>
         </div>
       `;
 
@@ -501,13 +518,13 @@ export async function saveManualFileToLibrary() {
   }
 
   if (!window.CloudflareStorage?.getCloudflareConfig) {
-    showStatus("Cloudflare R2 no está configurado. Define VITE_CLOUDFLARE_R2_BASE_URL en .env y reinicia el servidor.", "error");
+    showStatus("Cloudflare R2 no está disponible. El script de almacenamiento no cargó; recarga la página o revisa la conexión.", "error");
     return;
   }
 
   const r2Config = window.CloudflareStorage.getCloudflareConfig();
   if (!r2Config) {
-    showStatus("Cloudflare R2 no configurado. Verifica VITE_CLOUDFLARE_R2_BASE_URL en .env y reinicia el servidor (npm run dev).", "error");
+    showStatus("Cloudflare R2 no está configurado en el servidor. Contacta al administrador.", "error");
     return;
   }
 
