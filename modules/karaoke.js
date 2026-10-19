@@ -24,6 +24,14 @@ let karaokeStream = null;
 let karaokeStream2 = null;
 let karaokeChunks = [];
 let karaokeRecordedBlob = null;
+// FIX #24: promesas diferidas para que "Mezclar" espere el blob en vez de
+// hacer polling con setTimeout. Se resuelven en el onstop del recorder.
+let karaokeBlobReadyResolve = null;
+let karaokeBlobReadyPromise = null;
+function resetBlobReadyPromise() {
+  karaokeBlobReadyPromise = new Promise((resolve) => { karaokeBlobReadyResolve = resolve; });
+}
+resetBlobReadyPromise();
 let karaokeMediaRecorder = null;
 // Dúo: segundo micrófono con recorder propio (agnóstico al hardware:
 // USB, 3.5mm o mixto; cada mic conserva su reloj y su encoding).
@@ -46,12 +54,30 @@ let karaokeSplitAnalyser2 = null;
 let karaokePitchLoopRafId = null;
 let karaokeLoopBusy = false;
 let karaokeRecordingActive = false;
+// FIX #9: cada inicio/parada incrementa karaokeLoopSession; cualquier cadena
+// de rAF de otra sesión muere en su siguiente frame. Sin esto, un segundo clic
+// en "Iniciar" dejaba DOS cadenas de loop en paralelo (doble detectPitch por
+// frame → voz entrecortada otra vez).
+let karaokeLoopSession = 0;
+// FIX #14: token del inicio de grabación. destroyKaraoke() lo invalida para
+// que un start en vuelo (await de play/resume/getUserMedia) no abra el micrófono
+// y quede grabando con la pestaña oculta.
+let karaokeStartSession = 0;
 let loopTick = 0;
 let karaokeSelectedTrackBlob = null;
 let karaokeSelectedTrackName = "";
 let karaokeLoadedItem = null;
 let avatarCache = { P1: null, P2: null }; 
 let avatarImageCache = { P1: null, P2: null };
+// FIX #22: cachear el tema del escenario para no leer localStorage en cada
+// frame de drawKaraokeMonitor (rAF + localStorage = jank). Se actualiza con
+// el evento "karaokeThemeChanged" y en el arranque.
+let karaokeStageThemeCache = "theme-clasico";
+(function initStageThemeCache() {
+  try {
+    karaokeStageThemeCache = localStorage.getItem("karaokeTrain_stage") || "theme-clasico";
+  } catch (e) {}
+})();
 
 window.karaokeMediaRecorder = null;
 
@@ -79,7 +105,10 @@ export function toggleKaraokeDuoSplitMode() {
 }
 
 function obtenerPaleta(hue = 0) {
-  const temaActual = localStorage.getItem("karaokeTrain_stage") || "theme-clasico";
+  // FIX #22: cachear el tema en memoria en vez de leer localStorage en CADA
+  // frame (el canvas se repinta con rAF y localStorage es síncrono/lento).
+  // Se invalida con el evento "karaokeThemeChanged" (disparado desde config.js).
+  const temaActual = karaokeStageThemeCache;
   let config = { fondo: "#111827", lineas: "#333333", etiquetas: "#666666", barraFutura: "#1e40af", bordeFuturo: "#3b82f6", tamanoTexto: "15px" };
 
   switch (temaActual) {
@@ -847,13 +876,39 @@ function logStreamInfo(tag, stream) {
   }
 }
 
+function setKaraokeStartEnabled(habilitado) {
+  const b = $("karaokeStartBtn");
+  if (b) b.disabled = !habilitado;
+}
+
+function abortKaraokeStartError() {
+  const e = new Error("Inicio de grabación abortado (cambiaste de pestaña).");
+  e.karaokeAbort = true;
+  return e;
+}
+
 export async function startKaraokeRecording() {
+  // FIX: declarado FUERA del try para que el catch pueda usarlo sin
+  // ReferenceError (rompía la limpieza cuando getUserMedia fallaba).
+  let track = null;
   try {
-    const track = $("karaokeTrack") || $("karaokeAudio") || $("audioKaraoke") || $("trackPlayer");
+    track = $("karaokeTrack") || $("karaokeAudio") || $("audioKaraoke") || $("trackPlayer");
     if (!track || !track.src) {
       toast("Primero selecciona un karaoke desde la Biblioteca.", "warn");
       return;
     }
+
+    // FIX #9/#14: sesión de inicio + muerte de la cadena rAF anterior.
+    ++karaokeStartSession;
+    const sesionInicio = karaokeStartSession;
+    karaokeLoopSession++;
+    if (karaokePitchLoopRafId) {
+      cancelAnimationFrame(karaokePitchLoopRafId);
+      karaokePitchLoopRafId = null;
+    }
+    // FIX #9: mientras arranca/graba, "Iniciar" queda deshabilitado (evita el
+    // doble clic que descartaba la toma en curso y duplicaba el bucle).
+    setKaraokeStartEnabled(false);
 
     if (karaokeMediaRecorder && karaokeMediaRecorder.state !== "inactive") {
       // FIX #18: este recorder queda descartado (nueva sesión). Al no ser ya
@@ -870,6 +925,7 @@ export async function startKaraokeRecording() {
     karaokeChunks2 = [];
     karaokeRecordedBlob = null;
     karaokeRecordedBlob2 = null;
+    resetBlobReadyPromise();
     duoPitchTurn = 0;
     karaokeDuoP2Active = false;
     karaokeDuoCombined = false;
@@ -905,11 +961,13 @@ export async function startKaraokeRecording() {
       trackPlaybackFailed = true;
       console.warn("No se pudo reproducir la pista:", e);
     }
+    if (sesionInicio !== karaokeStartSession) throw abortKaraokeStartError();
 
     karaokePitchDetectionAudioCtx = new AudioContextCtor();
     if (karaokePitchDetectionAudioCtx.state === "suspended") {
       await karaokePitchDetectionAudioCtx.resume();
     }
+    if (sesionInicio !== karaokeStartSession) throw abortKaraokeStartError();
 
     const mic1 = getSelectedMicId(1);
     const mic2 = karaokeDuoSplitMode ? getSelectedMicId(2) : null;
@@ -925,16 +983,19 @@ export async function startKaraokeRecording() {
       if (statusEl) statusEl.textContent = "⚠️ Elige dos micrófonos distintos en Config (Mic 1 ≠ Mic 2) para el dúo.";
       alert("⚠️ Para el dúo elige dos micrófonos distintos en Config (Mic 1 ≠ Mic 2).");
       karaokeRecordingActive = false;
+      setKaraokeStartEnabled(true);
       return;
     }
 
     karaokeStream = await requestMicStream(mic1);
     logStreamInfo("Mic 1 abierto", karaokeStream);
+    if (sesionInicio !== karaokeStartSession) throw abortKaraokeStartError();
 
     if (karaokeDuoSplitMode) {
       try {
         karaokeStream2 = await requestMicStream(mic2);
         logStreamInfo("Mic 2 abierto", karaokeStream2);
+        if (sesionInicio !== karaokeStartSession) throw abortKaraokeStartError();
         // El fallback sin deviceId (jack 3.5 compartido) puede devolver EL
         // MISMO mic dos veces: P1 y P2 grabarían la misma voz duplicada.
         {
@@ -953,10 +1014,13 @@ export async function startKaraokeRecording() {
             if (statusEl) statusEl.textContent = "⚠️ Ambos mics abrieron el mismo dispositivo. Usa dos micrófonos distintos en Config.";
             alert("⚠️ Mic 1 y Mic 2 abrieron el MISMO dispositivo (" + label1 + "). Para el dúo necesitas dos micrófonos distintos.");
             karaokeRecordingActive = false;
+            setKaraokeStartEnabled(true);
             return;
           }
         }
       } catch (err2) {
+        // Aborto por cambio de pestaña: no es un fallo del micrófono.
+        if (err2 && err2.karaokeAbort) throw err2;
         console.error("No se pudo abrir el segundo micrófono:", err2);
         if (karaokeStream) { karaokeStream.getTracks().forEach(t => t.stop()); karaokeStream = null; }
         if (track) { try { track.pause(); } catch (e) {} }
@@ -966,6 +1030,7 @@ export async function startKaraokeRecording() {
         if (statusEl) statusEl.textContent = "❌ No se pudo abrir el micrófono 2. Revisa Config y los permisos.";
         alert("❌ No se pudo abrir el micrófono 2. Revisa en Config que esté conectado y permitido.");
         karaokeRecordingActive = false;
+        setKaraokeStartEnabled(true);
         return;
       }
     }
@@ -1065,6 +1130,7 @@ const pitchInputGain2 = karaokePitchDetectionAudioCtx.createGain();
         if (sessionChunks.length) {
           karaokeRecordedBlob = new Blob(sessionChunks, { type: recorder.mimeType || "audio/webm" });
           console.log("🎤 Voz P1 finalizada:", sessionChunks.length, "chunks,", karaokeRecordedBlob.size, "bytes, mime:", recorder.mimeType || "audio/webm");
+          if (karaokeBlobReadyResolve) { karaokeBlobReadyResolve(); karaokeBlobReadyResolve = null; }
           if (!karaokeDuoSplitMode) {
             publishVoicePreview(karaokeRecordedBlob);
             releaseKaraokeCaptureStreams();
@@ -1158,11 +1224,14 @@ const pitchInputGain2 = karaokePitchDetectionAudioCtx.createGain();
 
     karaokeLoopBusy = false;
     karaokeRecordingActive = true;
-    loop();
+    // FIX #9: programar (no llamar en frío) para que la cadena respete el
+    // token de sesión y un frame viejo en vuelo no duplique el loop.
+    programarLoop(karaokeLoopSession);
   } catch (err) {
-    console.error("Error al iniciar karaoke:", err);
+    const esAborto = !!(err && err.karaokeAbort);
+    if (!esAborto) console.error("Error al iniciar karaoke:", err);
     const statusEl = $("karaokeStatus");
-    if (statusEl) {
+    if (!esAborto && statusEl) {
       statusEl.textContent = "❌ Error al iniciar: " + (err?.message || err);
     }
     if (karaokeStream) { karaokeStream.getTracks().forEach(t => t.stop()); karaokeStream = null; }
@@ -1177,6 +1246,13 @@ const pitchInputGain2 = karaokePitchDetectionAudioCtx.createGain();
     karaokePitchDetectionAnalyser = null;
     karaokeSplitAnalyser2 = null;
     karaokeRecordingActive = false;
+    setKaraokeStartEnabled(true);
+    if (esAborto) {
+      // FIX #14: salir del tab a mitad del inicio NO es error de permisos:
+      // limpieza en silencio (sin alert disparado desde otra pestaña).
+      console.log("🧹 Inicio de grabación abortado: se salió de la pestaña Karaoke.");
+      return;
+    }
     alert("❌ No se pudo iniciar la grabación. Revisa que el micrófono esté permitido.");
   }
 }
@@ -1191,7 +1267,23 @@ export async function startKaraokePitchDetection() {
   loop();
 }
 
-async function loop() {
+// FIX #9: única puerta de encolado del bucle. El callback valida el token de
+// sesión (las cadenas viejas mueren sin cancelAnimationFrame) y, si el frame
+// anterior aún está en vuelo (await de detectPitch), reprograma en vez de
+// soltar la cadena.
+function programarLoop(sesion) {
+  karaokePitchLoopRafId = requestAnimationFrame(() => {
+    if (sesion !== karaokeLoopSession) return;
+    if (karaokeLoopBusy) {
+      programarLoop(sesion);
+      return;
+    }
+    loop(sesion);
+  });
+}
+
+async function loop(sesion = karaokeLoopSession) {
+  if (sesion !== karaokeLoopSession) return;
   if (karaokeLoopBusy) return;
   karaokeLoopBusy = true;
 
@@ -1280,9 +1372,7 @@ async function loop() {
       return;
     }
 
-    karaokePitchLoopRafId = requestAnimationFrame(() => {
-      loop();
-    });
+    programarLoop(sesion);
   } finally {
     karaokeLoopBusy = false;
   }
@@ -1311,6 +1401,10 @@ export function stopKaraokeRecording() {
     toast("No hay grabación en curso.", "info");
     return;
   }
+  // FIX #9: invalidar la sesión del bucle ANTES de cancelar: aunque el id
+  // guardado apunte a un frame ya disparado (o a otra cadena), cualquier
+  // callback pendiente muere en su próxima ejecución.
+  karaokeLoopSession++;
   if (karaokePitchLoopRafId) {
     cancelAnimationFrame(karaokePitchLoopRafId);
     karaokePitchLoopRafId = null;
@@ -1422,6 +1516,10 @@ function clearMixResult() {
 }
 
 export function destroyKaraoke() {
+  // FIX #14: invalidar cualquier start en vuelo (await de play/resume/mic):
+  // si no, el inicio seguía adelante y quedaba grabando con la pestaña oculta
+  // (LED de mic encendido sin UI para apagarlo).
+  karaokeStartSession++;
   const track = $("karaokeTrack") || $("karaokeAudio") || $("audioKaraoke") || $("trackPlayer");
   const recA = karaokeMediaRecorder && karaokeMediaRecorder.state !== "inactive";
   const recB = karaokeMediaRecorder2 && karaokeMediaRecorder2.state !== "inactive";
@@ -1458,36 +1556,92 @@ export async function restartKaraokeRecording() {
   await startKaraokeRecording();
 }
 
+let syncKaraokeLastLineIdx = -1;
+let syncKaraokeLastWordEl = null;
+let syncKaraokeLastLineEl = null;
+
 export function syncKaraokeMonitor(currentTime) {
   const lines = document.querySelectorAll(".karaoke-live-line");
   if (!lines.length) return;
+
+  // FIX #23: rastrear solo la línea activa y la palabra activa; los cambios
+  // de clase solo se aplican cuando el nodo activo CAMBIA respecto al frame
+  // anterior. Sin esto, cada timeupdate (~4 Hz) recorría todas las líneas y
+  // palabras aplicando remove/add aunque no hubiera cambio, forzando
+  // recálculos de estilo innecesarios.
+  let activeLineEl = null;
+  let activeWordEl = null;
 
   lines.forEach(line => {
     const start = parseFloat(line.dataset.start);
     const end = parseFloat(line.dataset.end) + 1.5;
 
-    line.classList.remove("active", "past");
-
     if (currentTime >= start && currentTime <= end) {
-      line.classList.add("active");
+      activeLineEl = line;
     } else if (currentTime > end) {
-      line.classList.add("past");
+      // línea pasada — solo tocar si cambió su estado
+      if (!line.classList.contains("past")) {
+        line.classList.add("past");
+      }
+      if (line.classList.contains("active")) line.classList.remove("active");
+    } else {
+      // línea futura
+      if (line.classList.contains("active")) line.classList.remove("active");
+      if (line.classList.contains("past")) line.classList.remove("past");
     }
 
+    // Las palabras se procesan SIEMPRE (también en la línea activa)
     const words = line.querySelectorAll(".karaoke-live-word");
     words.forEach(word => {
       const wordStart = parseFloat(word.dataset.start);
       const wordEnd = parseFloat(word.dataset.end);
 
-      word.classList.remove("active-word", "past-word");
-
       if (currentTime >= wordStart && currentTime <= wordEnd) {
-        word.classList.add("active-word");
+        activeWordEl = word;
       } else if (currentTime > wordEnd) {
-        word.classList.add("past-word");
+        if (!word.classList.contains("past-word")) word.classList.add("past-word");
+        if (word.classList.contains("active-word")) word.classList.remove("active-word");
+      } else {
+        if (word.classList.contains("active-word")) word.classList.remove("active-word");
+        if (word.classList.contains("past-word")) word.classList.remove("past-word");
       }
     });
   });
+
+  // Aplicar clase "active" en la línea activa solo si cambió respecto al frame anterior
+  if (activeLineEl && syncKaraokeLastLineEl !== activeLineEl) {
+    if (syncKaraokeLastLineEl) {
+      syncKaraokeLastLineEl.classList.remove("active", "past");
+    }
+    activeLineEl.classList.remove("past");
+    activeLineEl.classList.add("active");
+    syncKaraokeLastLineEl = activeLineEl;
+  }
+  if (!activeLineEl && syncKaraokeLastLineEl) {
+    syncKaraokeLastLineEl.classList.remove("active");
+    syncKaraokeLastLineEl = null;
+  }
+
+  // Palabra activa similar
+  if (activeWordEl && syncKaraokeLastWordEl !== activeWordEl) {
+    if (syncKaraokeLastWordEl) syncKaraokeLastWordEl.classList.remove("active-word");
+    activeWordEl.classList.add("active-word");
+    syncKaraokeLastWordEl = activeWordEl;
+  }
+  if (!activeWordEl && syncKaraokeLastWordEl) {
+    syncKaraokeLastWordEl.classList.remove("active-word");
+    syncKaraokeLastWordEl = null;
+  }
+
+  // Índice de la línea activa para la próxima comparación (optimización)
+  if (activeLineEl) {
+    let idx = 0;
+    for (const l of lines) { if (l === activeLineEl) break; idx++; }
+    syncKaraokeLastLineIdx = idx;
+  } else {
+    syncKaraokeLastLineIdx = -1;
+  }
+
   // Sin auto-scroll: el teleprompter solo ilumina la línea/palabra activa,
   // sin mover la vista (el scroll automático arrastraba toda la página).
 }
@@ -1837,7 +1991,9 @@ export async function loadKaraokeSong(id) {
     karaokeLoadedItem = item;
     karaokeSelectedTrackBlob = urlAudioCloud;
     karaokeSelectedTrackName = item.name || "Karaoke";
-    window.currentTapSyncModeType = item.tapModeStyle || "linea";
+    // FIX #11: aquí ANTES se escribía window.currentTapSyncModeType y eso
+    // corruptía una sesión de taps abierta en Estudio (finishTapSync usaba el
+    // modo equivocado). El modo vive ahora en una variable local de estudio.js.
 
     const track = $("karaokeTrack") || $("karaokeAudio") || $("audioKaraoke") || $("trackPlayer");
     if (track) {
@@ -1925,16 +2081,19 @@ export async function loadTrackOptionsInKaraoke() {
 }
 
 export async function mixKaraoke() {
-  // FIX #19: si por lo que sea la pista se detuvo sin pasar por el onstop
+  // FIX #19/#24: si por lo que sea la pista se detuvo sin pasar por el onstop
   // (recorder aún en "recording"), finalizamos la grabación aquí y esperamos
-  // el blob. Así "Mezclar" funciona aunque el usuario haya "detenido la pista"
-  // de cualquier forma.
+  // el blob VÍA PROMESA (sin polling). Así "Mezclar" funciona aunque el
+  // usuario haya "detenido la pista" de cualquier forma.
   if (!karaokeRecordedBlob && karaokeMediaRecorder && karaokeMediaRecorder.state !== "inactive") {
     console.log("🎤 Mezclar detectó recorder activo; finalizando grabación...");
     stopKaraokeRecording();
-    for (let i = 0; i < 10 && !karaokeRecordedBlob; i++) {
-      await new Promise(r => setTimeout(r, 150));
-    }
+    // FIX #24: en vez de un loop de setTimeout, esperamos la promesa que se
+    // resuelve en el onstop del recorder (con timeout de seguridad).
+    await Promise.race([
+      karaokeBlobReadyPromise,
+      new Promise(r => setTimeout(r, 2000)) // máximo 2 s por si el onstop no llega
+    ]);
   }
 
   // Dúo: esperar a que P1+P2 se combinen antes de mezclar. Sin esta espera,
@@ -2178,11 +2337,20 @@ export async function mixKaraoke() {
         saveBtn.onclick = async () => {
           saveBtn.textContent = "Guardando...";
           saveBtn.disabled = true;
-          await saveToLibrary(finalWavBlob, {
+          // FIX #10: verificar el resultado. Antes se mostraba "✅ Guardado"
+          // aunque saveToLibrary hubiera fallado, y el botón quedaba para
+          // siempre deshabilitado sin posibilidad de reintentar.
+          const r = await saveToLibrary(finalWavBlob, {
             name: `Mezcla - ${karaokeSelectedTrackName || "Canción"}`,
             type: "grabacion"
           });
-          saveBtn.textContent = "✅ ¡Guardado en Biblioteca!";
+          if (r && r.ok) {
+            saveBtn.textContent = "✅ ¡Guardado en Biblioteca!";
+            // Éxito: queda deshabilitado a propósito (evita duplicados).
+            return;
+          }
+          saveBtn.textContent = "❌ Error al guardar — Reintentar";
+          saveBtn.disabled = false;
         };
       }
     }
@@ -2221,10 +2389,10 @@ window.syncKaraokeMonitor = syncKaraokeMonitor;
 /**
  * Renderiza los segmentos de letras en el monitor del karaoke.
  *
- * Se expone como window.renderKaraokeLyrics porque estudio.js, al ser un módulo
- * dinámico cargado con import(), no puede re-importar este archivo sin crear
- * un ciclo de imports (script.js → showTab → import estudio.js → renderKaraokeLyrics
- * necesita el monitor ya inicializado).
+ * FIX #12: estudio.js lo importa ya de forma ESTÁTICA (./karaoke.js?v=18);
+ * el ciclo de imports que este comentario afirmaba no existe (karaoke.js no
+ * importa a estudio.js). Se conserva la exposición en window para script.js
+ * (timeupdate del reproductor del estudio).
  *
  * Acepta tanto el formato normalizado de karaoke (con .words[]) como el formato
  * plano de segmento de letras (cada item con .text/.start/.end).
@@ -2275,6 +2443,8 @@ window.addEventListener("karaokeThemeChanged", () => {
   try {
     const temas = ["theme-clasico", "theme-moderno", "theme-disco", "theme-acustico", "theme-fiesta", "theme-retrowave"];
     const tema = localStorage.getItem("karaokeTrain_stage") || "theme-clasico";
+    // FIX #22: actualizar la caché para que el siguiente frame use el tema nuevo.
+    karaokeStageThemeCache = tema;
     const live = document.getElementById("karaokeLiveLyrics");
     if (live) {
       temas.forEach((t) => live.classList.remove(t));
