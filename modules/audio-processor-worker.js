@@ -186,7 +186,12 @@ class AudioProcessor {
         cPlus += clippedBuffer[i] * clippedBuffer[i + (bestOffset + 1)];
       }
 
-      const denom = 2 * (2 * bestCorrelation - cMinus - cPlus);
+      // FIX: el denominador era 2*(2*corr - cMinus - cPlus), que es el
+      // NEGATIVO del correcto: el desplazamiento se aplicaba al revés
+      // (alejaba el lag del pico real en vez de acercarlo). Fórmula estándar
+      // del vértice de la parábola (−1, cMinus), (0, corr), (+1, cPlus):
+      // delta = (cMinus − cPlus) / (2*(cMinus − 2*corr + cPlus)).
+      const denom = 2 * (cMinus - 2 * bestCorrelation + cPlus);
         if (denom !== 0 && isFinite(denom)) {
           const delta = (cMinus - cPlus) / denom;
           finalOffset = bestOffset + delta;
