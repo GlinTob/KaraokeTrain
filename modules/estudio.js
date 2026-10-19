@@ -1,4 +1,4 @@
-import { $, safeAdd } from "./utils.js";
+import { $ } from "./utils.js";
 import {
   getLibraryItemsByTypeFromSupabase,
   getLibraryItemsByIdFromSupabase,
@@ -14,6 +14,12 @@ import { noteToFrequency, frequencyToMidi, midiToNoteName, frequencyToNoteName }
 // vuelo del afinador y otros consumidores. Si en el futuro algún módulo
 // necesita workers dedicados, refactorizar a un pool.
 import { getAudioController } from "./audio-controller.js";
+// FIX #12: import ESTÁTICO de karaoke.js (misma ruta ?v=18 que usan script.js,
+// biblioteca y cambiar-tono → sin doble instancia). Antes se llamaba a
+// window.renderKaraokeLyrics / window.cargarLetrasEnMonitor con guard
+// "typeof === function": si la pestaña Karaoke nunca se había abierto,
+// karaoke.js no existía y la letra "se cargaba" en silencio sin pintarse.
+import { renderKaraokeLyrics, cargarLetrasEnMonitor } from "./karaoke.js?v=18";
 
 /** 
  * MÓDULO ESTUDIO — Sincronizador de Letras (Tap-Sync), Segmentación de Renglones e Inyección a Supabase
@@ -25,9 +31,12 @@ let autoScrollEnabled = true;
 let studioTrackFileName = null;
 let studioTrackBlob = null;
 let studioTrackId = null;
+let trackLoadSeq = 0;
 let selectedVoiceBlob = null;
 let selectedVoiceId = null;
 let selectedTextId = null; 
+let voiceLoadSeq = 0;
+let textLoadSeq = 0;
 
 // Variables del Motor Tap-Sync en Tiempo Real
 let tapSyncMode = false;
@@ -39,6 +48,12 @@ let tapSyncParts = [];
 // Token de sesión: si el usuario cancela durante los await de arranque, el
 // resolve tardío no debe hacer play() ni re-enganchar el teclado.
 let tapSyncSession = 0;
+// FIX #11: modo de la sesión de taps SOLO en memoria de este módulo. Antes
+// vivía en tapSyncModeType, que loadKaraokeSong (karaoke.js)
+// sobrescribía al cargar una canción: finishTapSync repartía los taps con el
+// modo equivocado (línea→palabra) y guardaba un karaoke corrupto con
+// startTime: 0 en cientos de palabras, marcado como "sincronizado".
+let tapSyncModeType = "linea";
 
 
 // Checklist visible: qué falta para poder crear el karaoke. Se refresca al
@@ -57,10 +72,10 @@ export function initEstudio() {
   console.log("🎚️ [estudio.js] Inicializado con éxito");
   refreshStudioChecklist();
 
-  // Enlazar los tres clics de tus botones rosas del HTML
-  safeAdd("loadStudioTrackBtn", "click", loadSelectedTrackFromLibraryStudio);
-  safeAdd("loadSelectedVoiceBtn", "click", loadSelectedVoiceFromLibrary);
-  safeAdd("loadSelectedTextBtn", "click", loadSelectedTextFromLibrary); // Vincula tu botón de letras manuales
+  // FIX: los clics de loadStudioTrackBtn / loadSelectedVoiceBtn /
+  // loadSelectedTextBtn los registra ÚNICAMENTE script.js en DOMContentLoaded.
+  // Aquí se duplicaban (safeAdd no deduplica) y cada clic ejecutaba la carga
+  // DOS veces en paralelo: doble descarga y revokeObjectURL prematuro.
   //safeAdd("studioTrackFile", "change", cargarAudioEstudio); 
 
   // Llenar automáticamente los tres menús desplegables al abrir la pestaña
@@ -162,8 +177,14 @@ export async function loadSelectedTrackFromLibraryStudio() {
     return;
   }
 
+  // FIX #13: token de secuencia (mismo patrón que karaokeLoadSeq en
+  // karaoke.js). Sin él, doble clic o red lenta hacía que la respuesta MÁS
+  // VIEJA pisara el estado al final (gana el último fetch, no el último clic).
+  const mySeq = ++trackLoadSeq;
+
   try {
     const item = await getLibraryItemsByIdFromSupabase(selectedId);
+    if (mySeq !== trackLoadSeq) return;
     if (!item) {
       alert("⚠️ No se encontró la pista");
       return;
@@ -192,10 +213,15 @@ export async function loadSelectedTrackFromLibraryStudio() {
       console.log("📡 Descargando binario con bypass de caché:", urlConCacheBuster);
 
       const response = await fetch(urlConCacheBuster);
+      if (mySeq !== trackLoadSeq) return;
       if (!response.ok) {
         throw new Error(`No se pudo descargar la pista (HTTP ${response.status})`);
       }
-      studioTrackBlob = await response.blob();
+      const blobDescargado = await response.blob();
+      if (mySeq !== trackLoadSeq) return;
+      studioTrackBlob = blobDescargado;
+      // FIX #26: revocar SIEMPRE la URL anterior antes de crear la nueva
+      // (antes la rama Blob pisaba dataset.blobUrl sin revocar → fuga).
       if (player.dataset.blobUrl) {
         try { URL.revokeObjectURL(player.dataset.blobUrl); } catch (e) {}
       }
@@ -204,7 +230,11 @@ export async function loadSelectedTrackFromLibraryStudio() {
       player.src = player.dataset.blobUrl;
     } else if (urlOrBlob instanceof Blob) {
       studioTrackBlob = urlOrBlob;
-      player.src = URL.createObjectURL(urlOrBlob);
+      if (player.dataset.blobUrl) {
+        try { URL.revokeObjectURL(player.dataset.blobUrl); } catch (e) {}
+      }
+      player.dataset.blobUrl = URL.createObjectURL(urlOrBlob);
+      player.src = player.dataset.blobUrl;
     } else {
       throw new Error("Formato de archivo no válido");
     }
@@ -214,6 +244,8 @@ export async function loadSelectedTrackFromLibraryStudio() {
     refreshStudioChecklist();
 
   } catch (error) {
+    // Una carga vieja que falla tarde no debe borrar el estado de la nueva.
+    if (mySeq !== trackLoadSeq) return;
     console.error("Error cargando pista:", error);
     studioTrackId = null;
     studioTrackBlob = null;
@@ -274,8 +306,11 @@ export async function loadSelectedVoiceFromLibrary() {
     return;
   }
 
+  // FIX #13: token de sesión (evita que una carga vieja pise la nueva).
+  const mySeq = ++voiceLoadSeq;
   try {
     const item = await getLibraryItemsByIdFromSupabase(selectedId);
+    if (mySeq !== voiceLoadSeq) return;
     if (!item) {
       alert("⚠️ No se encontró el archivo de voz");
       return;
@@ -295,7 +330,12 @@ export async function loadSelectedVoiceFromLibrary() {
       player.src = urlConCacheBuster;
     } else if (urlOrBlob instanceof Blob) {
       selectedVoiceBlob = urlOrBlob;
-      player.src = URL.createObjectURL(urlOrBlob);
+      // FIX #26: revocar la URL de blob anterior si existía (evita fuga).
+      if (player.dataset.blobUrl) {
+        try { URL.revokeObjectURL(player.dataset.blobUrl); } catch (e) {}
+      }
+      player.dataset.blobUrl = URL.createObjectURL(urlOrBlob);
+      player.src = player.dataset.blobUrl;
     } else {
       selectedVoiceBlob = null;
       player.removeAttribute('src');
@@ -308,12 +348,11 @@ export async function loadSelectedVoiceFromLibrary() {
       lyricsText.value = item.textoPlano;
     }
 
-    if (typeof window.cargarLetrasEnMonitor === "function") {
-      window.cargarLetrasEnMonitor();
-    }
+    cargarLetrasEnMonitor();
     refreshStudioChecklist();
 
   } catch (error) {
+    if (mySeq !== voiceLoadSeq) return;
     console.error(error);
     selectedVoiceId = null;
     selectedVoiceBlob = null;
@@ -387,8 +426,11 @@ export async function loadSelectedTextFromLibrary() {
     return;
   }
 
+  // FIX #13: token de sesión (evita que una carga vieja pise la nueva).
+  const mySeq = ++textLoadSeq;
   try {
     const item = await getLibraryItemsByIdFromSupabase(selectedId);
+    if (mySeq !== textLoadSeq) return;
     if (!item) {
       alert("⚠️ No se encontró la letra en la base de datos.");
       return;
@@ -398,7 +440,7 @@ export async function loadSelectedTextFromLibrary() {
 
     if (Array.isArray(item.lyrics) && item.lyrics.length > 0) {
       textSegments = item.lyrics;
-      if (typeof window.renderKaraokeLyrics === "function") window.renderKaraokeLyrics(textSegments);
+      renderKaraokeLyrics(textSegments);
 
       let textoFormateadoParaPantalla = "";
       textSegments.forEach((word, index) => {
@@ -416,8 +458,8 @@ export async function loadSelectedTextFromLibrary() {
       // Actualizar textSegments para que el monitor refleje el texto plano.
       const flatSegments = segmentarTextoPlano(textInput.value);
       textSegments = flatSegments;
-      if (flatSegments.length > 0 && typeof window.renderKaraokeLyrics === "function") {
-        window.renderKaraokeLyrics(flatSegments);
+      if (flatSegments.length > 0) {
+        renderKaraokeLyrics(flatSegments);
       }
       status.innerHTML = `📄 <strong>Estado:</strong> Letra plana cargada en el monitor ⚡`;
     } else {
@@ -427,6 +469,7 @@ export async function loadSelectedTextFromLibrary() {
     }
     refreshStudioChecklist();
   } catch (error) {
+    if (mySeq !== textLoadSeq) return;
     console.error(error);
     selectedTextId = null;
     refreshStudioChecklist();
@@ -466,7 +509,7 @@ export async function applyCorrectedLyrics() {
     const finalSegments = segmentarTextoPlano(correctedText);
     textSegments = finalSegments;
 
-    if (typeof window.renderKaraokeLyrics === "function") window.renderKaraokeLyrics(textSegments);
+    renderKaraokeLyrics(textSegments);
 
     let textoFormateado = "";
     textSegments.forEach((word, index) => {
@@ -788,7 +831,7 @@ export async function startTapSync() {
     return;
   }
 
-  window.currentTapSyncModeType = modoSeleccionado;
+  tapSyncModeType = modoSeleccionado;
   tapSyncTimestamps = [];
   tapSyncCurrentIndex = 0;
   tapSyncParts = [];
@@ -1040,7 +1083,7 @@ function updateTapSyncDisplay() {
     currentLineEl.textContent = tapSyncLines[tapSyncCurrentIndex];
   }
   if (progressEl) {
-    const tipoUnidad = (window.currentTapSyncModeType === "palabra") ? "palabras" : "líneas";
+    const tipoUnidad = (tapSyncModeType === "palabra") ? "palabras" : "líneas";
     progressEl.textContent = `${tapSyncCurrentIndex} / ${tapSyncLines.length} ${tipoUnidad}`;
   }
 
@@ -1089,7 +1132,7 @@ export async function finishTapSync() {
 
   if (tapSyncTimestamps.length !== tapSyncLines.length) {
     const remaining = tapSyncLines.length - tapSyncTimestamps.length;
-    const tipoUnidad = (window.currentTapSyncModeType === "palabra") ? "palabras" : "líneas";
+    const tipoUnidad = (tapSyncModeType === "palabra") ? "palabras" : "líneas";
 
     if (!confirm(
       `⚠️ Sincronización incompleta: faltan ${remaining} ${tipoUnidad} por tocar.\n\n` +
@@ -1147,7 +1190,7 @@ export async function finishTapSync() {
     const item = await getLibraryItemsByIdFromSupabase(currentId);
     if (!item) throw new Error("No se pudo obtener el elemento de la biblioteca remota");
 
-    const isWordMode = (window.currentTapSyncModeType === "palabra");
+    const isWordMode = (tapSyncModeType === "palabra");
     // En modo palabra los taps van 1:1 con las palabras del editor: la base
     // SIEMPRE sale del textarea. Usar item.lyrics (ya agrupado en segmentos
     // tras un sync previo) desalineaba taps y palabras (timestamps en 0).
@@ -1274,7 +1317,7 @@ export async function finishTapSync() {
       transcription: karaokeSegments,
       isSincronizada: true,
       isReadyKaraoke: true,
-      tapModeStyle: window.currentTapSyncModeType,
+      tapModeStyle: tapSyncModeType,
       file_url: fileUrlFinal,
       file_path: filePathFinal
     });
@@ -1286,7 +1329,7 @@ export async function finishTapSync() {
     console.log("✅ Karaoke generado con pitch automático por palabra.", {
       totalWords: finalWords.length,
       totalSegments: karaokeSegments.length,
-      mode: window.currentTapSyncModeType
+      mode: tapSyncModeType
     });
 
     await renderLibrary("todos");
