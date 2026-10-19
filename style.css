@@ -279,56 +279,6 @@
   border: 0;
 }
 
-@media (max-width: 768px) {
-  .app {
-    flex-direction: column;
-  }
-  .sidebar {
-    width: 100%;
-    flex-direction: row;
-    overflow-x: auto;
-    overflow-y: hidden;
-    padding: 10px;
-    gap: 8px;
-    align-items: center;
-  }
-  .sidebar h2 {
-    margin-bottom: 0;
-    white-space: nowrap;
-  }
-  .sidebar button {
-    flex: 0 0 auto;
-    min-height: 44px;
-  }
-  .afinador-hero {
-    min-height: calc(100dvh - 40px);
-  }
-
-  .afinador-overlay {
-    padding: 16px;
-  }
-
-  .afinador-header {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .target-note-selector select,
-  .difficulty-selector select {
-    width: 100%;
-    min-width: auto;
-  }
-
-  .current-note {
-    font-size: clamp(60px, 15vw, 100px);
-  }
-
-  .btn-record {
-    width: 100%;
-    justify-content: center;
-  }
-}
-
 /* ==========================================
    RESET BÁSICO Y UTILIDADES GLOBALES
 ========================================== */
@@ -1769,4 +1719,60 @@ body[data-theme="otono"] {
 #redoTapSyncBtn:disabled {
   opacity: 0.55;
   cursor: wait;
+}
+
+/* ==========================================
+   RESPONSIVE — DEBE IR AL FINAL DEL ARCHIVO
+   (estaba antes que las reglas base de .app/.sidebar
+   con igual especificidad: las base ganaban por orden
+   y la barra horizontal del móvil nunca se aplicaba)
+========================================== */
+@media (max-width: 768px) {
+  .app {
+    flex-direction: column;
+  }
+  .sidebar {
+    width: 100%;
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 10px;
+    gap: 8px;
+    align-items: center;
+  }
+  .sidebar h2 {
+    margin-bottom: 0;
+    white-space: nowrap;
+  }
+  .sidebar button {
+    flex: 0 0 auto;
+    min-height: 44px;
+  }
+  .afinador-hero {
+    min-height: calc(100dvh - 40px);
+  }
+
+  .afinador-overlay {
+    padding: 16px;
+  }
+
+  .afinador-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .target-note-selector select,
+  .difficulty-selector select {
+    width: 100%;
+    min-width: auto;
+  }
+
+  .current-note {
+    font-size: clamp(60px, 15vw, 100px);
+  }
+
+  .btn-record {
+    width: 100%;
+    justify-content: center;
+  }
 }
