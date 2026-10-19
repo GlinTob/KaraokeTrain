@@ -1,15 +1,17 @@
 // Harness del pitch-shifter: alimenta el worklet con bloques de 128 muestras
 // (estéreo idéntico, seno 440 Hz, +1 semitono) y verifica pitch, coherencia
 // L/R y ausencia de NaN. Uso: npm test
-// Criterios: pitch ≈ f0·ratio (±4 Hz), L/R idénticos, 0 NaN.
+// FIX #43: también inyecta sampleRate global (requerido por vocal-gate) y
+// añade un test rápido de vocal-gate (noise gate por RMS).
 const fs = require('fs');
 const path = require('path');
 
-function loadProcessor(file) {
+function loadProcessor(file, extraGlobals = {}) {
   let Registered = null;
   const src = fs.readFileSync(file, 'utf8');
-  const fn = new Function('AudioWorkletProcessor', 'registerProcessor', 'console', src);
-  fn(class {}, (name, cls) => { Registered = cls; }, console);
+  // Inyectar globals requeridos (sampleRate, etc.) en el sandbox del worklet
+  const fn = new Function('AudioWorkletProcessor', 'registerProcessor', 'console', 'sampleRate', 'currentTime', src);
+  fn(class {}, (name, cls) => { Registered = cls; }, console, extraGlobals.sampleRate || 48000, extraGlobals.currentTime || 0);
   if (!Registered) throw new Error('No se registró ningún processor en ' + file);
   return Registered;
 }
@@ -24,7 +26,7 @@ function zeroCrossingPitch(buf, sr) {
 
 function main() {
   const file = path.join(__dirname, '..', 'modules', 'pitch-shifter-processor.js');
-  const Cls = loadProcessor(file);
+  const Cls = loadProcessor(file, { sampleRate: 48000 });
   const proc = new Cls();
   const SR = 48000, F0 = 440, N = 48000, B = 128;
   const ratio = Math.pow(2, 1 / 12);
@@ -62,6 +64,44 @@ function main() {
     process.exit(1);
   }
   console.log('OK: pitch-shifter sane.');
+
+  // ==========================================
+  // TEST VOCAL-GATE (FIX #43)
+  // ==========================================
+  const gateFile = path.join(__dirname, '..', 'modules', 'vocal-gate-processor.js');
+  if (fs.existsSync(gateFile)) {
+    const GateCls = loadProcessor(gateFile, { sampleRate: 48000 });
+    const gate = new GateCls();
+    const gb = 128, gn = 4800;
+    const gin = new Float32Array(gn), gout = new Float32Array(gn);
+    // Señal de prueba: ruido bajo (debe cerrar) + tono fuerte (debe abrir)
+    for (let i = 0; i < gn; i++) {
+      gin[i] = i < gn / 2 ? 0.001 * Math.random() : 0.5 * Math.sin((2 * Math.PI * 440 * i) / 48000);
+    }
+    const gparams = {};
+    for (let off = 0; off < gn; off += gb) {
+      const ib = [gin.subarray(off, off + gb)];
+      const ob = [new Float32Array(gb)];
+      gate.process([ib], [ob], gparams);
+      ob[0].forEach((v, i) => { gout[off + i] = v; });
+    }
+    let gnan = 0;
+    for (let i = 0; i < gn; i++) if (!Number.isFinite(gout[i])) gnan++;
+    const rmsRuido = Math.sqrt(gout.slice(0, gn / 2).reduce((s, v) => s + v * v, 0) / (gn / 2));
+    const rmsTono = Math.sqrt(gout.slice(gn / 2).reduce((s, v) => s + v * v, 0) / (gn / 2));
+    console.log(`vocal-gate: RMS ruido=${rmsRuido.toExponential(2)} | RMS tono=${rmsTono.toFixed(3)} | NaN=${gnan}`);
+    if (gnan > 0) {
+      console.error('FALLO vocal-gate: muestras NaN');
+      process.exit(1);
+    }
+    if (!(rmsTono > rmsRuido * 10)) {
+      console.error('FALLO vocal-gate: el tono fuerte no pasó con ganancia suficiente');
+      process.exit(1);
+    }
+    console.log('OK: vocal-gate sane.');
+  } else {
+    console.warn('AVISO: vocal-gate-processor.js no encontrado, se omite su test.');
+  }
 }
 
 main();
