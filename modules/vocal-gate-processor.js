@@ -34,17 +34,22 @@ const PISO_LIN = Math.pow(10, PISO_DB / 20);
 class VocalGateProcessor extends AudioWorkletProcessor {
   constructor() {
     super();
-    const sr = sampleRate;
-    // Coeficientes POR BLOQUE de 128 (antes por muestra pero aplicados por
-    // bloque: la envolvente quedaba ~128x más lenta de lo rotulado).
-    const B = 128;
-    const k = (t) => Math.exp(-B / (sr * t));
+    this._sr = sampleRate;
     this._envDb = -70;
     this._gain = PISO_LIN; // coherente con _envDb inicial (gate cerrado)
-    this._attackCoef = 1 - k(ATTACK_S);
-    this._releaseCoef = 1 - k(RELEASE_S);
-    this._gAttackCoef = 1 - k(G_ATTACK_S);
-    this._gReleaseCoef = 1 - k(G_RELEASE_S);
+    // FIX: la ganancia se suaviza POR MUESTRA, así que su coeficiente tiene
+    // que ser por muestra. Antes se usaba el coeficiente por bloque (B=128) y
+    // el "release de 180 ms" se completaba en ~68 muestras (≈1.4 ms): el gate
+    // cerraba de golpe entre frases (corte/bombeo audible).
+    this._gAttackCoef = 1 - Math.exp(-1 / (this._sr * G_ATTACK_S));
+    this._gReleaseCoef = 1 - Math.exp(-1 / (this._sr * G_RELEASE_S));
+  }
+
+  // Coeficiente POR BLOQUE para la envolvente de nivel (se actualiza una sola
+  // vez por process): depende del blockSize real, no de un 128 fijo.
+  _envCoef(blockSize, subiendo) {
+    const t = subiendo ? ATTACK_S : RELEASE_S;
+    return 1 - Math.exp(-blockSize / (this._sr * t));
   }
 
   process(inputs, outputs) {
@@ -85,7 +90,7 @@ class VocalGateProcessor extends AudioWorkletProcessor {
     // no es finito se conserva la envolvente previa en vez de caer a -100.
     const rmsDb = rms > 0 ? 20 * Math.log10(rms) : -100;
     if (Number.isFinite(rmsDb)) {
-      const coef = rmsDb > this._envDb ? this._attackCoef : this._releaseCoef;
+      const coef = this._envCoef(blockSize, rmsDb > this._envDb);
       this._envDb += (rmsDb - this._envDb) * coef;
     }
 
