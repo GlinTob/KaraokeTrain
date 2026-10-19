@@ -141,10 +141,17 @@ export async function loadSelectedPitchKaraoke() {
     return;
   }
 
+  // FIX #8: token de sesión. Si el usuario cambia de pestaña durante el
+  // fetch/decode, destroyCambiarTono() cierra el AudioContext y limpia el
+  // estado; sin esta validación la carga seguía, creaba un contexto nuevo que
+  // NADIE cerraba y repuebla el DOM ya destruido (con alert en otra pestaña).
+  const sesion = pitchRenderSession;
+
   try {
     if (status) status.textContent = "Estado: cargando y decodificando audio…";
 
     const item = await getLibraryItemsByIdFromSupabase(id);
+    if (sesion !== pitchRenderSession) return;
     const audioUrlCloud = item ? (item.file_url || item.audioUrl || item.audioBlob) : null;
     console.log("[CambiarTono] item:", item ? item.id : null, item ? item.name : null);
     console.log("[CambiarTono] audioUrlCloud:", audioUrlCloud);
@@ -172,13 +179,26 @@ export async function loadSelectedPitchKaraoke() {
       console.log("[CambiarTono] blob size:", cloudBlob.size, "tipo:", cloudBlob.type);
       const arrayBuffer = await cloudBlob.arrayBuffer();
 
+      // Sesión invalidada durante la descarga: abortar sin tocar el contexto
+      // (puede haber sido cerrado y puesto a null por destroy).
+      if (sesion !== pitchRenderSession) return;
+
+      // Decodificar en una variable LOCAL y publicar solo si la sesión sigue
+      // viva: así un destroy a mitad de decode no deja buffers zombi.
+      let decodificado = null;
       try {
-        pitchAudioBuffer = await pitchAudioContext.decodeAudioData(arrayBuffer.slice(0));
+        decodificado = await pitchAudioContext.decodeAudioData(arrayBuffer.slice(0));
       } catch (decodeErr) {
+        // Si destroy cerró el contexto durante el decode, el fallo es esperado
+        // (y estamos en otra pestaña): abortar en silencio, sin alert.
+        if (sesion !== pitchRenderSession) return;
         console.error("[CambiarTono] decodeAudioData falló:", decodeErr);
         throw new Error("El formato de audio no se pudo decodificar: " + decodeErr.message);
       }
+      if (sesion !== pitchRenderSession) return;
+      pitchAudioBuffer = decodificado;
     } catch (fetchErr) {
+      if (sesion !== pitchRenderSession) return;
       console.error("[CambiarTono] error descargando/decodificando:", fetchErr);
       // Limpiar el buffer viejo: si no, Play tocaría el tema anterior.
       pitchAudioBuffer = null;
@@ -209,6 +229,9 @@ export async function loadSelectedPitchKaraoke() {
                     } catch (err) {
                       console.warn("No se pudo precargar el pitch worklet:", err);
                     }
+        // FIX #8: destroy durante la precarga del worklet → no escribir más
+        // estado (pitchAudioBuffer ya es null y el status tiraría TypeError).
+        if (sesion !== pitchRenderSession) return;
 
             if (status) {
       status.textContent = `Estado: "${item.name}" cargado (${pitchAudioBuffer.duration.toFixed(1)} s, ${pitchAudioBuffer.numberOfChannels} canal${pitchAudioBuffer.numberOfChannels === 1 ? "" : "es"}). Listo para reproducir.`;
@@ -219,6 +242,7 @@ export async function loadSelectedPitchKaraoke() {
       saveName.value = item.name + " (tono modificado)";
     }
   } catch (e) {
+    if (sesion !== pitchRenderSession) return;
     console.error("Error cargando karaoke en pitch shifter:", e);
     if (status) status.textContent = "Estado: ❌ no se pudo decodificar el audio.";
     alert("❌ No se pudo decodificar el audio: " + e.message);
@@ -228,11 +252,25 @@ export async function loadSelectedPitchKaraoke() {
 // ====================================================================
 // 🔊 REPRODUCCIÓN EN TIEMPO REAL UTILIZANDO AUDIO-WORKLET
 // ====================================================================
+// FIX #28: AudioWorklet es obligatorio para este módulo (preview y render).
+// Sin este chequeo el usuario solo veía "No se pudo cargar el procesador" sin
+// entender nada; en navegadores viejos conviene decirlo claro.
+function audioWorkletNoSoportado() {
+  const Ctor = window.AudioContext || window.webkitAudioContext;
+  const soportado = typeof window.AudioWorkletNode !== "undefined"
+    && Ctor && Ctor.prototype && ("audioWorklet" in Ctor.prototype);
+  if (!soportado) {
+    alert("❌ Tu navegador no soporta AudioWorklet, necesario para Cambiar tono.\nUsa una versión reciente de Chrome, Edge o Firefox.");
+  }
+  return !soportado;
+}
+
 export async function playPitchShifted() {
   if (!pitchAudioBuffer) {
     alert("⚠️ Primero carga un archivo karaoke desde Biblioteca.");
     return;
   }
+  if (audioWorkletNoSoportado()) return;
 
   // FIX: evitar doble arranque (dos clicks rápidos durante el await de carga
   // del worklet / resume) que dejaba dos BufferSource sonando a la vez, con
@@ -240,6 +278,9 @@ export async function playPitchShifted() {
   if (pitchStartPending) return;
   if (pitchIsPlaying) return;
   pitchStartPending = true;
+
+  // FIX #17: token de sesión para no revivir un contexto destruido.
+  const sesion = pitchRenderSession;
 
   try {
     if (!pitchAudioContext || pitchAudioContext.state === "closed") {
@@ -251,10 +292,14 @@ export async function playPitchShifted() {
     try {
       await loadPitchShifterProcessor(pitchAudioContext);
     } catch (e) {
+      if (sesion !== pitchRenderSession) return;
       console.error("Worklet no cargó:", e);
       alert("❌ No se pudo cargar el procesador de audio: " + e.message);
       return;
     }
+    // destroyCambiarTono() durante la carga del worklet: el contexto ya es
+    // null/cerrado; abortar en silencio (el finally libera pitchStartPending).
+    if (sesion !== pitchRenderSession) return;
 
     try {
       pitchSourceNode = pitchAudioContext.createBufferSource();
@@ -283,6 +328,9 @@ export async function playPitchShifted() {
       if (pitchAudioContext.state === "suspended") {
         await pitchAudioContext.resume();
       }
+      // FIX #17: destroy durante el resume → no hacer start() (el contexto y
+      // los nodos ya fueron destruidos por destroyCambiarTono).
+      if (sesion !== pitchRenderSession) return;
 
       pitchSourceNode.start();
       pitchIsPlaying = true;
@@ -290,6 +338,7 @@ export async function playPitchShifted() {
       const st = $("pitchPlayStatus");
       if (st) st.textContent = "Estado: ▶️ reproduciendo con tono modificado…";
     } catch (e) {
+      if (sesion !== pitchRenderSession) return;
       console.error("Error iniciando reproducción con pitch shift:", e);
       alert("❌ Error iniciando el cambio de tono: " + e.message);
       stopPitchShifted();
@@ -461,6 +510,13 @@ export async function savePitchShiftedToLibrary() {
       if (sendBtn) sendBtn.disabled = false;
     }
 
+    // FIX #17: la subida no se puede cancelar, pero sí sus efectos en la UI.
+    // Antes el alert/refresh se ejecutaban en otra pestaña tras un destroy.
+    if (renderSession !== pitchRenderSession) {
+      console.log("🧹 Subida de tono completada tras cambiar de pestaña: no se refresca la UI.");
+      return;
+    }
+
     if (status) status.textContent = "Estado: ¡Guardado en la nube con éxito! ✅";
     alert(`🎯 "${finalName}" guardado correctamente en tu biblioteca.`);
 
@@ -503,6 +559,17 @@ export async function sendPitchShiftedToKaraokeMonitor() {
 export async function renderPitchShiftOffline(audioBuffer, semitones, onProgress) {
   if (!audioBuffer) {
     throw new Error("renderPitchShiftOffline requiere un audioBuffer válido.");
+  }
+  // FIX #28: el render offline NO tiene fallback sin worklet. Lanzar un error
+  // claro (el catch de savePitchShiftedToLibrary lo muestra) en vez de un
+  // "addModuleOnce: este AudioContext no soporta AudioWorklet" críptico.
+  {
+    const Ctor = window.AudioContext || window.webkitAudioContext;
+    const soportado = typeof window.AudioWorkletNode !== "undefined"
+      && Ctor && Ctor.prototype && ("audioWorklet" in Ctor.prototype);
+    if (!soportado) {
+      throw new Error("Tu navegador no soporta AudioWorklet, necesario para cambiar el tono.");
+    }
   }
 
   const ratio = Math.pow(2, semitones / 12);
