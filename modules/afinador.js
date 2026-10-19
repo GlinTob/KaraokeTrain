@@ -1063,6 +1063,10 @@ async function runPitchDetectionLoop(pitchBuffer) {
   }
 
   if (state.isRecording) {
-    pitchLoopTimeout = setTimeout(() => runPitchDetectionLoop(pitchBuffer), 16);
+    // FIX #35: throttle a ~30 Hz (33 ms) en vez de 60 Hz (16 ms). El afinador
+    // no necesita 60 fps: cada frame copia 8 KB (Float32Array de 2048) para
+    // transferirlo al worker. A 30 Hz se reduce a la mitad la carga de GC/CPU
+    // sin perder fluidez visual.
+    pitchLoopTimeout = setTimeout(() => runPitchDetectionLoop(pitchBuffer), 33);
   }
 }
