@@ -2,13 +2,25 @@ export function $(id) {
   return document.getElementById(id);
 }
 
+// safeAdd ahora es idempotente: registra el handler en WeakSet por elemento
+// y no lo duplica aunque se llame varias veces con el mismo par (el,event).
+const _safeAddRegistrado = new WeakMap();
+
 export function safeAdd(id, event, handler) {
   const el = $(id);
-  if (el) {
-    el.addEventListener(event, handler);
-  } else {
+  if (!el) {
     console.warn(`⚠️ No se encontró el elemento con ID: ${id} para registrar el evento [${event}]`);
+    return;
   }
+  let set = _safeAddRegistrado.get(el);
+  if (!set) {
+    set = new Set();
+    _safeAddRegistrado.set(el, set);
+  }
+  const clave = `${event}::${handler?.name || handler?.toString?.() || "anon"}`;
+  if (set.has(clave)) return;
+  set.add(clave);
+  el.addEventListener(event, handler);
 }
 
 // Toast no bloqueante (reemplazo progresivo de los alert()). Tipos: info,
