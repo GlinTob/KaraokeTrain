@@ -5,6 +5,14 @@ import { $ } from "./utils.js";
  * Gestor de Preferencias Locales, Diagnóstico de Micrófonos y Selector de Avatares Pop
  */
 
+// Helpers seguros para localStorage (modo incógnito puede lanzar SecurityError)
+function safeGetItem(key, fallback = null) {
+  try { return localStorage.getItem(key) ?? fallback; } catch (e) { return fallback; }
+}
+function safeSetItem(key, value) {
+  try { localStorage.setItem(key, value); } catch (e) {}
+}
+
 // ====================================================================
 // ESTADO INTERNO
 // ====================================================================
@@ -155,7 +163,7 @@ export function applyAppTheme(theme) {
 
 export function saveSetting(key, element) {
   if (!element) return;
-  localStorage.setItem(key, element.value);
+  safeSetItem(key, element.value);
   showSaveNotification();
 }
 
@@ -193,11 +201,11 @@ export function renderAppThemeGrid() {
 
   // Solo renderizar una vez
   if (grid.dataset.rendered === "true") {
-    syncAppThemeCard(localStorage.getItem("karaokeTrain_theme") || "oscuro");
+    syncAppThemeCard(safeGetItem("karaokeTrain_theme") || "oscuro");
     return;
   }
 
-  const current = localStorage.getItem("karaokeTrain_theme") || "oscuro";
+  const current = safeGetItem("karaokeTrain_theme") || "oscuro";
 
   grid.innerHTML = "";
   APP_THEMES.forEach((theme) => {
@@ -222,7 +230,7 @@ export function renderAppThemeGrid() {
       <span class="theme-card-check">${current === theme.id ? "✓ Activo" : ""}</span>
     `;
     card.addEventListener("click", () => {
-      localStorage.setItem("karaokeTrain_theme", theme.id);
+      safeSetItem("karaokeTrain_theme", theme.id);
       applyAppTheme(theme.id);
       showSaveNotification();
     });
@@ -237,7 +245,7 @@ export function renderKaraokeThemeGrid() {
 
   // Solo renderizar una vez
   if (grid.dataset.rendered === "true") {
-    const current = localStorage.getItem("karaokeTrain_stage") || "theme-clasico";
+    const current = safeGetItem("karaokeTrain_stage") || "theme-clasico";
     document.querySelectorAll("#karaokeThemeGrid .theme-card").forEach((card) => {
       card.classList.toggle("active", card.dataset.themeId === current);
       const check = card.querySelector(".theme-card-check");
@@ -246,7 +254,7 @@ export function renderKaraokeThemeGrid() {
     return;
   }
 
-  const current = localStorage.getItem("karaokeTrain_stage") || "theme-clasico";
+  const current = safeGetItem("karaokeTrain_stage") || "theme-clasico";
 
   grid.innerHTML = "";
   KARAOKE_STAGES.forEach((stage) => {
@@ -268,7 +276,7 @@ export function renderKaraokeThemeGrid() {
 }
 
 function selectKaraokeStage(stageId) {
-  localStorage.setItem("karaokeTrain_stage", stageId);
+  safeSetItem("karaokeTrain_stage", stageId);
 
   document.querySelectorAll("#karaokeThemeGrid .theme-card").forEach((card) => {
     card.classList.toggle("active", card.dataset.themeId === stageId);
@@ -287,7 +295,7 @@ export function inicializarEscenarioDesdeMemoria() {
     document.getElementById("karaokeLiveLyrics") ||
     document.querySelector(".karaoke-lyrics");
 
-  let temaGuardado = localStorage.getItem("karaokeTrain_stage") || "theme-clasico";
+  let temaGuardado = safeGetItem("karaokeTrain_stage") || "theme-clasico";
   if (temaGuardado === "undefined" || !temaGuardado) temaGuardado = "theme-clasico";
 
   renderKaraokeThemeGrid();
@@ -308,9 +316,9 @@ export async function initSettings() {
 
   const sensInput = $("micSensitivity");
   if (sensInput) {
-    sensInput.value = localStorage.getItem("karaokeTrain_sensitivity") || "0.015";
+    sensInput.value = safeGetItem("karaokeTrain_sensitivity") || "0.015";
     sensInput.addEventListener("input", (e) => {
-      localStorage.setItem("karaokeTrain_sensitivity", e.target.value);
+      safeSetItem("karaokeTrain_sensitivity", e.target.value);
     });
   }
 
@@ -325,12 +333,12 @@ export async function initSettings() {
     const el = $(id);
     if (!el) return;
 
-    const saved = localStorage.getItem(storageKey);
+    const saved = safeGetItem(storageKey);
     if (saved !== null) el.value = saved;
 
     el.addEventListener("change", (e) => {
       const value = e.target.value;
-      localStorage.setItem(storageKey, value);
+      safeSetItem(storageKey, value);
       showSaveNotification();
 
       if (id === "micCount") {
@@ -352,7 +360,7 @@ export async function initSettings() {
   await loadAvailableMics();
 
   renderAppThemeGrid();
-  applyAppTheme(localStorage.getItem("karaokeTrain_theme") || "oscuro");
+  applyAppTheme(safeGetItem("karaokeTrain_theme") || "oscuro");
   inicializarEscenarioDesdeMemoria();
   initializeAvatarSelector();
   toggleMic2Visibility();
@@ -439,7 +447,7 @@ function initializeAvatarUserTabs() {
   document.querySelectorAll(".avatar-user-input").forEach((input) => {
     const user = input.dataset.user || "P1";
     const keys = storageKeysForUser(user);
-    input.value = localStorage.getItem(keys.name) || defaultNames[user];
+    input.value = safeGetItem(keys.name) || defaultNames[user];
 
     if (input.dataset.bound) return;
     input.dataset.bound = "true";
@@ -448,7 +456,7 @@ function initializeAvatarUserTabs() {
     input.addEventListener("keydown", (e) => e.stopPropagation());
 
     input.addEventListener("input", () => {
-      localStorage.setItem(keys.name, input.value);
+      safeSetItem(keys.name, input.value);
       notifyAvatarChange(user);
     });
 
@@ -465,7 +473,7 @@ function populateEmojiPickers(user) {
     if (!container) return;
     container.innerHTML = "";
 
-    const saved = localStorage.getItem(storageKey) || "";
+    const saved = safeGetItem(storageKey) || "";
     EMOJI_OPTIONS.forEach((emoji) => {
       const btn = document.createElement("button");
       btn.type = "button";
@@ -473,7 +481,7 @@ function populateEmojiPickers(user) {
       btn.textContent = emoji;
       btn.title = emoji;
       btn.onclick = () => {
-        localStorage.setItem(storageKey, emoji);
+        safeSetItem(storageKey, emoji);
         container.querySelectorAll(".emoji-chip").forEach((c) => c.classList.toggle("active", c.textContent === emoji));
         notifyAvatarChange(user);
       };
@@ -524,7 +532,7 @@ export function selectAvatar(user, character) {
   if (!character || !character.id) return;
 
   const keys = storageKeysForUser(user);
-  localStorage.setItem(keys.avatar, JSON.stringify(character));
+  safeSetItem(keys.avatar, JSON.stringify(character));
 
   document.querySelectorAll('#avatarGrid' + user + ' .avatar-card').forEach((card) => {
     card.classList.toggle("selected", card.dataset.avatarId === character.id);
@@ -536,7 +544,7 @@ export function selectAvatar(user, character) {
 function loadAvatarFromStorage(user) {
   try {
     const keys = storageKeysForUser(user);
-    const saved = localStorage.getItem(keys.avatar);
+    const saved = safeGetItem(keys.avatar);
     if (!saved) return null;
 
     const parsed = JSON.parse(saved);
@@ -561,8 +569,8 @@ function loadAvatarFromStorage(user) {
 function notifyAvatarChange(user) {
   const avatar = loadAvatarFromStorage(user);
   const keys = storageKeysForUser(user);
-  const emoji1 = localStorage.getItem(keys.emoji1) || "";
-  const emoji2 = localStorage.getItem(keys.emoji2) || "";
+  const emoji1 = safeGetItem(keys.emoji1) || "";
+  const emoji2 = safeGetItem(keys.emoji2) || "";
   window.dispatchEvent(new CustomEvent("avatarChanged", {
     detail: {
       user,
@@ -579,9 +587,9 @@ window.getAvatarForUser = function (user) {
   return {
     avatar: avatar || null,
     name: avatar ? avatar.name : null,
-    userName: localStorage.getItem(keys.name) || "",
-    emoji1: localStorage.getItem(keys.emoji1) || "",
-    emoji2: localStorage.getItem(keys.emoji2) || ""
+    userName: safeGetItem(keys.name) || "",
+    emoji1: safeGetItem(keys.emoji1) || "",
+    emoji2: safeGetItem(keys.emoji2) || ""
   };
 };
 
@@ -629,7 +637,7 @@ export async function loadAvailableMics() {
         selectEl.appendChild(option);
       });
 
-      const savedMic = localStorage.getItem(storageKey);
+      const savedMic = safeGetItem(storageKey);
       if (savedMic && mics.some((mic) => mic.deviceId === savedMic)) {
         selectEl.value = savedMic;
       }
@@ -645,7 +653,7 @@ export async function loadAvailableMics() {
       const otro = mics.find((m) => m.deviceId !== mic1Select.value);
       if (otro) {
         mic2Select.value = otro.deviceId;
-        localStorage.setItem("karaokeTrain_mic2", otro.deviceId);
+        safeSetItem("karaokeTrain_mic2", otro.deviceId);
         console.log("🎙️ Mic 2 ajustado a un dispositivo distinto para el dúo:", otro.label || otro.deviceId);
       }
     }
@@ -678,10 +686,10 @@ export function getSelectedMicId(micNumber) {
 // nota cuente como afinada. Fácil ±3, Medio ±2, Difícil ±1.
 export function getPentagramTolerance() {
   try {
-    const level = localStorage.getItem("karaokeTrain_pentagram") || "medio";
+    const level = safeGetItem("karaokeTrain_pentagram") || "medio";
     if (level === "facil") return 3;
     if (level === "dificil") return 1;
-    if (level !== "medio") localStorage.setItem("karaokeTrain_pentagram", "medio");
+    if (level !== "medio") safeSetItem("karaokeTrain_pentagram", "medio");
     return 2;
   } catch (e) {
     return 2;
@@ -690,7 +698,7 @@ export function getPentagramTolerance() {
 
 export function getPentagramDifficultyLabel() {
   try {
-    const level = localStorage.getItem("karaokeTrain_pentagram") || "medio";
+    const level = safeGetItem("karaokeTrain_pentagram") || "medio";
     if (level === "facil") return "Fácil";
     if (level === "dificil") return "Difícil";
     return "Medio";
@@ -706,7 +714,7 @@ export function saveMicSelection(micNumber) {
 
   if (!select) return;
 
-  localStorage.setItem(storageKey, select.value);
+  safeSetItem(storageKey, select.value);
   const otroSelect = $(micNumber === 1 ? "mic2Select" : "mic1Select");
   if (otroSelect && otroSelect.value && otroSelect.value === select.value) {
     console.warn("⚠️ Mic 1 y Mic 2 son el mismo dispositivo: el dúo necesita dos micrófonos distintos.");
@@ -826,3 +834,4 @@ export function initConfig() {
   // mics/tema/avatares desincronizados tras un destroy.
   return initSettings();
 }
+
