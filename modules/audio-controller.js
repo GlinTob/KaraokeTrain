@@ -88,6 +88,10 @@ export class AudioProcessorController {
             this._timeoutStrikes = 0;
             try { this.worker.terminate(); } catch (e) {}
             this.isTerminated = true;
+            // FIX: al dar por muerto al worker hay que rechazar YA el resto de
+            // peticiones pendientes; si no, cada una esperaría su propio
+            // timeout de 60 s con el worker ya inexistente (UI congelada).
+            this.rejectAllPending(new Error("El audio worker fue terminado por timeout."));
           }
           reject(new Error(`El audio worker no respondió al comando "${command}" (${timeoutMs}ms). Reintenta.`));
         }
