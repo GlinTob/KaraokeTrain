@@ -1,13 +1,7 @@
-import { $, toast } from "./modules/utils.js";
+import { $, toast, safeAdd } from "./modules/utils.js";
 
-export function safeAdd(id, event, handler) {
-  const el = $(id);
-  if (el) {
-    el.addEventListener(event, handler);
-  } else {
-    console.warn(`⚠️ No se encontró el elemento con ID: ${id} para registrar el evento [${event}]`);
-  }
-}
+// FIX #18: se eliminó la copia local de safeAdd (no idempotente, duplicaba
+// listeners). Ahora se usa el de utils.js (idempotente por WeakMap).
 
 export const state = {
   instrumentalUrl: null,
@@ -301,15 +295,29 @@ document.addEventListener("DOMContentLoaded", async () => {
     return false;
   };
 
-  await initSupabaseWithRetry();
+  // FIX #5: NO esperamos al retry en frío. Antes, un fallo del CDN de
+  // Supabase (o del integrity) dejaba la app muerta ~16 s: sin listeners del
+  // sidebar, sin tema y sin bienvenida. El retry pasa a segundo plano y los
+  // módulos que necesitan DB esperan por su cuenta (initSupabase reintentará).
+  initSupabaseWithRetry().catch((e) => console.warn("Retry de Supabase abortado:", e));
 
 
-  const temaGuardado = localStorage.getItem("karaokeTrain_theme") || "oscuro";
+  // FIX #20: localStorage protegido con try/catch (modo incógito/privado puede
+  // lanzar SecurityError y dejar la app muerta en el arranque).
+  let temaGuardado = "oscuro";
+  try {
+    temaGuardado = localStorage.getItem("karaokeTrain_theme") || "oscuro";
+  } catch (e) {
+    console.warn("localStorage no disponible, usando tema por defecto.", e);
+  }
   document.documentElement.setAttribute("data-theme", temaGuardado);
   document.body.setAttribute("data-theme", temaGuardado);
 
   function applyKaraokeTheme() {
-    const theme = localStorage.getItem("karaokeTrain_stage") || "theme-clasico";
+    let theme = "theme-clasico";
+    try {
+      theme = localStorage.getItem("karaokeTrain_stage") || "theme-clasico";
+    } catch (e) {}
     const monitor = $("karaokeLiveLyrics");
     if (monitor) {
       monitor.classList.remove(...allKaraokeThemes);
@@ -497,7 +505,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
   safeAdd("karaokeStartBtn", "click", async () => {
     const { startKaraokeRecording } = await import("./modules/karaoke.js?v=18");
-    if (typeof startKaraokeRecording === "function") startKaraokeRecording();
+    if (typeof startKaraokeRecording === "function") {
+      const r = startKaraokeRecording();
+      if (r && typeof r.catch === "function") r.catch((e) => console.error("Error al iniciar karaoke:", e));
+    }
   });
   safeAdd("karaokeStopBtn", "click", async () => {
     const { stopKaraokeRecording } = await import("./modules/karaoke.js?v=18");
