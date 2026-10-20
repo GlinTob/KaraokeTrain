@@ -2276,6 +2276,22 @@ export async function mixKaraoke() {
     const voiceHighpass = offlineCtx.createBiquadFilter();
     voiceHighpass.type = "highpass";
     voiceHighpass.frequency.value = 90;
+    voiceHighpass.Q.value = 0.707; // Butterworth: sin resonancia en la esquina
+    // Anti-"tubo": en un cuarto común las reflexiones acumulan 250–400 Hz y
+    // la voz suena hueca/cajonera. Recorte suave ahí + presencia ligera a
+    // 3.5 kHz para que suene abierta, no encerrada. Va ANTES del compresor
+    // para que este no amplifique la caja. Aplica a solista y dúo (ambos
+    // pasan por esta cadena).
+    const deBox = offlineCtx.createBiquadFilter();
+    deBox.type = "peaking";
+    deBox.frequency.value = 300;
+    deBox.Q.value = 1;
+    deBox.gain.value = -5;
+    const presence = offlineCtx.createBiquadFilter();
+    presence.type = "peaking";
+    presence.frequency.value = 3500;
+    presence.Q.value = 1;
+    presence.gain.value = 2;
     let voiceGate = null;
     try {
       await loadVocalGateProcessor(offlineCtx);
@@ -2284,11 +2300,13 @@ export async function mixKaraoke() {
       console.warn("Vocal gate no disponible, se mezcla sin gate:", gateErr);
     }
     voiceSource.connect(voiceHighpass);
+    voiceHighpass.connect(deBox);
+    deBox.connect(presence);
     if (voiceGate) {
-      voiceHighpass.connect(voiceGate);
+      presence.connect(voiceGate);
       voiceGate.connect(makeupGain);
     } else {
-      voiceHighpass.connect(makeupGain);
+      presence.connect(makeupGain);
     }
     makeupGain.connect(voiceCompressor);
     voiceCompressor.connect(voiceLevel);
