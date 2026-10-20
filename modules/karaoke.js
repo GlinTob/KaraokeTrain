@@ -795,8 +795,10 @@ function buildVoiceCleanupChain(ctx, sourceNode) {
   return presence;
 }
 
-// Aplica la cadena anti-tubo a un blob de voz para la vista previa. Si algo
-// falla, el llamador usa el blob crudo.
+// Aplica la cadena anti-tubo + vocal-gate a un blob de voz para la vista
+// previa. El gate es lo que corta el ruido ambiente en los silencios (sin
+// él, la presencia de la cadena anti-tubo hacía más audible la habitación).
+// Si algo falla, el llamador usa el blob crudo.
 async function applyVoiceCleanupToBlob(blob) {
   const arrBuf = await blob.arrayBuffer();
   const probeCtx = new OfflineAudioContext(1, 1, 44100);
@@ -805,7 +807,19 @@ async function applyVoiceCleanupToBlob(blob) {
   const src = off.createBufferSource();
   src.buffer = decoded;
   const tail = buildVoiceCleanupChain(off, src);
-  tail.connect(off.destination);
+  let gate = null;
+  try {
+    await loadVocalGateProcessor(off);
+    gate = createVocalGateNode(off, decoded.numberOfChannels);
+  } catch (gateErr) {
+    console.warn("Vista previa sin vocal-gate (se limpia solo con EQ):", gateErr);
+  }
+  if (gate) {
+    tail.connect(gate);
+    gate.connect(off.destination);
+  } else {
+    tail.connect(off.destination);
+  }
   src.start(0);
   const rendered = await off.startRendering();
   return await getAudioController().encodeWavToBlob(rendered);
