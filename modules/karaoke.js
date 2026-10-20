@@ -769,16 +769,75 @@ function revokePreviewUrl() {
   }
 }
 
-function publishVoicePreview(blob, enableMix = true) {
+// Cadena de limpieza de voz compartida por la vista previa y mixKaraoke:
+// paso-alto 90 Hz (retumbos) + anti-"tubo" (recorte de las reflexiones de
+// cuarto a 300 Hz, que es lo que hace sonar hueca la voz, + presencia a
+// 3.5 kHz). Devuelve el último nodo para que el llamador encadene lo que
+// siga (gate/compresor).
+function buildVoiceCleanupChain(ctx, sourceNode) {
+  const hp = ctx.createBiquadFilter();
+  hp.type = "highpass";
+  hp.frequency.value = 90;
+  hp.Q.value = 0.707; // Butterworth: sin resonancia en la esquina
+  const deBox = ctx.createBiquadFilter();
+  deBox.type = "peaking";
+  deBox.frequency.value = 300;
+  deBox.Q.value = 1;
+  deBox.gain.value = -5;
+  const presence = ctx.createBiquadFilter();
+  presence.type = "peaking";
+  presence.frequency.value = 3500;
+  presence.Q.value = 1;
+  presence.gain.value = 2;
+  sourceNode.connect(hp);
+  hp.connect(deBox);
+  deBox.connect(presence);
+  return presence;
+}
+
+// Aplica la cadena anti-tubo a un blob de voz para la vista previa. Si algo
+// falla, el llamador usa el blob crudo.
+async function applyVoiceCleanupToBlob(blob) {
+  const arrBuf = await blob.arrayBuffer();
+  const probeCtx = new OfflineAudioContext(1, 1, 44100);
+  const decoded = await probeCtx.decodeAudioData(arrBuf);
+  const off = new OfflineAudioContext(decoded.numberOfChannels, decoded.length, decoded.sampleRate);
+  const src = off.createBufferSource();
+  src.buffer = decoded;
+  const tail = buildVoiceCleanupChain(off, src);
+  tail.connect(off.destination);
+  src.start(0);
+  const rendered = await off.startRendering();
+  return await getAudioController().encodeWavToBlob(rendered);
+}
+
+// Secuencia para que una publicación vieja (que termine después de una más
+// reciente) no pise la vista previa vigente.
+let previewCleanupSeq = 0;
+
+async function publishVoicePreview(blob, enableMix = true) {
   revokePreviewUrl();
-  const voicePlayer = $("karaokeVoicePlayer");
-  if (voicePlayer) {
-    karaokePreviewUrl = URL.createObjectURL(blob);
-    voicePlayer.src = karaokePreviewUrl;
-    voicePlayer.controls = true;
-  }
   const mixBtn = $("karaokeMixBtn");
   if (mixBtn) mixBtn.disabled = !enableMix;
+  const voicePlayer = $("karaokeVoicePlayer");
+  if (!voicePlayer) return;
+  const mySeq = ++previewCleanupSeq;
+  // La vista previa (voz sola) antes salía en crudo y sonaba hueca/"tubo";
+  // ahora pasa por la MISMA cadena anti-tubo que mixKaraoke.
+  let previewBlob = blob;
+  try {
+    previewBlob = await applyVoiceCleanupToBlob(blob);
+  } catch (e) {
+    console.warn("Vista previa sin limpieza anti-tubo (se usa el blob crudo):", e);
+  }
+  if (mySeq !== previewCleanupSeq) return; // ya hay una publicación más reciente
+  try {
+    karaokePreviewUrl = URL.createObjectURL(previewBlob);
+    voicePlayer.src = karaokePreviewUrl;
+    voicePlayer.controls = true;
+  } catch (e) {
+    console.warn("No se pudo publicar la vista previa de voz:", e);
+  }
 }
 
 function duoStatus(text) {
@@ -2267,31 +2326,14 @@ export async function mixKaraoke() {
     voiceLevel.gain.value = VOICE_LEVEL;
     const voiceSource = offlineCtx.createBufferSource();
     voiceSource.buffer = voiceBuffer;
-    // Limpieza automática de la voz: paso-alto 90 Hz (retumbos/graves) +
-    // vocal-gate (expansor por RMS: cierra en silencios y respiraciones),
-    // todo antes del compresor. El gate va ANTES del maquillaje y ve la voz
-    // cruda: si el maquillaje (hasta x8) entrara primero, levantaría también
-    // el ambiente del cuarto por encima del umbral de cierre y el gate ya no
-    // lo distinguiría. Si el worklet no carga, se mezcla sin gate.
-    const voiceHighpass = offlineCtx.createBiquadFilter();
-    voiceHighpass.type = "highpass";
-    voiceHighpass.frequency.value = 90;
-    voiceHighpass.Q.value = 0.707; // Butterworth: sin resonancia en la esquina
-    // Anti-"tubo": en un cuarto común las reflexiones acumulan 250–400 Hz y
-    // la voz suena hueca/cajonera. Recorte suave ahí + presencia ligera a
-    // 3.5 kHz para que suene abierta, no encerrada. Va ANTES del compresor
-    // para que este no amplifique la caja. Aplica a solista y dúo (ambos
-    // pasan por esta cadena).
-    const deBox = offlineCtx.createBiquadFilter();
-    deBox.type = "peaking";
-    deBox.frequency.value = 300;
-    deBox.Q.value = 1;
-    deBox.gain.value = -5;
-    const presence = offlineCtx.createBiquadFilter();
-    presence.type = "peaking";
-    presence.frequency.value = 3500;
-    presence.Q.value = 1;
-    presence.gain.value = 2;
+    // Limpieza automática de la voz: cadena anti-tubo (paso-alto 90 Hz +
+    // recorte de reflexiones de cuarto a 300 Hz + presencia) + vocal-gate
+    // (expansor por RMS: cierra en silencios y respiraciones), todo antes del
+    // compresor. El gate va ANTES del maquillaje y ve la voz cruda: si el
+    // maquillaje (hasta x8) entrara primero, levantaría también el ambiente
+    // del cuarto por encima del umbral de cierre y el gate ya no lo
+    // distinguiría. Si el worklet no carga, se mezcla sin gate.
+    const voiceCleanupTail = buildVoiceCleanupChain(offlineCtx, voiceSource);
     let voiceGate = null;
     try {
       await loadVocalGateProcessor(offlineCtx);
@@ -2299,14 +2341,11 @@ export async function mixKaraoke() {
     } catch (gateErr) {
       console.warn("Vocal gate no disponible, se mezcla sin gate:", gateErr);
     }
-    voiceSource.connect(voiceHighpass);
-    voiceHighpass.connect(deBox);
-    deBox.connect(presence);
     if (voiceGate) {
-      presence.connect(voiceGate);
+      voiceCleanupTail.connect(voiceGate);
       voiceGate.connect(makeupGain);
     } else {
-      presence.connect(makeupGain);
+      voiceCleanupTail.connect(makeupGain);
     }
     makeupGain.connect(voiceCompressor);
     voiceCompressor.connect(voiceLevel);
