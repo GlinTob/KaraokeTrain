@@ -781,9 +781,9 @@ function buildVoiceCleanupChain(ctx, sourceNode) {
   hp.Q.value = 0.707; // Butterworth: sin resonancia en la esquina
   const deBox = ctx.createBiquadFilter();
   deBox.type = "peaking";
-  deBox.frequency.value = 300;
-  deBox.Q.value = 1;
-  deBox.gain.value = -5;
+  deBox.frequency.value = 280;
+  deBox.Q.value = 0.7; // ancho y suave: un corte angosto deja la voz delgada/hueca
+  deBox.gain.value = -3.5;
   const presence = ctx.createBiquadFilter();
   presence.type = "peaking";
   presence.frequency.value = 3500;
@@ -2292,26 +2292,25 @@ export async function mixKaraoke() {
     masterGain.connect(offlineCtx.destination);
 
     // Maquillaje ANTES del compresor: levanta las notas suaves hasta el rango
-    // de trabajo del compresor (que luego controla los picos). Objetivo 0.09
-    // con tope x8 (antes 0.11/x12): en dúo la voz ya viene normalizada por
-    // combineDuoVoiceBlobs y el doble boost dejaba los mics muy altos y la
-    // pista enterrada (el limitador compartido además aplastaba la pista).
+    // de trabajo del compresor (que luego controla los picos). Objetivo 0.07
+    // con tope x4 (antes 0.09/x8): un boost mayor amplificaba también el
+    // ambiente del cuarto y la voz sonaba "hueca"; con x4 se nota menos.
     const voiceSingRms = singingRmsOfBuffer(voiceBuffer);
-    const voiceMakeup = (voiceSingRms > 0.0008 && voiceSingRms < 0.09)
-      ? Math.min(8, 0.09 / voiceSingRms)
+    const voiceMakeup = (voiceSingRms > 0.0008 && voiceSingRms < 0.07)
+      ? Math.min(4, 0.07 / voiceSingRms)
       : 1;
     if (voiceMakeup > 1) console.log(`🎤 Maquillaje de voz en mezcla: rms=${voiceSingRms.toFixed(4)} x${voiceMakeup.toFixed(1)}`);
 
     // Pista presente: ganancia adaptativa según el RMS real de pista y voz.
-    // Antes era fija 0.38 y con pistas flojas la voz (normalizada a 0.09)
-    // la enterraba; ahora se apunta a pista ≈ voz −2.5 dB (factor 0.75),
-    // con límites 0.3–1.2 para no destrozar pistas muy altas o muy bajas.
+    // Apunta a pista ≈ voz −1 dB (factor 0.9; antes 0.75 y la voz quedaba
+    // algo por encima), con límites 0.3–1.2 para no destrozar pistas muy
+    // altas o muy bajas. El voiceFinalEst usa el objetivo de maquillaje.
     const VOICE_LEVEL = 0.55;
     const trackSingRms = singingRmsOfBuffer(trackBuffer);
-    const voiceFinalEst = Math.min(0.09, Math.max(voiceSingRms, 0.0008) * voiceMakeup) * VOICE_LEVEL;
+    const voiceFinalEst = Math.min(0.07, Math.max(voiceSingRms, 0.0008) * voiceMakeup) * VOICE_LEVEL;
     let trackGainValue = 0.6;
     if (trackSingRms > 0.0008) {
-      trackGainValue = (voiceFinalEst * 0.75) / trackSingRms;
+      trackGainValue = (voiceFinalEst * 0.9) / trackSingRms;
       trackGainValue = Math.max(0.3, Math.min(1.2, trackGainValue));
     }
     console.log(`🎧 Balance pista/voz: pista rms=${trackSingRms.toFixed(4)} voz rms=${voiceSingRms.toFixed(4)} makeup x${voiceMakeup.toFixed(1)} → pista x${trackGainValue.toFixed(2)} voz x${VOICE_LEVEL.toFixed(2)}`);
@@ -2323,14 +2322,16 @@ export async function mixKaraoke() {
     trackCompressor.connect(trackGain);
     trackGain.connect(masterLimiter);
 
-    // Balance de la voz: compresor dinámico para equilibrar el volumen de la voz
-    // (reduce picos y sube el nivel promedio), sin depender del volumen del archivo.
+    // Balance de la voz: compresor suave para equilibrar el volumen (reduce
+    // picos y sube el nivel promedio). Ratio 2.5 (antes 4): comprimir más
+    // fuerte dejaba la voz plana y la reverberación del cuarto más audible
+    // (sonido "hueco").
     const voiceCompressor = offlineCtx.createDynamicsCompressor();
-    voiceCompressor.threshold.value = -18;
-    voiceCompressor.knee.value = 10;
-    voiceCompressor.ratio.value = 4;
-    voiceCompressor.attack.value = 0.003;
-    voiceCompressor.release.value = 0.25;
+    voiceCompressor.threshold.value = -16;
+    voiceCompressor.knee.value = 12;
+    voiceCompressor.ratio.value = 2.5;
+    voiceCompressor.attack.value = 0.005;
+    voiceCompressor.release.value = 0.3;
 
     const makeupGain = offlineCtx.createGain();
     makeupGain.gain.value = voiceMakeup;
