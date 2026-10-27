@@ -613,11 +613,14 @@ function renderScoreboard() {
 
 // Constraints agnósticos al hardware (USB / 3.5mm / mixto): SIN cancelación
 // de eco ni supresión de ruido (el AEC/NS toma al segundo cantante como
-// "eco/ruido" y lo deja bajo y entrecortado), pero CON control automático
-// de ganancia: sin AGC el nivel crudo de muchos mics queda en ~-55 dBFS
-// (inaudible) y ningún balance posterior lo rescata.
+// "eco/ruido" y lo deja bajo y entrecortado).
+// El AGC del navegador va APAGADO: es un lazo de ganancia lento que sube el
+// nivel cuando callas y lo baja tras las notas fuertes, y ese vaivén queda
+// grabado (se oye igual en la voz sola y en la mezcla). El nivel de entrada se
+// compensa después con una ganancia ESTÁTICA calculada una vez por toma
+// (computeVoiceNormGain), que no puede bombear.
 function buildMicConstraints(micId) {
-  const base = { echoCancellation: false, noiseSuppression: false, autoGainControl: true };
+  const base = { echoCancellation: false, noiseSuppression: false, autoGainControl: false };
   if (micId) return { audio: { ...base, deviceId: { exact: micId } } };
   return { audio: { ...base } };
 }
@@ -662,6 +665,46 @@ function singingRmsOfBuffer(buffer) {
   if (!rmsList.length) return 0;
   rmsList.sort((a, b) => a - b);
   return rmsList[Math.min(rmsList.length - 1, Math.floor(rmsList.length * 0.9))];
+}
+
+// Nivel de trabajo de la voz (RMS percentil 90) tras la normalización estática.
+// -24 dBFS: por encima del umbral del vocal-gate (-38 dB), así la voz cantada
+// no se atenúa nunca y el ambiente del cuarto (que vive más abajo) sí se
+// recorta. Sin AGC, la normalización es lo único que fija el nivel.
+const VOICE_WORK_RMS = 0.06;
+
+// Ganancia ESTÁTICA para llevar la voz a VOICE_WORK_RMS. Se calcula del archivo
+// completo (percentil 90 de ventanas de 100 ms), NO por bloques: es una
+// constante por toma, así que no puede producir el vaivén de nivel que hacían
+// el AGC del navegador y el escalón del gate. Tope ×16 (+24 dB) para no
+// amplificar el hiss de mics muy flojos.
+function computeVoiceNormGain(buffer) {
+  const rms = singingRmsOfBuffer(buffer);
+  if (!(rms > 0.0008)) return 1; // silencio: no amplificar ruido de fondo
+  return Math.max(0.25, Math.min(16, VOICE_WORK_RMS / rms));
+}
+
+function peakOfBuffer(buffer) {
+  if (!buffer || !buffer.numberOfChannels) return 0;
+  let peak = 0;
+  for (let c = 0; c < buffer.numberOfChannels; c++) {
+    const data = buffer.getChannelData(c);
+    for (let i = 0; i < data.length; i++) {
+      const a = data[i] >= 0 ? data[i] : -data[i];
+      if (a > peak) peak = a;
+    }
+  }
+  return peak;
+}
+
+// Multiplica el buffer EN SITIO por una ganancia fija: normalización estática
+// del máster tras el render. Al no ser un seguidor de nivel, no bombea.
+function applyStaticGain(buffer, gain) {
+  if (!buffer || !(gain > 0) || gain === 1) return;
+  for (let c = 0; c < buffer.numberOfChannels; c++) {
+    const data = buffer.getChannelData(c);
+    for (let i = 0; i < data.length; i++) data[i] *= gain;
+  }
 }
 
 // Mezcla las dos voces del dúo en un solo blob WAV con balance automático
@@ -724,28 +767,34 @@ async function combineDuoVoiceBlobs(blob1, blob2) {
     } catch (gateErr) {
       console.warn("Gate por mic no disponible, se combinan sin gate:", gateErr?.message || gateErr);
     }
+    // El gate va DESPUÉS de la ganancia de balance: así ve la voz ya nivelada
+    // y su umbral significa lo mismo para los dos micrófonos, canten fuerte o
+    // flojo. El headroom se aplica una sola vez, a la suma.
+    const sumGain = offline.createGain();
+    sumGain.gain.value = HEADROOM;
+    sumGain.connect(offline.destination);
     const src1 = offline.createBufferSource();
     src1.buffer = buf1;
     const hp1 = offline.createBiquadFilter();
     hp1.type = "highpass";
     hp1.frequency.value = 100;
     const gain1 = offline.createGain();
-    gain1.gain.value = g1 * HEADROOM;
+    gain1.gain.value = g1;
     src1.connect(hp1);
-    if (duoGate1) { hp1.connect(duoGate1); duoGate1.connect(gain1); }
-    else hp1.connect(gain1);
-    gain1.connect(offline.destination);
+    hp1.connect(gain1);
+    if (duoGate1) { gain1.connect(duoGate1); duoGate1.connect(sumGain); }
+    else gain1.connect(sumGain);
     const src2 = offline.createBufferSource();
     src2.buffer = buf2;
     const hp2 = offline.createBiquadFilter();
     hp2.type = "highpass";
     hp2.frequency.value = 100;
     const gain2 = offline.createGain();
-    gain2.gain.value = g2 * HEADROOM;
+    gain2.gain.value = g2;
     src2.connect(hp2);
-    if (duoGate2) { hp2.connect(duoGate2); duoGate2.connect(gain2); }
-    else hp2.connect(gain2);
-    gain2.connect(offline.destination);
+    hp2.connect(gain2);
+    if (duoGate2) { gain2.connect(duoGate2); duoGate2.connect(sumGain); }
+    else gain2.connect(sumGain);
     src1.start(0);
     src2.start(0);
     const rendered = await offline.startRendering();
@@ -795,9 +844,10 @@ function buildVoiceCleanupChain(ctx, sourceNode) {
   return presence;
 }
 
-// Aplica la cadena anti-tubo + vocal-gate a un blob de voz para la vista
-// previa. El gate es lo que corta el ruido ambiente en los silencios (sin
-// él, la presencia de la cadena anti-tubo hacía más audible la habitación).
+// Aplica la cadena anti-tubo + normalización estática + vocal-gate a un blob de
+// voz para la vista previa. La normalización es la MISMA que usa mixKaraoke, y
+// al final se aplica el mismo nivel de escucha (0.55): así "voz sola" suena al
+// nivel que tendrá en la mezcla y el AGC puede quedar apagado.
 // Si algo falla, el llamador usa el blob crudo.
 async function applyVoiceCleanupToBlob(blob) {
   const arrBuf = await blob.arrayBuffer();
@@ -806,7 +856,14 @@ async function applyVoiceCleanupToBlob(blob) {
   const off = new OfflineAudioContext(decoded.numberOfChannels, decoded.length, decoded.sampleRate);
   const src = off.createBufferSource();
   src.buffer = decoded;
-  const tail = buildVoiceCleanupChain(off, src);
+  // Ganancia estática antes del EQ/gate (igual que en la mezcla): sin AGC el
+  // nivel crudo depende del micrófono y el gate necesita un rango fijo.
+  const norm = off.createGain();
+  norm.gain.value = computeVoiceNormGain(decoded);
+  src.connect(norm);
+  const tail = buildVoiceCleanupChain(off, norm);
+  const previewLevel = off.createGain();
+  previewLevel.gain.value = 0.55; // mismo nivel que VOICE_LEVEL en mixKaraoke
   let gate = null;
   try {
     await loadVocalGateProcessor(off);
@@ -816,12 +873,17 @@ async function applyVoiceCleanupToBlob(blob) {
   }
   if (gate) {
     tail.connect(gate);
-    gate.connect(off.destination);
+    gate.connect(previewLevel);
   } else {
-    tail.connect(off.destination);
+    tail.connect(previewLevel);
   }
+  previewLevel.connect(off.destination);
   src.start(0);
   const rendered = await off.startRendering();
+  // Seguro estático: si la toma venía muy picuda (un grito), el ×norm puede
+  // dejar picos por encima de 0 dBFS. Se escala una vez, sin limitador.
+  const peak = peakOfBuffer(rendered);
+  if (peak > 0.89) applyStaticGain(rendered, 0.89 / peak);
   return await getAudioController().encodeWavToBlob(rendered);
 }
 
@@ -2051,7 +2113,17 @@ export async function loadKaraokeSong(id) {
     const item = await getLibraryItemsByIdFromSupabase(id);
     if (mySeq !== karaokeLoadSeq) return;
     if (!item) {
-      alert("⚠️ No se encontró el karaoke.");
+      // El ID vino de dataset.karaokeId (última selección) pero el registro
+      // ya fue borrado de Supabase: se limpia para no reintentar con un ID
+      // muerto en cada entrada a la pestaña.
+      const staleTrack = $("karaokeTrack") || $("karaokeAudio") || $("audioKaraoke") || $("trackPlayer");
+      if (staleTrack && staleTrack.dataset.karaokeId === String(id)) {
+        delete staleTrack.dataset.karaokeId;
+        delete staleTrack.dataset.loadedId;
+        staleTrack.removeAttribute("src");
+        try { staleTrack.load(); } catch (e) {}
+      }
+      alert("⚠️ Este karaoke ya no existe en la base de datos. Selecciona otro de la lista.");
       return;
     }
 
@@ -2267,60 +2339,42 @@ export async function mixKaraoke() {
       sampleRate
     );
 
-    // Balance de la pista: compresor suave para uniformar el volumen base
-    const trackCompressor = offlineCtx.createDynamicsCompressor();
-    trackCompressor.threshold.value = -14;
-    trackCompressor.knee.value = 8;
-    trackCompressor.ratio.value = 3;
-    trackCompressor.attack.value = 0.005;
-    trackCompressor.release.value = 0.2;
+    // La pista ya viene masterizada: NO se comprime. Comprimirla (3:1 a -14 dB)
+    // era otra fuente de bombeo: el volumen de la canción subía y bajaba con
+    // cada acorde. Solo se aplica una ganancia estática de balance.
 
-    // Limitador maestro: la suma voz+pista puede superar 0 dBFS y recortar
-    // en digital (esa distorsión se percibe como pista "destemplada").
-    // Techo a -1 dB antes de codificar el WAV.
-    const masterLimiter = offlineCtx.createDynamicsCompressor();
-    masterLimiter.threshold.value = -3;
-    masterLimiter.knee.value = 0;
-    masterLimiter.ratio.value = 20;
-    masterLimiter.attack.value = 0.002;
-    masterLimiter.release.value = 0.1;
-    const masterGain = offlineCtx.createGain();
-    // Techo real a -1 dB (0.89): con threshold -3 el limitador deja picos
-    // cerca de 0 dBFS; este -1 dB final evita el recorte al codificar el WAV.
-    masterGain.gain.value = 0.89;
-    masterLimiter.connect(masterGain);
-    masterGain.connect(offlineCtx.destination);
+    // El bus maestro tampoco lleva limitador: un DynamicsCompressor (-3 dB,
+    // ratio 20, release 100 ms) sobre voz+pista hundía la pista en cada pico de
+    // voz y la dejaba volver 100 ms después (bombeo del conjunto). Tras el
+    // render se mide el pico real y se aplica UNA ganancia fija (ver abajo).
 
-    // Maquillaje ANTES del compresor: levanta las notas suaves hasta el rango
-    // de trabajo del compresor (que luego controla los picos). Objetivo 0.07
-    // con tope x4 (antes 0.09/x8): un boost mayor amplificaba también el
-    // ambiente del cuarto y la voz sonaba "hueca"; con x4 se nota menos.
+    // Normalización ESTÁTICA de la voz (una sola vez, del archivo completo).
+    // Con el AGC del micrófono apagado el nivel crudo depende del hardware, así
+    // que la voz se lleva a un rango de trabajo fijo ANTES del gate. Al ser una
+    // constante no puede bombear: el AGC era un seguidor de nivel y sí lo hacía.
     const voiceSingRms = singingRmsOfBuffer(voiceBuffer);
-    const voiceMakeup = (voiceSingRms > 0.0008 && voiceSingRms < 0.07)
-      ? Math.min(4, 0.07 / voiceSingRms)
-      : 1;
-    if (voiceMakeup > 1) console.log(`🎤 Maquillaje de voz en mezcla: rms=${voiceSingRms.toFixed(4)} x${voiceMakeup.toFixed(1)}`);
+    const voiceNormGain = computeVoiceNormGain(voiceBuffer);
+    if (voiceNormGain !== 1) console.log(`🎤 Normalización estática de voz: rms=${voiceSingRms.toFixed(4)} x${voiceNormGain.toFixed(2)}`);
 
     // Pista presente: ganancia adaptativa según el RMS real de pista y voz.
-    // Apunta a pista ≈ voz −1 dB (factor 0.9; antes 0.75 y la voz quedaba
-    // algo por encima), con límites 0.3–1.2 para no destrozar pistas muy
-    // altas o muy bajas. El voiceFinalEst usa el objetivo de maquillaje.
+    // Apunta a pista ≈ voz −1 dB (factor 0.9), con límites 0.3–1.2 para no
+    // destrozar pistas muy altas o muy bajas. El voiceFinalEst usa el objetivo
+    // de la normalización, no un maquillaje dinámico.
     const VOICE_LEVEL = 0.55;
     const trackSingRms = singingRmsOfBuffer(trackBuffer);
-    const voiceFinalEst = Math.min(0.07, Math.max(voiceSingRms, 0.0008) * voiceMakeup) * VOICE_LEVEL;
+    const voiceFinalEst = Math.min(VOICE_WORK_RMS, Math.max(voiceSingRms, 0.0008) * voiceNormGain) * VOICE_LEVEL;
     let trackGainValue = 0.6;
     if (trackSingRms > 0.0008) {
       trackGainValue = (voiceFinalEst * 0.9) / trackSingRms;
       trackGainValue = Math.max(0.3, Math.min(1.2, trackGainValue));
     }
-    console.log(`🎧 Balance pista/voz: pista rms=${trackSingRms.toFixed(4)} voz rms=${voiceSingRms.toFixed(4)} makeup x${voiceMakeup.toFixed(1)} → pista x${trackGainValue.toFixed(2)} voz x${VOICE_LEVEL.toFixed(2)}`);
+    console.log(`🎧 Balance pista/voz: pista rms=${trackSingRms.toFixed(4)} voz rms=${voiceSingRms.toFixed(4)} norm x${voiceNormGain.toFixed(2)} → pista x${trackGainValue.toFixed(2)} voz x${(voiceNormGain * VOICE_LEVEL).toFixed(2)}`);
     const trackGain = offlineCtx.createGain();
     trackGain.gain.value = trackGainValue;
     const trackSource = offlineCtx.createBufferSource();
     trackSource.buffer = trackBuffer;
-    trackSource.connect(trackCompressor);
-    trackCompressor.connect(trackGain);
-    trackGain.connect(masterLimiter);
+    trackSource.connect(trackGain);
+    trackGain.connect(offlineCtx.destination);
 
     // Balance de la voz: compresor suave para equilibrar el volumen (reduce
     // picos y sube el nivel promedio). Ratio 2.5 (antes 4): comprimir más
@@ -2333,22 +2387,19 @@ export async function mixKaraoke() {
     voiceCompressor.attack.value = 0.005;
     voiceCompressor.release.value = 0.3;
 
-    const makeupGain = offlineCtx.createGain();
-    makeupGain.gain.value = voiceMakeup;
-
     const voiceLevel = offlineCtx.createGain();
     // Voz al frente pero sin enterrar la pista (0.55 en vez de 0.65).
     voiceLevel.gain.value = VOICE_LEVEL;
     const voiceSource = offlineCtx.createBufferSource();
     voiceSource.buffer = voiceBuffer;
-    // Limpieza automática de la voz: cadena anti-tubo (paso-alto 90 Hz +
-    // recorte de reflexiones de cuarto a 300 Hz + presencia) + vocal-gate
-    // (expansor por RMS: cierra en silencios y respiraciones), todo antes del
-    // compresor. El gate va ANTES del maquillaje y ve la voz cruda: si el
-    // maquillaje (hasta x8) entrara primero, levantaría también el ambiente
-    // del cuarto por encima del umbral de cierre y el gate ya no lo
-    // distinguiría. Si el worklet no carga, se mezcla sin gate.
-    const voiceCleanupTail = buildVoiceCleanupChain(offlineCtx, voiceSource);
+    // Normalización estática → limpieza anti-tubo (paso-alto 90 Hz + recorte de
+    // reflexiones de cuarto a 300 Hz + presencia) → vocal-gate (expansor
+    // continuo: atenúa el ambiente, nunca corta la voz) → compresor suave →
+    // nivel. Si el worklet no carga, se mezcla sin gate.
+    const voiceNorm = offlineCtx.createGain();
+    voiceNorm.gain.value = voiceNormGain;
+    voiceSource.connect(voiceNorm);
+    const voiceCleanupTail = buildVoiceCleanupChain(offlineCtx, voiceNorm);
     let voiceGate = null;
     try {
       await loadVocalGateProcessor(offlineCtx);
@@ -2358,30 +2409,26 @@ export async function mixKaraoke() {
     }
     if (voiceGate) {
       voiceCleanupTail.connect(voiceGate);
-      voiceGate.connect(makeupGain);
+      voiceGate.connect(voiceCompressor);
     } else {
-      voiceCleanupTail.connect(makeupGain);
+      voiceCleanupTail.connect(voiceCompressor);
     }
-    makeupGain.connect(voiceCompressor);
     voiceCompressor.connect(voiceLevel);
-    voiceLevel.connect(masterLimiter);
+    voiceLevel.connect(offlineCtx.destination);
 
     trackSource.start(0);
     voiceSource.start(0);
 
     const renderedBuffer = await offlineCtx.startRendering();
-    // Diagnóstico: pico real de la mezcla (si roza 1.0 el limitador trabajó).
-    try {
-      let peak = 0;
-      for (let c = 0; c < renderedBuffer.numberOfChannels; c++) {
-        const d = renderedBuffer.getChannelData(c);
-        for (let i = 0; i < d.length; i += 7) {
-          const a = d[i] >= 0 ? d[i] : -d[i];
-          if (a > peak) peak = a;
-        }
-      }
-      console.log(`🎧 Mezcla renderizada: pico ${peak.toFixed(3)} (limitador a -3 dB).`);
-    } catch (e) {}
+    // Normalización ESTÁTICA del máster: se mide el pico real y se aplica UN
+    // solo factor a toda la toma (sube o baja) para dejarla a -1 dBFS (0.89).
+    // Sustituye al limitador del bus (que bombeaba) y evita el recorte al
+    // codificar el WAV. Tope ×0.25–4 para no amplificar una mezcla casi muda.
+    const MASTER_CEIL = 0.89; // -1 dBFS
+    const peak = peakOfBuffer(renderedBuffer);
+    const masterTrim = peak > 0.0005 ? Math.max(0.25, Math.min(4, MASTER_CEIL / peak)) : 1;
+    applyStaticGain(renderedBuffer, masterTrim);
+    console.log(`🎧 Mezcla renderizada: pico ${peak.toFixed(3)} → normalización estática ${(20 * Math.log10(masterTrim)).toFixed(1)} dB (techo ${MASTER_CEIL}).`);
     const finalWavBlob = await getAudioController().encodeWavToBlob(renderedBuffer);
     if (karaokeMixUrl) {
       try { URL.revokeObjectURL(karaokeMixUrl); } catch (e) {}
