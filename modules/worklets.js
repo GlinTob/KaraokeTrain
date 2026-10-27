@@ -135,12 +135,12 @@ export async function loadPitchShifterProcessor(audioContext) {
 
 /**
  * Carga el vocal-gate-processor (limpieza automática de voz del mix karaoke).
- * El `?v=1` hace cache-busting del módulo del worklet al cambiarlo.
+ * El `?v=3` hace cache-busting del módulo del worklet al cambiarlo.
  * @param {BaseAudioContext} audioContext
  * @returns {Promise<void>}
  */
 export async function loadVocalGateProcessor(audioContext) {
-  const url = new URL("./vocal-gate-processor.js?v=2", import.meta.url).href;
+  const url = new URL("./vocal-gate-processor.js?v=3", import.meta.url).href;
   return addModuleOnce(audioContext, url, PROCESSOR_NAMES.vocalGate);
 }
 
