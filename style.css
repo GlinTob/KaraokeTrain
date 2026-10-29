@@ -11,7 +11,7 @@
   --text-muted: #94a3b8;
 
   --accent: #824448;
-  --accent-hover: #1d5c59;
+  --accent-hover: #5c2f32;
 
   --danger: #ef4444;
   --border: #ada884;
@@ -1513,6 +1513,56 @@ body[data-theme="otono"] {
 .toast-warn { background: #b45309; }
 .toast-error { background: #b91c1c; }
 .toast-info { background: #1d4ed8; }
+
+/* ==========================================
+   CONFIRMACIÓN NO BLOQUEANTE
+========================================= */
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.65);
+}
+
+.confirm-box {
+  width: min(460px, 92vw);
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-card);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.confirm-msg {
+  margin: 0 0 18px 0;
+  color: var(--text-main);
+  font-size: 15px;
+  line-height: 1.5;
+  white-space: pre-line;
+}
+
+.confirm-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.confirm-actions button {
+  min-width: 96px;
+}
+
+.confirm-cancel {
+  background: #6b7280;
+}
+
+.confirm-ok.danger {
+  background: #b91c1c;
+}
 
 .file-input-row {
   display: flex;
