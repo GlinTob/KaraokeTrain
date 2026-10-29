@@ -133,13 +133,21 @@ export async function showTab(tabId) {
       if (typeof initBiblioteca === "function" && initUnaVez("biblioteca")) {
         initBiblioteca();
       }
-      } else if (normalizedTabId === "estudio") {
+      // B1: sin esta llamada la primera visita mostraba solo el placeholder
+      // hasta pulsar un filtro o escribir en el buscador.
+      if (typeof renderLibrary === "function") await renderLibrary("todos");
+      if (navAhora !== navSeq) return;
+    } else if (normalizedTabId === "estudio") {
       console.log("🎧 [Lazy Load] Cargando entorno de sincronización y listados...");
-      const { initEstudio, refreshStudioChecklist, reattachTapKeys } = await import("./modules/estudio.js");
+      const { initEstudio, refreshStudioChecklist, reattachTapKeys, refreshStudioSelectors } = await import("./modules/estudio.js");
       if (navAhora !== navSeq) return;
       if (typeof initEstudio === "function" && initUnaVez("estudio")) {
         await initEstudio();
       }
+      // E4: repoblar los selects en cada entrada (tras borrar o convertir un
+      // ítem en Biblioteca, las opciones viejas quedaban obsoletas).
+      if (typeof refreshStudioSelectors === "function") await refreshStudioSelectors();
+      if (navAhora !== navSeq) return;
       if (typeof refreshStudioChecklist === "function") refreshStudioChecklist();
       // Si había taps en curso al salir, re-enganchar el teclado.
       if (typeof reattachTapKeys === "function") reattachTapKeys();
@@ -452,24 +460,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     const { saveManualFileToLibrary } = await import("./modules/biblioteca.js?v=4");
     if (typeof saveManualFileToLibrary === "function") saveManualFileToLibrary();
   });
-  safeAdd("libraryFileInput", "change", (e) => {
-    const file = e.target.files[0];
-    const nameInput = $("libraryFileName");
-    if (file && nameInput && !nameInput.value.trim()) {
-      nameInput.value = file.name.replace(/\.[^.]+/, "");
-    }
-  });
-  safeAdd("libraryFileType", "change", () => {
-    const typeSelect = $("libraryFileType");
-    const fileInput = $("libraryFileInput");
-    if (typeSelect && fileInput) {
-      if (typeSelect.value === "texto") {
-        fileInput.setAttribute("accept", ".txt");
-      } else {
-        fileInput.setAttribute("accept", "audio/*");
-      }
-    }
-  });
+  // B2/B3: el accept de `libraryFileType` lo gestiona SOLO biblioteca.js
+  // (fuente única) y `libraryFileName` no existe en el HTML: se eliminaron
+  // los handlers duplicados/muertos.
 
   // --- EVENTOS CAMBIAR TONO ---
   safeAdd("loadPitchKaraokeBtn", "click", async () => {
