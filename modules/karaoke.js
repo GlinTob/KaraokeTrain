@@ -133,6 +133,10 @@ export function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2) {
 
   const paleta = obtenerPaleta(Math.floor((currentTime || 0) * 50) % 360);
   const AVATAR_BLOCK_W = karaokeDuoSplitMode ? 110 : 0;
+  // K2: la tolerancia y la etiqueta se leían en CADA palabra y en la insignia
+  // (getPentagramTolerance parsea localStorage). Una sola lectura por frame.
+  const pentagramTol = getPentagramTolerance();
+  const pentagramLabel = getPentagramDifficultyLabel();
 
   ctx.fillStyle = paleta.fondo;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -154,23 +158,21 @@ export function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2) {
     pushPitch(pitchHistoryP1, currentFreq);
     pushPitch(pitchHistoryP2, currentFreq2);
 
-    drawRegion(20, 20 + regionH, karaokePitchP1, pitchHistoryP1, "P1", "P1", paleta, currentTime, canvas, AVATAR_BLOCK_W, "#38bdf8", now);
-    drawRegion(20 + regionH + GAP, 20 + regionH * 2 + GAP, karaokePitchP2, pitchHistoryP2, "P2", "P2", paleta, currentTime, canvas, AVATAR_BLOCK_W, "#fb923c", now);
+    drawRegion(20, 20 + regionH, karaokePitchP1, pitchHistoryP1, "P1", "P1", paleta, currentTime, canvas, AVATAR_BLOCK_W, "#38bdf8", now, pentagramTol);
+    drawRegion(20 + regionH + GAP, 20 + regionH * 2 + GAP, karaokePitchP2, pitchHistoryP2, "P2", "P2", paleta, currentTime, canvas, AVATAR_BLOCK_W, "#fb923c", now, pentagramTol);
   } else {
     pushPitch(pitchHistory, currentFreq);
-    drawRegion(20, canvas.height - 122, karaokePitchP1, pitchHistory, null, null, paleta, currentTime, canvas, 0, "#facc15", now);
+    drawRegion(20, canvas.height - 122, karaokePitchP1, pitchHistory, null, null, paleta, currentTime, canvas, 0, "#facc15", now, pentagramTol);
   }
 
   drawLyricsBar(canvas, ctx, currentTime);
-  drawDifficultyBadge(canvas, ctx);
+  drawDifficultyBadge(canvas, ctx, pentagramLabel, pentagramTol);
 }
 
 // Insignia de dificultad: el usuario siempre ve el nivel activo y su
 // tolerancia en semitonos, arriba a la derecha del monitor.
-function drawDifficultyBadge(canvas, ctx) {
+function drawDifficultyBadge(canvas, ctx, label, tol) {
   try {
-    const label = getPentagramDifficultyLabel();
-    const tol = getPentagramTolerance();
     const txt = `Dificultad: ${label} (±${tol} st)`;
     ctx.font = "bold 22px Arial";
     const w = ctx.measureText(txt).width;
@@ -191,7 +193,7 @@ function drawDifficultyBadge(canvas, ctx) {
   } catch (e) {}
 }
 
-function drawRegion(pTop, pBottom, pVal, pHist, filtro, etiqueta, paleta, currentTime, canvas, avatarBlockW, trailColor, now) {
+function drawRegion(pTop, pBottom, pVal, pHist, filtro, etiqueta, paleta, currentTime, canvas, avatarBlockW, trailColor, now, tol) {
   const TRAIL = trailColor || "#facc15";
   const PX_PER_MS = 0.18; // ~180 px/s: el rastro cubre ~2 s hacia la izquierda
   const DOT_R = 9;
@@ -265,7 +267,6 @@ function drawRegion(pTop, pBottom, pVal, pHist, filtro, etiqueta, paleta, curren
         const h = Math.max(10, pHeight / 14);
         const isPast = currentTime > w.end;
         const isActive = !isPast && currentTime >= w.start;
-        const tol = getPentagramTolerance();
         const targetMidi = w.midi || seg.midi || 60;
 
         // Banda de tolerancia sobre la palabra activa: su ANCHO visual es la
@@ -476,7 +477,9 @@ function drawAvatarBlock(pTop, pBottom, parte, avatarBlockW, ctx) {
 }
 
 function drawLyricsBar(canvas, ctx, currentTime) {
-  if (!karaokeRecordingActive) return;
+  // K3: ya no se exige el flag de grabación. El monitor de letras debe pintar
+  // también en modo preview/monitor (antes quedaba en blanco hasta empezar a
+  // grabar, lo que engañaba al usuario: "no hay letra").
   if (!Array.isArray(textSegments) || !textSegments.length) return;
 
   const idx = textSegments.findIndex(s =>
@@ -539,24 +542,39 @@ function escHtml(s) {
 
 function targetMidiAt(time, parte) {
   if (!Array.isArray(textSegments)) return null;
+  // FIX K4: el cantante objetivo es LA PARTE que corresponde (P1/P2) y el
+  // pseudo-"DUO" es solo fallback. Entre segmentos candidatos que empiezan
+  // dentro del rango, se prefiere el que arranca más tarde (es el que suena
+  // ahora), evitando que el score caiga en una frase anterior.
+  const candidates = [];
   for (let i = 0; i < textSegments.length; i++) {
     const seg = textSegments[i];
-    if (seg.parte !== parte && seg.parte !== "DUO") continue;
+    if (!(parte === seg.parte || seg.parte === "DUO")) continue;
     if (time < (seg.start || 0) || time > (seg.end || 0)) continue;
-    let target = Number.isFinite(seg.midi) ? seg.midi : 60;
-    if (Array.isArray(seg.words)) {
-      for (const w of seg.words) {
-        const ws = Number.isFinite(w.start) ? w.start : -1;
-        const we = Number.isFinite(w.end) ? w.end : -1;
-        if (time >= ws && time <= we) {
-          if (Number.isFinite(w.midi)) target = w.midi;
-          break;
-        }
+    candidates.push({ i, seg });
+  }
+  const exact = candidates.filter(c => c.seg.parte === parte);
+  const list = exact.length ? exact : candidates;
+  let best = null;
+  for (const c of list) {
+    const st = c.seg.start || 0;
+    const bst = best ? (best.seg.start || 0) : -1;
+    if (!best || st > bst) best = c;
+  }
+  if (!best) return null;
+  const seg = best.seg;
+  let target = Number.isFinite(seg.midi) ? seg.midi : 60;
+  if (Array.isArray(seg.words)) {
+    for (const w of seg.words) {
+      const ws = Number.isFinite(w.start) ? w.start : -1;
+      const we = Number.isFinite(w.end) ? w.end : -1;
+      if (time >= ws && time <= we) {
+        if (Number.isFinite(w.midi)) target = w.midi;
+        break;
       }
     }
-    return { idx: i, target };
   }
-  return null;
+  return { idx: best.i, target };
 }
 
 function accumulateScore(quien, time, freq) {
@@ -566,9 +584,10 @@ function accumulateScore(quien, time, freq) {
   const tol = getPentagramTolerance();
   const userMidi = Math.round(12 * Math.log2(freq / 440) + 69);
   let slot = scoreData[quien][hit.idx];
-  if (!slot) slot = scoreData[quien][hit.idx] = { total: 0, ok: 0 };
+  if (!slot) slot = scoreData[quien][hit.idx] = { total: 0, ok: 0, text: textSegments[hit.idx]?.text || `Línea ${hit.idx + 1}` };
   slot.total++;
   if (Math.abs(userMidi - hit.target) <= tol) slot.ok++;
+  slot.text = textSegments[hit.idx]?.text || slot.text;
 }
 
 function starStr(pct) {
@@ -586,7 +605,7 @@ function summarizeScore(quien) {
     t += s.total;
     ok += s.ok;
     const p = Math.round(100 * s.ok / s.total);
-    const txt = (textSegments[i] && textSegments[i].text) || `Línea ${i + 1}`;
+    const txt = s.text || (textSegments[i] && textSegments[i].text) || `Línea ${i + 1}`;
     if (!best || p > best.p) best = { p, txt };
     if (!worst || p < worst.p) worst = { p, txt };
   }
@@ -626,17 +645,26 @@ function buildMicConstraints(micId) {
 }
 
 async function requestMicStream(micId) {
+  // C4: devuelve { stream, fallback, error }. `fallback` es el stream
+  // reintentado sin deviceId (OverconstrainedError/NotFoundError); `error` solo
+  // se llena si ambos intentos fallaron, para que el llamador decida el aviso.
   try {
-    return await navigator.mediaDevices.getUserMedia(buildMicConstraints(micId));
+    const stream = await navigator.mediaDevices.getUserMedia(buildMicConstraints(micId));
+    return { stream, fallback: null, error: null };
   } catch (err) {
     // Fallback agnóstico: si el deviceId exacto falla (dispositivo ocupado,
     // mismo hardware elegido dos veces, jack 3.5 compartido), reintentar sin
     // deviceId pero manteniendo el procesamiento desactivado.
     if (micId && (err?.name === "OverconstrainedError" || err?.name === "NotFoundError")) {
       console.warn("Reintentando micrófono sin deviceId exacto:", err?.message || err);
-      return await navigator.mediaDevices.getUserMedia(buildMicConstraints(null));
+      try {
+        const fallbackStream = await navigator.mediaDevices.getUserMedia(buildMicConstraints(null));
+        return { stream: fallbackStream, fallback: fallbackStream, error: null };
+      } catch (err2) {
+        return { stream: null, fallback: null, error: err2 };
+      }
     }
-    throw err;
+    return { stream: null, fallback: null, error: err };
   }
 }
 
@@ -1085,13 +1113,18 @@ export async function startKaraokeRecording() {
 
     const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
 
-    // FIX: reproducir la pista ANTES de pedir el micrófono, dentro del gesto
-    // del usuario (click). Llamarlo después de `getUserMedia` solía provocar
-    // NotAllowedError de autoplay y la pista quedaba muda.
+    // FIX (K1): reproducir la pista ANTES de pedir el micrófono, dentro del
+    // gesto del usuario (click). Llamarlo después de `getUserMedia` solía
+    // provocar NotAllowedError de autoplay y la pista quedaba muda. El priming
+    // se hace MUTEADO y luego se pausa + reset a 0: los recorders arrancan ya
+    // con el tiempo de la pista en 0 cuando el bucle del primer frame arranca.
     let trackPlaybackFailed = false;
     try {
-      track.volume = 0.5;
+      track.volume = 0;
       await track.play();
+      track.pause();
+      track.currentTime = 0;
+      track.volume = 0.5;
     } catch (e) {
       trackPlaybackFailed = true;
       console.warn("No se pudo reproducir la pista:", e);
@@ -1122,13 +1155,20 @@ export async function startKaraokeRecording() {
       return;
     }
 
-    karaokeStream = await requestMicStream(mic1);
+    const mic1Result = await requestMicStream(mic1);
+    if (mic1Result.error) {
+      // C4: sin mic se aborta el arranque; el catch de abajo hace la limpieza.
+      throw mic1Result.error;
+    }
+    karaokeStream = mic1Result.stream;
     logStreamInfo("Mic 1 abierto", karaokeStream);
     if (sesionInicio !== karaokeStartSession) throw abortKaraokeStartError();
 
     if (karaokeDuoSplitMode) {
       try {
-        karaokeStream2 = await requestMicStream(mic2);
+        const mic2Result = await requestMicStream(mic2);
+        if (mic2Result.error) throw mic2Result.error;
+        karaokeStream2 = mic2Result.stream;
         logStreamInfo("Mic 2 abierto", karaokeStream2);
         if (sesionInicio !== karaokeStartSession) throw abortKaraokeStartError();
         // El fallback sin deviceId (jack 3.5 compartido) puede devolver EL
@@ -1336,6 +1376,20 @@ const pitchInputGain2 = karaokePitchDetectionAudioCtx.createGain();
       window.karaokeMediaRecorder = null;
     }
 
+    if (sesionInicio !== karaokeStartSession) throw abortKaraokeStartError();
+
+    // FIX (K1): con los recorders ya arrancados, la pista arranca en 0 y se
+    // reproduce desde el primer frame del bucle (el priming mudo la dejó
+    // caliente; esto la lanza al punto de partida correcto).
+    try {
+      if (track) { track.pause(); track.currentTime = 0; }
+      track.volume = 0.5;
+      await track.play();
+    } catch (e) {
+      trackPlaybackFailed = true;
+      console.warn("No se pudo reproducir la pista tras el inicio:", e);
+    }
+
     if (trackPlaybackFailed) {
       const warnEl = $("karaokeStatus");
       if (warnEl) warnEl.textContent = "⚠️ La pista no pudo reproducirse (autoplay/CORS). Grabando la voz de todos modos.";
@@ -1392,15 +1446,10 @@ const pitchInputGain2 = karaokePitchDetectionAudioCtx.createGain();
   }
 }
 
-export async function startKaraokePitchDetection() {
-  if (!karaokeStream) {
-    console.warn("⚠️ No hay stream principal para detección de pitch en karaoke.");
-    return;
-  }
-  if (!karaokeAudioController) karaokeAudioController = getAudioController();
-  karaokeLoopBusy = false;
-  loop();
-}
+// FIX K6: se eliminó `startKaraokePitchDetection`. Era un punto de entrada
+// muerto que arrancaba el bucle de detección SIN pasar por `startKaraokeRecording`
+// (sin session token, sin recorder de voz, sin monitor), así que cualquier consumidor
+// futuro arrancaba un rAF huérfano. El bucle solo debe arrancarse con la grabación.
 
 // FIX #9: única puerta de encolado del bucle. El callback valida el token de
 // sesión (las cadenas viejas mueren sin cancelAnimationFrame) y, si el frame
@@ -1871,7 +1920,10 @@ function groupWordsByLineIntoSegments(flatWords) {
       text: currentLine.words.map(w => w.word).join(" "),
       parte: currentLine.words[0].parte || "P1",
       midi: 60,
-      words: currentLine.words
+      words: currentLine.words.map(w => ({
+        ...w,
+        renglon: currentLine.renglon
+      }))
     });
     currentLine = null;
   };
@@ -1924,6 +1976,7 @@ function groupFlatWordsIntoSegments(flatWords) {
     end: Number.isFinite(w.end) ? w.end : null,
     midi: Number.isFinite(w.midi) ? w.midi : null,
     parte: w.parte || "P1",
+    renglon: (w.renglon !== undefined && w.renglon !== null) ? w.renglon : null,
     originalIndex: idx
   })).sort((a, b) => a.start - b.start);
   
@@ -1954,7 +2007,8 @@ function groupFlatWordsIntoSegments(flatWords) {
   const segments = [];
   let currentSegment = {
     words: [normalizedWords[0]],
-    parte: normalizedWords[0].parte
+    parte: normalizedWords[0].parte,
+    renglon: normalizedWords[0].renglon
   };
   
   for (let i = 1; i < normalizedWords.length; i++) {
@@ -1962,15 +2016,18 @@ function groupFlatWordsIntoSegments(flatWords) {
     const prevWord = normalizedWords[i - 1];
     const gap = word.start - prevWord.end;
     const sameParte = word.parte === currentSegment.parte;
+    const sameRenglon = (word.renglon === null || word.renglon === currentSegment.renglon);
     
-    // Nuevo segmento si: gap grande (>1.5s), cambio de parte, o es la primera palabra
-    if (gap > 1.5 || !sameParte) {
+    // Nuevo segmento si: gap grande (>1.5s), cambio de parte, cambio de renglón
+    // o es la primera palabra.
+    if (gap > 1.5 || !sameParte || !sameRenglon) {
       // Finalizar segmento actual
       segments.push(createSegmentFromWords(currentSegment.words));
       // Iniciar nuevo segmento
       currentSegment = {
         words: [word],
-        parte: word.parte
+        parte: word.parte,
+        renglon: word.renglon
       };
     } else {
       currentSegment.words.push(word);
@@ -1991,6 +2048,7 @@ function createSegmentFromWords(words) {
   const segStart = words[0].start;
   const segEnd = words[words.length - 1].end;
   const parte = words[0].parte;
+  const renglon = words[0].renglon ?? null;
   const midi = words.find(w => Number.isFinite(w.midi))?.midi ?? 60;
   
   return {
@@ -1998,6 +2056,7 @@ function createSegmentFromWords(words) {
     end: segEnd,
     text: words.map(w => w.word).join(" "),
     parte,
+    renglon,
     midi,
     words: words.map(w => ({
       word: w.word,
@@ -2005,7 +2064,8 @@ function createSegmentFromWords(words) {
       start: w.start,
       end: w.end,
       midi: w.midi,
-      parte: w.parte
+      parte: w.parte,
+      renglon: w.renglon ?? null
     }))
   };
 }
@@ -2020,8 +2080,8 @@ function createSegmentFromWords(words) {
 function ensureTextLineTimings(segments, totalDuration) {
   if (!Array.isArray(segments) || !segments.length) return segments;
 
-  const starts = segments.map(s => Number.isFinite(s.start) ? s.start : 0);
-  const ends = segments.map(s => Number.isFinite(s.end) ? s.end : starts[segments.indexOf(s)]);
+  const starts = segments.map((s, i) => Number.isFinite(s.start) ? s.start : 0);
+  const ends = segments.map((s, i) => Number.isFinite(s.end) ? s.end : starts[i]);
   const span = Math.max(...ends) - Math.min(...starts);
   if (span >= 0.8) return segments; // ya tienen tiempos reales
 
@@ -2207,17 +2267,6 @@ export async function loadTrackOptionsInKaraoke() {
         opt.value = String(item.id);
         opt.textContent = item.name || "Karaoke";
         select.appendChild(opt);
-      });
-    }
-    const list = $("karaokeSongList");
-    if (list) {
-      list.innerHTML = "";
-      sorted.forEach(item => {
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.textContent = `🎤 ${item.name || "Karaoke"}`;
-        btn.onclick = () => loadKaraokeSong(item.id);
-        list.appendChild(btn);
       });
     }
   } catch (error) {
