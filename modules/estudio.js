@@ -1,9 +1,10 @@
-import { $ } from "./utils.js";
+import { $, toast, confirmDialog } from "./utils.js";
 import {
   getLibraryItemsByTypeFromSupabase,
   getLibraryItemsByIdFromSupabase,
   getAllLibraryItemsFromSupabase,
   updateLibraryItemsFromSupabase,
+  insertLibraryItemInSupabase,
   renderLibrary,
   escapeHTML
 } from './biblioteca.js?v=4';
@@ -54,6 +55,8 @@ let tapSyncSession = 0;
 // modo equivocado (línea→palabra) y guardaba un karaoke corrupto con
 // startTime: 0 en cientos de palabras, marcado como "sincronizado".
 let tapSyncModeType = "linea";
+// E7: fuente explícita de audio para la sesión de taps ("auto" | "voz" | "pista").
+let tapSyncSource = "auto";
 
 
 // Checklist visible: qué falta para poder crear el karaoke. Se refresca al
@@ -68,6 +71,25 @@ export function refreshStudioChecklist() {
   set("checkLetra", !!selectedTextId, "Letra cargada");
 }
 
+// E4: repoblar TODOS los selects de la pestaña Estudio (pistas / voces /
+// letras) tras borrar o convertir un ítem. Cada entrada a la tab ya llama a esta
+// función (script.js), así que aquí NO se repueblan en initEstudio (evita fetches
+// dobles). Se hace en paralelo con Promise.allSettled: un fallo de un tipo no debe
+// bloquear los otros dos.
+export async function refreshStudioSelectors() {
+  const results = await Promise.allSettled([
+    loadTrackOptionsInStudio(),
+    loadVoiceOptionsInStudio(),
+    loadTextOptionsInStudio()
+  ]);
+  const fallos = results
+    .map((r, i) => (r.status === "rejected" ? { i, err: r.reason } : null))
+    .filter(Boolean);
+  if (fallos.length) {
+    console.warn("⚠️ No se pudieron refrescar algunos selectores de Estudio:", fallos.map(f => f.err));
+  }
+}
+
 export function initEstudio() {
   console.log("🎚️ [estudio.js] Inicializado con éxito");
   refreshStudioChecklist();
@@ -78,11 +100,10 @@ export function initEstudio() {
   // DOS veces en paralelo: doble descarga y revokeObjectURL prematuro.
   //safeAdd("studioTrackFile", "change", cargarAudioEstudio); 
 
-  // Llenar automáticamente los tres menús desplegables al abrir la pestaña
-  loadTrackOptionsInStudio();
-  loadVoiceOptionsInStudio();
-  loadTextOptionsInStudio(); // Alimenta el selector azul 'textLibrarySelect'
-} 
+  // E4: NO poblar los selects aquí. La entrada al tab ya hace refreshStudioSelectors
+  // (script.js) tras el lazy-load; duplicar los fetches aquí provocaba renders
+  // dobles y condiciones de carrera.
+}
 
 function buildWordTimingFromSegment(seg) {
   if (!seg.words || seg.words.length === 0) {
@@ -173,7 +194,7 @@ export async function loadSelectedTrackFromLibraryStudio() {
 
   const selectedId = select.value;
   if (!selectedId) {
-    alert("⚠️ Selecciona una pista");
+    toast("⚠️ Selecciona una pista", "warn");
     return;
   }
 
@@ -186,7 +207,7 @@ export async function loadSelectedTrackFromLibraryStudio() {
     const item = await getLibraryItemsByIdFromSupabase(selectedId);
     if (mySeq !== trackLoadSeq) return;
     if (!item) {
-      alert("⚠️ No se encontró la pista");
+      toast("⚠️ No se encontró la pista", "warn");
       return;
     }
 
@@ -250,7 +271,7 @@ export async function loadSelectedTrackFromLibraryStudio() {
     studioTrackId = null;
     studioTrackBlob = null;
     refreshStudioChecklist();
-    alert("❌ No se pudo cargar la pista seleccionada: " + error.message);
+    toast("❌ No se pudo cargar la pista seleccionada: " + error.message, "error");
   }
 }
 
@@ -302,7 +323,7 @@ export async function loadSelectedVoiceFromLibrary() {
 
   const selectedId = select.value;
   if (!selectedId) {
-    alert("⚠️ Selecciona un archivo de voz");
+    toast("⚠️ Selecciona un archivo de voz", "warn");
     return;
   }
 
@@ -312,7 +333,7 @@ export async function loadSelectedVoiceFromLibrary() {
     const item = await getLibraryItemsByIdFromSupabase(selectedId);
     if (mySeq !== voiceLoadSeq) return;
     if (!item) {
-      alert("⚠️ No se encontró el archivo de voz");
+      toast("⚠️ No se encontró el archivo de voz", "warn");
       return;
     }
 
@@ -321,6 +342,11 @@ export async function loadSelectedVoiceFromLibrary() {
     selectedVoiceId = item.id;
 
     if (typeof urlOrBlob === 'string') {
+      // E6: si antes había un blob: URL activo, revocarla antes de cambiar a string.
+      if (player.dataset.blobUrl) {
+        try { URL.revokeObjectURL(player.dataset.blobUrl); } catch (e) {}
+        player.dataset.blobUrl = "";
+      }
       selectedVoiceBlob = urlOrBlob;
 
       const urlConCacheBuster = urlOrBlob.includes('?')
@@ -357,7 +383,7 @@ export async function loadSelectedVoiceFromLibrary() {
     selectedVoiceId = null;
     selectedVoiceBlob = null;
     refreshStudioChecklist();
-    alert("❌ No se pudo cargar el archivo de voz seleccionado");
+    toast("❌ No se pudo cargar el archivo de voz seleccionado", "error");
   }
 }
 
@@ -422,7 +448,7 @@ export async function loadSelectedTextFromLibrary() {
 
   const selectedId = select.value;
   if (!selectedId) {
-    alert("⚠️ Selecciona una letra de la lista primero.");
+    toast("⚠️ Selecciona una letra de la lista primero.", "warn");
     return;
   }
 
@@ -432,7 +458,7 @@ export async function loadSelectedTextFromLibrary() {
     const item = await getLibraryItemsByIdFromSupabase(selectedId);
     if (mySeq !== textLoadSeq) return;
     if (!item) {
-      alert("⚠️ No se encontró la letra en la base de datos.");
+      toast("⚠️ No se encontró la letra en la base de datos.", "warn");
       return;
     }
 
@@ -473,7 +499,7 @@ export async function loadSelectedTextFromLibrary() {
     console.error(error);
     selectedTextId = null;
     refreshStudioChecklist();
-    alert("❌ No se pudo cargar la letra seleccionada.");
+    toast("❌ No se pudo cargar la letra seleccionada.", "error");
   }
 }
 
@@ -485,19 +511,22 @@ export async function applyCorrectedLyrics() {
   const lyricsText = $("lyricsText");
   const text = $("text");
   const currentTextInput = lyricsText || text;
-  const currentId = selectedVoiceId || selectedTextId;
-  const statusId = selectedVoiceId ? "selectedVoiceStatus" : "selectedTextStatus";
+  // E1: las correcciones SIEMPRE apuntan a la fila de letra (selectedTextId).
+  // Nunca a la fila de voz: mezclar una corrección de letra con la voz
+  // invalidaba el karaoke ya generado.
+  const currentId = selectedTextId;
+  const statusId = "selectedTextStatus";
   const status = $(statusId);
 
   if (!currentTextInput) return;
   const correctedText = currentTextInput.value.trim();
 
   if (!correctedText) {
-    alert("⚠️ No hay texto corregido para aplicar.");
+    toast("⚠️ No hay texto corregido para aplicar.", "warn");
     return;
   }
   if (!currentId) {
-    alert("❌ No hay ninguna canción o letra seleccionada en el sistema.");
+    toast("❌ Carga una letra desde la Biblioteca antes de aplicar correcciones.", "error");
     return;
   }
 
@@ -532,11 +561,11 @@ export async function applyCorrectedLyrics() {
     });
 
     if (status) status.textContent = "Estado: letra corregida aplicada y guardada ✅";
-    alert("✅ Cambios aplicados y guardados correctamente.");
+    toast("✅ Cambios aplicados y guardados correctamente.", "ok");
   } catch (error) {
     console.error("Error al aplicar la letra corregida:", error);
     if (status) status.textContent = "Estado: Error al guardar las correcciones";
-    alert("❌ No se pudieron salvar las modificaciones del monitor.");
+    toast("❌ No se pudieron salvar las modificaciones del monitor.", "error");
   }
 }
 
@@ -819,16 +848,43 @@ export async function startTapSync() {
   const trackPlayer = $("player");
   const methodSelect = $("tapSyncMethodSelect");
   const modoSeleccionado = methodSelect ? methodSelect.value : "linea";
+  const sourceSelect = $("tapSyncSourceSelect");
+  const fuenteSeleccionada = sourceSelect ? sourceSelect.value : "auto";
   const activePlayer = (voicePlayer && voicePlayer.src) ? voicePlayer : trackPlayer;
   const textoActivo = (lyricsText && lyricsText.value.trim()) ? lyricsText.value.trim() : (text ? text.value.trim() : "");
 
   if (!textoActivo) {
-    alert("⚠️ Primero escribe, carga o corrige la letra en el área de texto.");
+    toast("⚠️ Primero escribe, carga o corrige la letra en el área de texto.", "warn");
     return;
   }
   if (!activePlayer || !activePlayer.src) {
-    alert("⚠️ Primero carga un audio (Pista o Voz) en el Estudio para hacer los Taps.");
+    toast("⚠️ Primero carga un audio (Pista o Voz) en el Estudio para hacer los Taps.", "warn");
     return;
+  }
+
+  // E7: fuente de audio elegida por el usuario (Auto / Voz / Pista).
+  let playerTaps = activePlayer;
+  if (fuenteSeleccionada === "voz") {
+    const vozPlayer = $("selectedVoicePlayer");
+    if (!vozPlayer || !vozPlayer.src) {
+      toast("⚠️ Selecciona una voz cargada en el Estudio antes de sincronizar con voz.", "warn");
+      return;
+    }
+    playerTaps = vozPlayer;
+  } else if (fuenteSeleccionada === "pista") {
+    const track = $("player");
+    if (!track || !track.src) {
+      toast("⚠️ Selecciona una pista cargada en el Estudio antes de sincronizar con pista.", "warn");
+      return;
+    }
+    playerTaps = track;
+  }
+  tapSyncSource = fuenteSeleccionada;
+  const statusSync = $("tapSyncStatus");
+  if (statusSync) {
+    statusSync.textContent = fuenteSeleccionada === "auto"
+      ? "⏳ Sincronizando con fuente automática…"
+      : `⏳ Sincronizando con fuente: ${fuenteSeleccionada === "voz" ? "Voz" : "Pista"}…`;
   }
 
   tapSyncModeType = modoSeleccionado;
@@ -854,39 +910,39 @@ export async function startTapSync() {
 
   if (tapSyncLines.length === 0) {
     tapSyncMode = false;
-    alert("⚠️ No hay elementos de texto válidos para sincronizar.");
+    toast("⚠️ No hay elementos de texto válidos para sincronizar.", "warn");
     restoreTapSyncButtons();
     return;
   }
 
   updateTapSyncDisplay();
-  activePlayer.currentTime = 0;
+  playerTaps.currentTime = 0;
 
   console.log('⏳ Esperando a que el audio cargue en segundo plano...');
 
   try {
     await new Promise((resolve, reject) => {
-      if (activePlayer.readyState >= 3) {
-        window.activeTapPlayer = activePlayer;
+      if (playerTaps.readyState >= 3) {
+        window.activeTapPlayer = playerTaps;
         resolve();
         return;
       }
 
       const timeout = setTimeout(() => reject(new Error('Audio load timeout (60s)')), 60000);
 
-      activePlayer.addEventListener('canplay', () => {
+      playerTaps.addEventListener('canplay', () => {
         clearTimeout(timeout);
-        window.activeTapPlayer = activePlayer;
+        window.activeTapPlayer = playerTaps;
         resolve();
       }, { once: true });
 
-      activePlayer.addEventListener('error', () => {
+      playerTaps.addEventListener('error', () => {
         clearTimeout(timeout);
-        const mediaError = activePlayer.error;
+        const mediaError = playerTaps.error;
         reject(new Error('Audio error: ' + (mediaError ? getMediaErrorDesc(mediaError.code) : "Desconocido")));
       }, { once: true });
 
-      activePlayer.load();
+      playerTaps.load();
     });
 
     // Si se canceló durante la espera, no hacer play ni enganchar teclado.
@@ -896,10 +952,10 @@ export async function startTapSync() {
       return;
     }
 
-    await activePlayer.play();
+    await playerTaps.play();
   } catch (e) {
     tapSyncMode = false;
-    alert('❌ No se pudo reproducir el audio de taps: ' + e.message);
+    toast('❌ No se pudo reproducir el audio de taps: ' + e.message, "error");
     restoreTapSyncButtons();
     return;
   }
@@ -1134,11 +1190,14 @@ export async function finishTapSync() {
     const remaining = tapSyncLines.length - tapSyncTimestamps.length;
     const tipoUnidad = (tapSyncModeType === "palabra") ? "palabras" : "líneas";
 
-    if (!confirm(
+    const aplicarIgual = await confirmDialog(
       `⚠️ Sincronización incompleta: faltan ${remaining} ${tipoUnidad} por tocar.\n\n` +
       `Actualmente: ${tapSyncTimestamps.length} / ${tapSyncLines.length} ${tipoUnidad}\n\n` +
-      `¿Deseas aplicar de todos modos?`
-    )) {
+      `¿Deseas aplicar de todos modos?`,
+      { okText: "Sí, aplicar", cancelText: "No, seguir" }
+    );
+
+    if (!aplicarIgual) {
       // "No" = seguir donde iba (sin borrar taps), no cancelar todo.
       finishTapEnCurso = false;
       resumeTapSync();
@@ -1165,7 +1224,7 @@ export async function finishTapSync() {
     const statusId = selectedVoiceId ? "selectedVoiceStatus" : "selectedTextStatus";
     const status = $(statusId);
     if (status) status.textContent = "Estado: ⚠️ guarda la letra/voz en Biblioteca y vuelve a cargar para sincronizar.";
-    alert("⚠️ Para terminar la sincronización, la voz o la letra deben venir de la Biblioteca (cárgalas en el Estudio y repite los taps). Tus taps se conservan.");
+    toast("⚠️ Para terminar la sincronización, la voz o la letra deben venir de la Biblioteca (cárgalas en el Estudio y repite los taps). Tus taps se conservan.", "warn");
     finishTapEnCurso = false;
     resumeTapSync();
     return;
@@ -1269,11 +1328,21 @@ export async function finishTapSync() {
       status.textContent = "Estado: detectando notas por palabra desde la voz seleccionada... 🎵";
     }
 
-    const audioSourceForPitch =
-      selectedVoiceBlob ||
-      item.file_url ||
-      item.audioBlob ||
-      null;
+    // E3: fuente EXPLÍCITA del análisis de pitch. Prioridad: la voz cargada
+    // en Estudio. Si no hay voz, preguntar al usuario antes de continuar con la
+    // nota por defecto (nunca usar silenciosamente la pista como fuente).
+    let audioSourceForPitch = selectedVoiceBlob;
+    if (!audioSourceForPitch) {
+      const continuarConDefecto = await confirmDialog(
+        "¿No hay una voz cargada en el Estudio? ¿Continuar la sincronización con la nota por defecto (Do4 / MIDI 60)?",
+        { okText: "Sí, continuar", cancelText: "Cancelar" }
+      );
+      if (!continuarConDefecto) {
+        if (status) status.textContent = "Estado: sincronización cancelada: no hay voz para analizar.";
+        return;
+      }
+      audioSourceForPitch = item.file_url || item.audioBlob || null;
+    }
 
     const analyzedWords = await analyzePitchForTimedWords(audioSourceForPitch, timedWords);
 
@@ -1309,9 +1378,17 @@ export async function finishTapSync() {
       item.file_path ||
       null;
 
-    await updateLibraryItemsFromSupabase(currentId, {
-      // Nombre limpio sin sufijo: el tipo ya distingue al karaoke en listas.
-      name: (item.name || "").replace(" - [KARAOKE]", ""),
+    // E2: crear un KARAOKE NUEVO (fila separada) reutilizando el audio de la
+    // pista. Nunca convertimos ni sobrescribimos la fila original de pista/voz/
+    // texto: eso destruía la fuente original y mezclaba registros distintos.
+    const karaokeNombre = `${(trackItem?.name || item.name || "Karaoke")} - [KARAOKE]`;
+    const allItems = await getAllLibraryItemsFromSupabase();
+    const karaokeExistente = (allItems || []).find(
+      (k) => k && k.type === "karaoke" && String(k.name || "") === String(karaokeNombre)
+    );
+
+    const karaokePayload = {
+      name: karaokeNombre,
       type: "karaoke",
       lyrics: karaokeSegments,
       transcription: karaokeSegments,
@@ -1320,7 +1397,13 @@ export async function finishTapSync() {
       tapModeStyle: tapSyncModeType,
       file_url: fileUrlFinal,
       file_path: filePathFinal
-    });
+    };
+
+    if (karaokeExistente) {
+      await updateLibraryItemsFromSupabase(karaokeExistente.id, karaokePayload);
+    } else {
+      await insertLibraryItemInSupabase({ ...karaokePayload, date: new Date().toISOString() });
+    }
 
     if (status) {
       status.textContent = "Estado: ¡Karaoke generado con tiempos y notas automáticas! ✅";
@@ -1334,15 +1417,12 @@ export async function finishTapSync() {
 
     await renderLibrary("todos");
 
-    alert(
-      "✅ ¡Sincronización completada!\n\n" +
-      "Se guardaron los tiempos y las notas automáticas por palabra."
-    );
+    toast("✅ ¡Sincronización completada!\n\nSe guardaron los tiempos y las notas automáticas por palabra.", "ok");
 
   } catch (error) {
     console.error("Error al finalizar sincronización:", error);
     if (status) status.textContent = "Estado: Error al guardar la sincronización";
-    alert("❌ Error al aplicar taps y analizar pitch: " + error.message);
+    toast("❌ Error al aplicar taps y analizar pitch: " + error.message, "error");
   } finally {
     finishTapEnCurso = false;
     setBotonesAplicarTaps(false);
