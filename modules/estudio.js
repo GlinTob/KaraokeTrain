@@ -753,7 +753,13 @@ async function analyzePitchForTimedWords(audioSource, timedWords) {
       const slice = monoData.slice(startSample, endSample);
       try {
         const freq = await audioController.detectPitch(slice, sampleRate);
-        if (typeof freq === "number" && freq > 0) {
+        // FIX (tema "palabra fuera de lugar"): descartar frecuencias imposibles
+        // antes de convertir a MIDI. Una ventana corta puede dar un pico
+        // espurio (ruido/harmónico) que terminaba en una nota muy por encima de
+        // la que cantaba el cantante y aparecía "fuera de lugar" en el pentagrama.
+        const FREQ_MIN = 50;
+        const FREQ_MAX = 2000;
+        if (typeof freq === "number" && freq > 0 && freq >= FREQ_MIN && freq <= FREQ_MAX) {
           midi = frequencyToMidi(freq);
         }
       } catch (err) {
@@ -1381,10 +1387,15 @@ export async function finishTapSync() {
     // E2: crear un KARAOKE NUEVO (fila separada) reutilizando el audio de la
     // pista. Nunca convertimos ni sobrescribimos la fila original de pista/voz/
     // texto: eso destruía la fuente original y mezclaba registros distintos.
-    const karaokeNombre = `${(trackItem?.name || item.name || "Karaoke")} - [KARAOKE]`;
+    // El nombre NO lleva sufijo (el usuario no quiere la palabra "karaoke" en el
+    // karaoke final); el tipo "karaoke" ya lo distingue en las listas.
+    const karaokeNombre = (trackItem?.name || item.name || "Karaoke");
     const allItems = await getAllLibraryItemsFromSupabase();
     const karaokeExistente = (allItems || []).find(
-      (k) => k && k.type === "karaoke" && String(k.name || "") === String(karaokeNombre)
+      (k) => k && k.type === "karaoke" && (
+        String(k.name || "") === String(karaokeNombre) ||
+        String(k.name || "") === `${karaokeNombre} - [KARAOKE]`
+      )
     );
 
     const karaokePayload = {
