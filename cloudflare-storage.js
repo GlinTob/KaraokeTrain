@@ -15,20 +15,17 @@ function getCloudflareConfig() {
 
   try {
     const parsed = new URL(normalized);
-    const isWorkersDev = /\.workers\.dev$/.test(parsed.hostname);
     const isLocalhost = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(normalized);
 
-    if (!isWorkersDev && !isLocalhost) {
+    // R4: aceptar cualquier host HTTPS (workers.dev, dominio propio, CDN de
+    // R2...). Antes solo pasaban *.workers.dev/localhost, así que mover el
+    // storage a un dominio propio rompía toda la biblioteca.
+    if (parsed.protocol !== "https:" && !isLocalhost) {
       console.error(
-        `❌ Cloudflare R2 URL inválida o sospechosa: "${normalized}". ` +
-        `Debe apuntar a un subdominio *.workers.dev o localhost. ` +
-        `Verifica que VITE_CLOUDFLARE_R2_BASE_URL en index.html coincida con R2_PUBLIC_URL en wrangler.toml.`
+        `❌ Cloudflare R2 debe usar HTTPS: "${normalized}". ` +
+        `Solo se permite HTTP para localhost.`
       );
       return null;
-    }
-
-    if (parsed.protocol !== "https:" && !isLocalhost) {
-      console.warn(`⚠️ Cloudflare R2 debería usar HTTPS, no ${parsed.protocol}`);
     }
   } catch (e) {
     console.error("❌ Cloudflare R2 URL malformada:", normalized, e);
@@ -294,11 +291,23 @@ async function deleteFileFromCloudflare(filePath) {
 
   if (!config || !filePath) return false;
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
   try {
     const deleteUrl = `${config.baseUrl}/api/delete/${encodeURIComponent(filePath)}`;
     console.log(`🗑️ Eliminando: ${deleteUrl}`);
 
-    const response = await fetch(deleteUrl, { method: "DELETE" });
+    const response = await fetch(deleteUrl, {
+      method: "DELETE",
+      signal: controller.signal
+    });
+
+    // B4: 404 = el objeto ya no existe. El borrado es idempotente: hay que
+    // dejar borrar la fila de Supabase, no bloquearla para siempre.
+    if (response.status === 404) {
+      console.log(`🗑️ R2 ya no tenía el objeto (404), se considera eliminado: ${filePath}`);
+      return true;
+    }
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -308,8 +317,10 @@ async function deleteFileFromCloudflare(filePath) {
     console.log(`🗑️ Eliminado de R2: ${filePath}`);
     return true;
   } catch (error) {
-    console.warn("No se pudo eliminar de R2:", error);
+    console.warn("No se pudo eliminar de R2:", error?.name === "AbortError" ? "timeout de 15 s" : error);
     return false;
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 
