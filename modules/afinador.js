@@ -153,13 +153,17 @@ export function noteToFrequency(noteName) {
 }
 
 export function frequencyToMidi(freq) {
+  // A1: sin guarda, freq=0 devolvía -Infinity y contaminaba los promedios.
+  if (!Number.isFinite(freq) || freq <= 0) return null;
   return Math.round(69 + 12 * Math.log2(freq / 440));
 }
 
 export function midiToNoteName(midi) {
+  if (!Number.isFinite(midi)) return '--';
   const names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-  const name = names[midi % 12];
-  const octave = Math.floor(midi / 12) - 1;
+  const safe = Math.round(midi);
+  const name = names[((safe % 12) + 12) % 12];
+  const octave = Math.floor(safe / 12) - 1;
   return `${name}${octave}`;
 }
 
@@ -883,6 +887,12 @@ export function destroyAfinador() {
   btn?.classList.remove('recording');
   btn?.setAttribute('aria-pressed', 'false');
   stopAfinador();
+  // A2: cerrar el contexto de efectos; se recrea solo con getSfxCtx() cuando
+  // vuelve a hacer falta (antes quedaba suspendido para siempre).
+  if (sfxCtx) {
+    sfxCtx.close().catch(() => {});
+    sfxCtx = null;
+  }
   resetAfinadorUI();
 }
 
