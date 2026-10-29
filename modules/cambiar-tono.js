@@ -377,7 +377,9 @@ export function stopPitchShifted() {
 }
 
 export function audioBufferToWavBlob(buffer) {
-  const numChannels = buffer.numberOfChannels;
+  // T3: el resto del pipeline (exportStereoWav/encodeWav) trabaja a 2 canales
+  // como máximo. Un WAV 5.1 se guardaba con 6 canales y luego no encajaba.
+  const numChannels = Math.min(2, buffer.numberOfChannels);
   const sampleRate = buffer.sampleRate;
   const numSamples = buffer.length;
   const bytesPerSample = 2;
@@ -439,6 +441,10 @@ export async function savePitchShiftedToLibrary() {
 
   if (btn) btn.disabled = true;
   if (status) status.textContent = "Estado: 🔄 procesando audio con el nuevo tono…";
+
+  // T2: token visible también en el catch (renderSession se declaraba dentro
+  // del try y no existía si el fallo ocurría antes de asignarlo).
+  const sesionGuardado = pitchRenderSession;
 
   try {
     if (!window.CloudflareStorage?.saveLibraryItemToCloudflare) {
@@ -526,6 +532,10 @@ export async function savePitchShiftedToLibrary() {
     }
     await loadPitchKaraokeOptions();
   } catch (e) {
+    if (sesionGuardado !== pitchRenderSession) {
+      console.log("🧹 Error de guardado descartado: cambiaste de pestaña.");
+      return;
+    }
     console.error("Error guardando audio modificado:", e);
     if (status) status.textContent = "Estado: ❌ error al guardar.";
     alert("❌ Error al guardar las modificaciones en la base de datos: " + e.message);
@@ -543,6 +553,13 @@ export async function sendPitchShiftedToKaraokeMonitor() {
   try {
     stopPitchShifted();
     await loadKaraokeSong(pitchLastSavedId);
+
+    // T1: marcar el tema como ya cargado en el selector. Sin esto, showTab
+    // veía dataset.loadedId vacío y recargaba la misma canción al entrar.
+    const track = $("karaokeTrack");
+    if (track) track.dataset.loadedId = String(pitchLastSavedId);
+    const select = $("karaokeTrackSelect");
+    if (select) select.value = String(pitchLastSavedId);
 
     const status = $("pitchSaveStatus");
     if (status) {
