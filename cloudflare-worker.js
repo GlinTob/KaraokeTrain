@@ -84,9 +84,32 @@ async function handleUpload(request, env) {
     }
     const safePath = `${tipo}/${Date.now()}-${crypto.randomUUID()}_${cleanName}`;
 
-    await env.VOCAL_APP_STORAGE.put(safePath, request.body, {
-      httpMetadata: { contentType: mimeType }
-    });
+    // R3: el Content-Length se puede omitir con chunked. Este contador corta
+    // el stream en cuanto se pasa del límite real.
+    let totalBytes = 0;
+    let tooLarge = false;
+    const limitedBody = request.body.pipeThrough(new TransformStream({
+      transform(chunk, controller) {
+        totalBytes += chunk.byteLength;
+        if (totalBytes > MAX_BYTES) {
+          tooLarge = true;
+          controller.error(new Error("UPLOAD_TOO_LARGE"));
+          return;
+        }
+        controller.enqueue(chunk);
+      }
+    }));
+
+    try {
+      await env.VOCAL_APP_STORAGE.put(safePath, limitedBody, {
+        httpMetadata: { contentType: mimeType }
+      });
+    } catch (err) {
+      if (tooLarge) {
+        return jsonResponse({ error: "Archivo muy grande. Máximo 100 MB: comprime o divide el audio." }, 413);
+      }
+      throw err;
+    }
 
     const publicUrl = `${env.R2_PUBLIC_URL}/api/file/${encodeURIComponent(safePath)}`;
     const elapsed = ((Date.now() - t0) / 1000).toFixed(2);
@@ -135,8 +158,18 @@ async function handleGetFile(request, key, env) {
         return new Response("Archivo no encontrado", { status: 404, headers: CORS_HEADERS });
       }
       const size = head.size;
-      let start = m[1] === "" ? Math.max(0, size - parseInt(m[2] || "0", 10)) : parseInt(m[1], 10);
-      let end = m[2] === "" ? size - 1 : parseInt(m[2], 10);
+      // R2: `bytes=-N` significa "los últimos N bytes". Antes se calculaba
+      // start = size-N pero end = N, así que casi siempre daba 416.
+      let start;
+      let end;
+      if (m[1] === "") {
+        const suffix = parseInt(m[2] || "0", 10);
+        start = Math.max(0, size - suffix);
+        end = size - 1;
+      } else {
+        start = parseInt(m[1], 10);
+        end = m[2] === "" ? size - 1 : parseInt(m[2], 10);
+      }
       if (!Number.isFinite(start) || !Number.isFinite(end) || start >= size || end < start) {
         return new Response("Rango no satisfacible", { status: 416, headers: CORS_HEADERS });
       }
