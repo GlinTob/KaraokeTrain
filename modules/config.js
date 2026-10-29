@@ -1,4 +1,4 @@
-import { $ } from "./utils.js";
+import { $, toast } from "./utils.js";
 
 /**
  * MÓDULO CONFIGURACIÓN COMPLETO
@@ -147,7 +147,9 @@ export function showSaveNotification() {
       notif.classList.remove("show");
     }, 2000);
   } else {
-    console.log("⚡ Configuración sincronizada y guardada en LocalStorage.");
+    // C5: el nodo #saveNotification no existe en el HTML; antes el guardado
+    // era completamente silencioso.
+    toast("Configuración guardada", "ok", 1600);
   }
 }
 
@@ -314,13 +316,7 @@ export async function initSettings() {
   if (settingsInitialized) return;  
   settingsInitialized = true;
 
-  const sensInput = $("micSensitivity");
-  if (sensInput) {
-    sensInput.value = safeGetItem("karaokeTrain_sensitivity") || "0.015";
-    sensInput.addEventListener("input", (e) => {
-      safeSetItem("karaokeTrain_sensitivity", e.target.value);
-    });
-  }
+  // C2: `micSensitivity` no existe en el HTML; se eliminó el bloque muerto.
 
   const settings = {
     micCount: "karaokeTrain_micCount",
@@ -784,8 +780,20 @@ export async function testMicrophone(micNumber) {
     state.timeoutId = setTimeout(() => stopMicTest(micNumber), 5000);
 
   } catch (err) {
-    if (status) status.innerText = "❌ Error de mic";
+    // C3: stopMicTest() resetea el status a "Haz clic para probar"; por eso el
+    // mensaje de error se pintaba y se borraba en el mismo instante. Primero
+    // limpiamos y después escribimos el diagnóstico real.
+    const nombre = err?.name || "";
+    const detalle = nombre === "NotAllowedError"
+      ? "permiso de micrófono denegado. Revisa el candado de la barra de direcciones."
+      : nombre === "NotReadableError"
+        ? "el micrófono está en uso por otra aplicación."
+        : nombre === "NotFoundError" || nombre === "OverconstrainedError"
+          ? "no se encontró el micrófono seleccionado. Vuelve a Config y elige otro."
+          : (err?.message || "error desconocido al abrir el micrófono.");
     stopMicTest(micNumber);
+    if (status) status.innerText = `❌ ${detalle}`;
+    toast(`Micrófono ${micNumber}: ${detalle}`, "error", 5000);
   }
 }
 
@@ -821,12 +829,10 @@ export function stopMicTest(micNumber) {
 // Función de limpieza al salir de la pestaña Configuración
 export function destroyConfig() {
   stopMicTest(); // Sin argumento = stop all
-  settingsInitialized = false;
-  // Reset flags de renderizado para permitir re-render si se vuelve a entrar
-  const themeGrid = $("themeGrid");
-  const karaokeGrid = $("karaokeThemeGrid");
-  if (themeGrid) themeGrid.dataset.rendered = "false";
-  if (karaokeGrid) karaokeGrid.dataset.rendered = "false";
+  // C1: NO resetear `settingsInitialized`. Al volver a Config, initSettings()
+  // registraba otra vez todos los listeners (micCount, dificultad, mics,
+  // botones de prueba...) y se acumulaban en cada visita. Los grids son
+  // estáticos; su estado activo se sincroniza con syncAppThemeCard().
 }
 
 export function initConfig() {
