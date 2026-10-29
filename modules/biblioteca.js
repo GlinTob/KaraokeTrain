@@ -1,4 +1,4 @@
-import { $ } from "./utils.js"; 
+import { $, toast, confirmDialog } from "./utils.js"; 
 
 /** 
  * MÓDULO BIBLIOTECA — Gestor de Almacenamiento Remoto, Sincronización Supabase y Cargas R2
@@ -161,6 +161,32 @@ export async function updateLibraryItemsFromSupabase(id, changes) {
   }
 }
 
+/**
+ * Inserta una fila nueva en `library` sin volver a subir audio a R2.
+ * Pensado para el karaoke generado en Estudio: reutiliza el file_url/file_path
+ * de la pista y deja intactas las filas originales de pista/voz/texto.
+ */
+export async function insertLibraryItemInSupabase(payload = {}) {
+  if (!db) await initSupabase();
+  const row = {
+    name: payload.name || "Karaoke",
+    type: payload.type || "karaoke",
+    file_url: payload.file_url || null,
+    file_path: payload.file_path || null,
+    lyrics: Array.isArray(payload.lyrics) ? payload.lyrics : [],
+    textoPlano: payload.textoPlano || null,
+    transcription: Array.isArray(payload.transcription) ? payload.transcription : [],
+    metadata: payload.metadata || {},
+    isSincronizada: !!payload.isSincronizada,
+    isReadyKaraoke: !!payload.isReadyKaraoke,
+    tapModeStyle: payload.tapModeStyle || null,
+    date: payload.date || new Date().toISOString()
+  };
+  const { data, error } = await db.from("library").insert([row]).select();
+  if (error) throw new Error(error.message);
+  return data?.[0] || null;
+}
+
 export async function deleteLibraryItemsFromSupabase(id) {
   if (!db) await initSupabase();
   try {
@@ -223,9 +249,16 @@ export async function getLibraryItemsByTypeFromSupabase(type) {
 export async function getLibraryItemsByIdFromSupabase(id) {
   if (!db) await initSupabase();
   try {
-    const { data, error } = await db.from('library').select('*').eq('id', id).single();
+    // maybeSingle (no single): si el ID ya fue borrado de la tabla, single()
+    // lanzaba "Cannot coerce the result to a single JSON object" y rompía la
+    // carga (p.ej. un karaoke que apuntaba a un track eliminado). maybeSingle
+    // devuelve null y el llamador decide.
+    const { data, error } = await db.from('library').select('*').eq('id', id).maybeSingle();
     if (error) throw new Error(error.message);
-    if (!data) throw new Error(`No se encontró ningún elemento con el ID: ${id}`);
+    if (!data) {
+      console.warn(`getLibraryItemsByIdFromSupabase: no existe ningún elemento con el ID ${id} (¿fue eliminado?).`);
+      return null;
+    }
     return data;
   } catch (error) {
     console.error(error.message);
@@ -330,7 +363,7 @@ export async function saveToLibrary(blob, options = {}) {
 
   } catch (error) {
     console.error("Error detallado:", error);
-    alert("No se pudo guardar en la nube: " + error.message);
+    toast("No se pudo guardar en la nube: " + error.message, "error");
     return { ok: false, error };
   }
 } 
@@ -467,7 +500,11 @@ export function asignarEventosBiblioteca(filter) {
   document.querySelectorAll(".delete-library-btn").forEach((btn) => {
     btn.removeEventListener("click", btn._handler);
     btn._handler = async () => {
-      if (confirm("¿Estás seguro de eliminar este archivo?")) {
+      const ok = await confirmDialog(
+        "¿Seguro que quieres eliminar este archivo?\n\nTambién se borrará de R2 si tiene audio.",
+        { okText: "Eliminar", cancelText: "Cancelar", danger: true }
+      );
+      if (ok) {
         const id = btn.dataset.id;
         await deleteLibraryItem(id, filter);
       }
@@ -483,28 +520,27 @@ export async function deleteLibraryItem(id, currentFilter = 'todos') {
     console.log(`Archivo ${id} eliminado correctamente.`);
   } catch (error) {
     console.error("Error al eliminar:", error);
-    alert("No se pudo eliminar el archivo. Inténtalo de nuevo.");
+    toast("No se pudo eliminar el archivo: " + (error?.message || "inténtalo de nuevo."), "error");
   }
 }
 
 export async function saveManualFileToLibrary() {
   const fileInput = $("libraryFileInput");
   const typeSelect = $("libraryFileType");
-  const nameInput = $("libraryFileName");
   const files = fileInput?.files;
   const rawType = typeSelect?.value || "pista";
   // Unificar: el tipo legacy "audio" se guarda como "pista" para que el filtro lo encuentre.
   const type = rawType === "audio" ? "pista" : rawType;
 
   if (!files || files.length === 0) {
-    alert(type === "texto" || type === "texto_plano" || type === "ultrastar_txt" ? "Selecciona un .txt" : "Selecciona al menos un archivo");
+    toast(type === "texto" || type === "texto_plano" || type === "ultrastar_txt" ? "Selecciona un .txt" : "Selecciona al menos un archivo", "warn");
     return;
   }
 
   // ✅ CORRECCIÓN 1: Homologar los tipos de texto para que coincidan con la validación
   const validation = validateFilesForUpload(files, type);
   if (!validation.valid) {
-    alert("⚠️" + validation.error);
+    toast("⚠️ " + validation.error, "warn");
     return;
   }
 
@@ -650,7 +686,6 @@ export async function saveManualFileToLibrary() {
     }
     if (clearBtn) clearBtn.style.display = "none";
     if (fileInput) fileInput.value = "";
-    if (nameInput) nameInput.value = "";
     setTimeout(() => {
       if (uploadProgressContainer) uploadProgressContainer.style.display = "none";
       if (uploadFilesList) uploadFilesList.innerHTML = "";
@@ -836,9 +871,7 @@ export async function enviarAlMonitorKaraoke(karaokeItem) {
 
   try {
     if (!karaokeItem.file_url) {
-      const { toast: toastFn } = await import("./utils.js");
-      if (typeof toastFn === "function") toastFn("Este karaoke no tiene audio.", "warn");
-      else alert("Este karaoke no tiene audio.");
+      toast("Este karaoke no tiene audio.", "warn");
       return;
     }
     // Flujo central de carga (no réplica manual): resuelve letra, tiempos
@@ -860,7 +893,6 @@ export async function enviarAlMonitorKaraoke(karaokeItem) {
 }
 export function clearUploadSelection() {
   const fileInput = document.getElementById("libraryFileInput");
-  const nameInput = document.getElementById("libraryFileName");
   const uploadProgressContainer = document.getElementById("uploadProgressContainer");
   const uploadFilesList = document.getElementById("uploadFilesList");
   const saveBtn = document.getElementById("saveLibraryFileBtn");
@@ -873,7 +905,6 @@ export function clearUploadSelection() {
   const chosenText = document.getElementById("libraryFileChosenText");
 
   if (fileInput) fileInput.value = "";
-  if (nameInput) nameInput.value = "";
   if (uploadProgressContainer) uploadProgressContainer.style.display = "none";
   if (uploadFilesList) uploadFilesList.innerHTML = "";
   if (saveBtn) saveBtn.disabled = false;
