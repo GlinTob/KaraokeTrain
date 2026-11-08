@@ -380,6 +380,12 @@
               <span id="karaokeDuoSplitHint" style="color: var(--text-muted); font-size: 12px;">
                 Monitor dividido.
               </span>
+              <!-- Grabación sincronizada: junto al toggle de Dúo Split (mismo grupo de controles) -->
+              <div class="studio-controls" style="display: flex; gap: 8px; align-items: center;">
+                <button id="karaokeStartBtn" class="btn-danger" type="button">Iniciar Grabación</button>
+                <button id="karaokeStopBtn" type="button">Detener</button>
+                <button id="karaokeRestartBtn" type="button">Volver a intentar</button>
+              </div>
             </div>
             <div class="card monitor-karaoke" style="background: #1a1a1a; padding: 0; border: 2px solid var(--border); overflow: hidden; position: relative;">
               <canvas id="karaokeCanvas" width="1800" height="740" style="width: 100%; display: block; border-radius: 12px; min-height: 680px;"></canvas>
@@ -424,11 +430,6 @@
               </div>
             </div>
             
-            <div class="studio-controls">
-              <button id="karaokeStartBtn" class="btn-danger" type="button">Iniciar Grabación</button>
-              <button id="karaokeStopBtn" type="button">Detener</button>
-              <button id="karaokeRestartBtn" type="button">Volver a intentar</button>
-            </div>
           </div>
 
           <div class="card">
