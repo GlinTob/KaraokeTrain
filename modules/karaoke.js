@@ -212,7 +212,34 @@ function drawRegion(pTop, pBottom, pVal, pHist, filtro, etiqueta, paleta, curren
   const MIN_MIDI = 36; // C2
   const MAX_MIDI = 84; // C6
   const MAJOR_NATURALS = [0, 2, 4, 5, 7, 9, 11];
-  const midiToY = (midi) => pTop + ((MAX_MIDI - Math.min(MAX_MIDI, Math.max(MIN_MIDI, midi > 0 ? midi : MIN_MIDI))) / (MAX_MIDI - MIN_MIDI) * pHeight);
+  const midiToY = (midi) => pTop + ((staffMax - Math.min(staffMax, Math.max(staffMin, midi > 0 ? midi : staffMin))) / (staffMax - staffMin) * pHeight);
+
+  // FIX (pentagrama): rango "escala completa". Se calcula el rango real de las
+  // notas del karaoke cargado (mínimo/máximo) para que el staff muestre TODAS las
+  // notas en uso y no una ventana fija que se desplace. Si no hay notas, se usa
+  // el rango completo amplio (C2–C6).
+  let staffMin = MIN_MIDI;
+  let staffMax = MAX_MIDI;
+  if (Array.isArray(textSegments)) {
+    let mn = Infinity;
+    let mx = -Infinity;
+    const consider = (m) => {
+      if (Number.isFinite(m)) { if (m < mn) mn = m; if (m > mx) mx = m; }
+    };
+    for (const seg of textSegments) {
+      if (Array.isArray(seg.words)) {
+        for (const w of seg.words) {
+          consider(Number.isFinite(w?.midi) ? w.midi : (Number.isFinite(seg.midi) ? seg.midi : 60));
+        }
+      } else if (Number.isFinite(seg.midi)) {
+        consider(seg.midi);
+      }
+    }
+    if (Number.isFinite(mn)) {
+      staffMin = Math.max(MIN_MIDI, mn);
+      staffMax = Math.min(MAX_MIDI, mx);
+    }
+  }
 
   if (etiqueta) drawAvatarBlock(pTop, pBottom, etiqueta, avatarBlockW, ctx);
 
@@ -221,7 +248,7 @@ function drawRegion(pTop, pBottom, pVal, pHist, filtro, etiqueta, paleta, curren
   // cantante vea TODAS las notas en vez de quedarse pegado en la línea de C3.
   ctx.strokeStyle = paleta.lineas;
   ctx.lineWidth = 2;
-  for (let m = MIN_MIDI; m <= MAX_MIDI; m++) {
+  for (let m = staffMin; m <= staffMax; m++) {
     if (!MAJOR_NATURALS.includes(m % 12)) continue;
     const y = midiToY(m);
     ctx.beginPath();
@@ -238,7 +265,7 @@ function drawRegion(pTop, pBottom, pVal, pHist, filtro, etiqueta, paleta, curren
   ctx.textAlign = "right";
   ctx.textBaseline = "alphabetic";
   let lastLabelY = -1000;
-  for (let m = MIN_MIDI; m <= MAX_MIDI; m++) {
+  for (let m = staffMin; m <= staffMax; m++) {
     if (!MAJOR_NATURALS.includes(m % 12)) continue;
     const y = midiToY(m);
     if (y - lastLabelY < 8) continue;
