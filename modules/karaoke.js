@@ -223,9 +223,10 @@ function drawRegion(pTop, pBottom, pVal, pHist, filtro, etiqueta, paleta, curren
   if (etiqueta) drawAvatarBlock(pTop, pBottom, etiqueta, avatarBlockW, ctx);
 
   // Pentagrama: una línea (más gruesa/oscura) por cada nota natural C..B.
-  // FIX (pentagrama): rango ampliado a la escala completa (C2–C6) para que el
-  // cantante vea TODAS las notas en vez de quedarse pegado en la línea de C3.
-  ctx.strokeStyle = paleta.lineas;
+  // FIX (pentagrama): las líneas del staff usan un color SOLIDO y visible.
+  // Antes usaban paleta.lineas, que en varios temas es rgba con alpha baja
+  // (transparente), así que no se veían y solo quedaba la nota suelta.
+  ctx.strokeStyle = "#4b5563";
   ctx.lineWidth = 2;
   for (let m = staffMin; m <= staffMax; m++) {
     if (!MAJOR_NATURALS.includes(m % 12)) continue;
@@ -237,10 +238,9 @@ function drawRegion(pTop, pBottom, pVal, pHist, filtro, etiqueta, paleta, curren
   }
   ctx.lineWidth = 1;
 
-  // Etiquetas de TODAS las notas naturales. Solo en regiones muy pequeñas
-  // se omiten algunas para evitar que el texto se solape.
-  ctx.fillStyle = paleta.etiquetas;
-  ctx.font = "bold 18px Arial";
+  // Etiquetas de TODAS las notas naturales. Color solido para que se lean.
+  ctx.fillStyle = "#e5e7eb";
+  ctx.font = "bold 16px Arial";
   ctx.textAlign = "right";
   ctx.textBaseline = "alphabetic";
   let lastLabelY = -1000;
