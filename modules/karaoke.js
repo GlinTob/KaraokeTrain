@@ -212,34 +212,13 @@ function drawRegion(pTop, pBottom, pVal, pHist, filtro, etiqueta, paleta, curren
   const MIN_MIDI = 36; // C2
   const MAX_MIDI = 84; // C6
   const MAJOR_NATURALS = [0, 2, 4, 5, 7, 9, 11];
+  // FIX (pentagrama): la escala completa se dibuja SIEMPRE sobre todo el rango
+  // amplio (C2–C6). Antes el rango se adaptaba a las notas y podía colapsar a un
+  // único valor (p. ej. solo E2), de modo que "la escala" no salía y solo se veía
+  // una nota en una sola línea.
+  const staffMin = MIN_MIDI;
+  const staffMax = MAX_MIDI;
   const midiToY = (midi) => pTop + ((staffMax - Math.min(staffMax, Math.max(staffMin, midi > 0 ? midi : staffMin))) / (staffMax - staffMin) * pHeight);
-
-  // FIX (pentagrama): rango "escala completa". Se calcula el rango real de las
-  // notas del karaoke cargado (mínimo/máximo) para que el staff muestre TODAS las
-  // notas en uso y no una ventana fija que se desplace. Si no hay notas, se usa
-  // el rango completo amplio (C2–C6).
-  let staffMin = MIN_MIDI;
-  let staffMax = MAX_MIDI;
-  if (Array.isArray(textSegments)) {
-    let mn = Infinity;
-    let mx = -Infinity;
-    const consider = (m) => {
-      if (Number.isFinite(m)) { if (m < mn) mn = m; if (m > mx) mx = m; }
-    };
-    for (const seg of textSegments) {
-      if (Array.isArray(seg.words)) {
-        for (const w of seg.words) {
-          consider(Number.isFinite(w?.midi) ? w.midi : (Number.isFinite(seg.midi) ? seg.midi : 60));
-        }
-      } else if (Number.isFinite(seg.midi)) {
-        consider(seg.midi);
-      }
-    }
-    if (Number.isFinite(mn)) {
-      staffMin = Math.max(MIN_MIDI, mn);
-      staffMax = Math.min(MAX_MIDI, mx);
-    }
-  }
 
   if (etiqueta) drawAvatarBlock(pTop, pBottom, etiqueta, avatarBlockW, ctx);
 
