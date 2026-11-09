@@ -238,18 +238,17 @@ function drawRegion(pTop, pBottom, pVal, pHist, filtro, etiqueta, paleta, curren
   }
   ctx.lineWidth = 1;
 
-  // Etiquetas de TODAS las notas naturales. Color solido para que se lean.
+  // Etiquetas de las notas clave (C de cada octava: C2, C3, C4, C5, C6).
+  // Se dibujan pocas para que no se solapen y sean legibles.
   ctx.fillStyle = "#e5e7eb";
-  ctx.font = "bold 16px Arial";
+  ctx.font = "bold 14px Arial";
   ctx.textAlign = "right";
   ctx.textBaseline = "alphabetic";
-  let lastLabelY = -1000;
-  for (let m = staffMin; m <= staffMax; m++) {
-    if (!MAJOR_NATURALS.includes(m % 12)) continue;
+  const labeledMidis = [36, 48, 60, 72, 84]; // C2, C3, C4, C5, C6
+  for (const m of labeledMidis) {
+    if (m < staffMin || m > staffMax) continue;
     const y = midiToY(m);
-    if (y - lastLabelY < 8) continue;
-    lastLabelY = y;
-    ctx.fillText(midiToNoteName(m), noteLabelsX, y + 7);
+    ctx.fillText(midiToNoteName(m), noteLabelsX, y + 5);
   }
 
   // Símbolo de pentagrama (clave de sol) en modo solitario; en dúo ese
