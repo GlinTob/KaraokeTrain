@@ -239,14 +239,17 @@ function drawRegion(pTop, pBottom, pVal, pHist, filtro, etiqueta, paleta, curren
   ctx.lineWidth = 1;
 
   // Etiquetas de todas las notas naturales de la escala completa (C2–C6).
-  // Fuente pequeña para que quepan entre líneas sin solaparse tanto.
+  // Fuente reducida y espaciamiento mínimo para que no se solapen.
   ctx.fillStyle = "#e5e7eb";
-  ctx.font = "bold 10px Arial";
+  ctx.font = "bold 8px Arial";
   ctx.textAlign = "right";
   ctx.textBaseline = "alphabetic";
+  let lastLabelY = -1000;
   for (let m = staffMin; m <= staffMax; m++) {
     if (!MAJOR_NATURALS.includes(m % 12)) continue;
     const y = midiToY(m);
+    if (y - lastLabelY < 7) continue; // evita etiquetas pegadas entre sí
+    lastLabelY = y;
     ctx.fillText(midiToNoteName(m), noteLabelsX, y + 4);
   }
 
