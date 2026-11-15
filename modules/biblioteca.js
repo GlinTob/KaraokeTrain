@@ -440,10 +440,16 @@ export async function renderLibrary(filter = "todos") {
       const div = document.createElement("div");
       div.className = "library-item"; // Conserva tus estilos neón oscuros
   
-      // 1. Selección visual del icono según tu interfaz
+      // 1. Selección visual del icono según el tipo de archivo
       let iconoVisual = "🎵";
-      if (item.type === "letra" || item.type === "texto" || item.type === "texto_plano") {
+      if (item.type === "letra" || item.type === "texto" || item.type === "texto_plano" || item.type === "ultrastar_txt") {
         iconoVisual = "📝";
+      } else if (item.type === "pista") {
+        iconoVisual = "🎸";
+      } else if (item.type === "voz") {
+        iconoVisual = "🎤";
+      } else if (item.type === "grabacion" || item.type === "grabaciones") {
+        iconoVisual = "🎙️";
       } else if (item.type === "karaoke" || item.isSincronizada) {
         iconoVisual = "🎧";
       }
