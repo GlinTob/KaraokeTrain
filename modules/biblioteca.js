@@ -14,6 +14,10 @@ let librarySearchTimer = null;
 // lenta), el viejo se descarta y no duplica la lista.
 let libraryRenderSeq = 0;
 
+// Audio en reproducción (solo uno a la vez en Biblioteca).
+let libraryAudioPlayer = null;
+let libraryPlayingItemId = null;
+
 // Normaliza para buscar sin importar mayúsculas ni tildes.
 function normalizarBusqueda(texto) {
   return String(texto ?? "")
@@ -455,8 +459,13 @@ export async function renderLibrary(filter = "todos") {
 
       // 3. Inyectamos la estructura combinando los botones
       const tieneAudio = item.file_url || item.audioBlob || item.file_path;
-      const botonReproducirHTML = tieneAudio
-        ? `<button class="play-library-btn" data-id="${item.id}" title="Reproducir">▶</button>`
+      const isPlaying = libraryPlayingItemId === item.id && !libraryAudioPlayer?.paused;
+      const controlesAudioHTML = tieneAudio
+        ? `
+          <button class="play-library-btn" data-id="${item.id}" title="Reproducir">▶</button>
+          <button class="pause-library-btn" data-id="${item.id}" title="Pausar" ${isPlaying ? "" : "disabled"}>⏸</button>
+          <button class="stop-library-btn" data-id="${item.id}" title="Detener" ${isPlaying ? "" : "disabled"}>⏹</button>
+        `
         : "";
 
       div.innerHTML = `
@@ -466,7 +475,7 @@ export async function renderLibrary(filter = "todos") {
         </div>
         <div class="item-actions">
           ${botonCantarHTML}
-          ${botonReproducirHTML}
+          ${controlesAudioHTML}
           <button class="delete-library-btn" data-id="${item.id}" title="Eliminar">🗑</button>
         </div>
       `;
@@ -497,6 +506,24 @@ export async function renderLibrary(filter = "todos") {
             e.stopPropagation();
             console.log(`[Biblioteca] Reproduciendo: ${item.name}`);
             playLibraryItem(item);
+          });
+        }
+
+        const btnPause = div.querySelector(".pause-library-btn");
+        if (btnPause) {
+          btnPause.addEventListener("click", (e) => {
+            e.stopPropagation();
+            console.log(`[Biblioteca] Pausando: ${item.name}`);
+            pauseLibraryAudio();
+          });
+        }
+
+        const btnStop = div.querySelector(".stop-library-btn");
+        if (btnStop) {
+          btnStop.addEventListener("click", (e) => {
+            e.stopPropagation();
+            console.log(`[Biblioteca] Deteniendo: ${item.name}`);
+            stopLibraryAudio();
           });
         }
       }
@@ -545,6 +572,7 @@ export async function deleteLibraryItem(id, currentFilter = 'todos') {
 /**
  * Reproduce el audio de un ítem de la biblioteca (grabación, pista, voz, etc.).
  * Usa file_url o file_path; si es un blob, crea una URL de objeto.
+ * Solo se reproduce uno a la vez: si hay otro sonando, se detiene primero.
  */
 export async function playLibraryItem(item) {
   const audioUrl = item.file_url || item.file_path;
@@ -553,13 +581,71 @@ export async function playLibraryItem(item) {
     return;
   }
   try {
+    // Si hay otro audio sonando, lo detenemos antes de iniciar este.
+    if (libraryAudioPlayer) {
+      libraryAudioPlayer.pause();
+      libraryAudioPlayer.src = "";
+      libraryAudioPlayer = null;
+      libraryPlayingItemId = null;
+    }
+
     const audio = new Audio(audioUrl);
-    audio.play();
+    libraryAudioPlayer = audio;
+    libraryPlayingItemId = item.id;
+
+    audio.addEventListener("ended", () => {
+      libraryAudioPlayer = null;
+      libraryPlayingItemId = null;
+      // Refrescar la vista para actualizar estados de botones (pausa/stop se deshabilitan).
+      renderLibrary(libraryCurrentFilter);
+    });
+
+    audio.addEventListener("error", (err) => {
+      console.error("Error de reproducción:", err);
+      libraryAudioPlayer = null;
+      libraryPlayingItemId = null;
+      toast("Error al reproducir el audio.", "error");
+      renderLibrary(libraryCurrentFilter);
+    });
+
+    await audio.play();
     console.log(`[Biblioteca] Reproduciendo: ${item.name} (${audioUrl})`);
+
+    // Refrescar para habilitar pausa/stop en este ítem y deshabilitar en otros.
+    renderLibrary(libraryCurrentFilter);
   } catch (err) {
     console.error("Error reproduciendo audio:", err);
     toast("No se pudo reproducir el audio: " + (err?.message || "inténtalo de nuevo."), "error");
   }
+}
+
+/**
+ * Pausa el audio actualmente en reproducción en Biblioteca.
+ */
+export function pauseLibraryAudio() {
+  if (!libraryAudioPlayer) {
+    toast("No hay audio reproduciéndose.", "info");
+    return;
+  }
+  libraryAudioPlayer.pause();
+  console.log("[Biblioteca] Audio pausado.");
+  renderLibrary(libraryCurrentFilter);
+}
+
+/**
+ * Detiene el audio actualmente en reproducción en Biblioteca.
+ */
+export function stopLibraryAudio() {
+  if (!libraryAudioPlayer) {
+    toast("No hay audio reproduciéndose.", "info");
+    return;
+  }
+  libraryAudioPlayer.pause();
+  libraryAudioPlayer.src = "";
+  libraryAudioPlayer = null;
+  libraryPlayingItemId = null;
+  console.log("[Biblioteca] Audio detenido.");
+  renderLibrary(libraryCurrentFilter);
 }
 
 export async function saveManualFileToLibrary() {
