@@ -454,6 +454,11 @@ export async function renderLibrary(filter = "todos") {
       }
 
       // 3. Inyectamos la estructura combinando los botones
+      const tieneAudio = item.file_url || item.audioBlob || item.file_path;
+      const botonReproducirHTML = tieneAudio
+        ? `<button class="play-library-btn" data-id="${item.id}" title="Reproducir">▶</button>`
+        : "";
+
       div.innerHTML = `
         <div class="item-info">
           <span class="item-icon">${iconoVisual}</span>
@@ -461,6 +466,7 @@ export async function renderLibrary(filter = "todos") {
         </div>
         <div class="item-actions">
           ${botonCantarHTML}
+          ${botonReproducirHTML}
           <button class="delete-library-btn" data-id="${item.id}" title="Eliminar">🗑</button>
         </div>
       `;
@@ -479,6 +485,18 @@ export async function renderLibrary(filter = "todos") {
             } catch (err) {
               console.error("Error al exportar:", err);
             }
+          });
+        }
+      }
+
+      // ✅ NUEVO: Botón Reproducir para ítems con audio (grabaciones, pistas, voces, etc.)
+      if (tieneAudio) {
+        const btnPlay = div.querySelector(".play-library-btn");
+        if (btnPlay) {
+          btnPlay.addEventListener("click", (e) => {
+            e.stopPropagation();
+            console.log(`[Biblioteca] Reproduciendo: ${item.name}`);
+            playLibraryItem(item);
           });
         }
       }
@@ -521,6 +539,26 @@ export async function deleteLibraryItem(id, currentFilter = 'todos') {
   } catch (error) {
     console.error("Error al eliminar:", error);
     toast("No se pudo eliminar el archivo: " + (error?.message || "inténtalo de nuevo."), "error");
+  }
+}
+
+/**
+ * Reproduce el audio de un ítem de la biblioteca (grabación, pista, voz, etc.).
+ * Usa file_url o file_path; si es un blob, crea una URL de objeto.
+ */
+export async function playLibraryItem(item) {
+  const audioUrl = item.file_url || item.file_path;
+  if (!audioUrl) {
+    toast("Este archivo no tiene audio para reproducir.", "warn");
+    return;
+  }
+  try {
+    const audio = new Audio(audioUrl);
+    audio.play();
+    console.log(`[Biblioteca] Reproduciendo: ${item.name} (${audioUrl})`);
+  } catch (err) {
+    console.error("Error reproduciendo audio:", err);
+    toast("No se pudo reproducir el audio: " + (err?.message || "inténtalo de nuevo."), "error");
   }
 }
 
