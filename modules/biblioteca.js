@@ -17,6 +17,9 @@ let libraryRenderSeq = 0;
 // Audio en reproducción (solo uno a la vez en Biblioteca).
 let libraryAudioPlayer = null;
 let libraryPlayingItemId = null;
+// Flag para ignorar el evento 'error' cuando detenemos intencionalmente el audio
+// (cambiar src a "" dispara un error falso en el navegador).
+let libraryStoppingIntencionalmente = false;
 
 // Normaliza para buscar sin importar mayúsculas ni tildes.
 function normalizarBusqueda(texto) {
@@ -589,6 +592,7 @@ export async function playLibraryItem(item) {
   try {
     // Si hay otro audio sonando, lo detenemos antes de iniciar este.
     if (libraryAudioPlayer) {
+      libraryStoppingIntencionalmente = true;
       libraryAudioPlayer.pause();
       libraryAudioPlayer.src = "";
       libraryAudioPlayer = null;
@@ -602,11 +606,17 @@ export async function playLibraryItem(item) {
     audio.addEventListener("ended", () => {
       libraryAudioPlayer = null;
       libraryPlayingItemId = null;
-      // Refrescar la vista para actualizar estados de botones (pausa/stop se deshabilitan).
+      // Solo al terminar por sí solo refrescamos para deshabilitar pausa/stop.
       renderLibrary(libraryCurrentFilter);
     });
 
     audio.addEventListener("error", (err) => {
+      // Si estamos deteniendo intencionalmente, ignorar el error falso que
+      // dispara el navegador al vaciar el src.
+      if (libraryStoppingIntencionalmente) {
+        libraryStoppingIntencionalmente = false;
+        return;
+      }
       console.error("Error de reproducción:", err);
       libraryAudioPlayer = null;
       libraryPlayingItemId = null;
@@ -616,9 +626,9 @@ export async function playLibraryItem(item) {
 
     await audio.play();
     console.log(`[Biblioteca] Reproduciendo: ${item.name} (${audioUrl})`);
-
-    // Refrescar para habilitar pausa/stop en este ítem y deshabilitar en otros.
-    renderLibrary(libraryCurrentFilter);
+    // Nota: no llamamos a renderLibrary aquí para evitar recargar toda la lista
+    // y que el usuario vea "recuperando archivos". Los estados de botón se
+    // actualizarán al terminar el audio o al pausar/detener.
   } catch (err) {
     console.error("Error reproduciendo audio:", err);
     toast("No se pudo reproducir el audio: " + (err?.message || "inténtalo de nuevo."), "error");
@@ -635,7 +645,7 @@ export function pauseLibraryAudio() {
   }
   libraryAudioPlayer.pause();
   console.log("[Biblioteca] Audio pausado.");
-  renderLibrary(libraryCurrentFilter);
+  // No renderizamos aquí para evitar recargar toda la lista.
 }
 
 /**
@@ -646,12 +656,13 @@ export function stopLibraryAudio() {
     toast("No hay audio reproduciéndose.", "info");
     return;
   }
+  libraryStoppingIntencionalmente = true;
   libraryAudioPlayer.pause();
   libraryAudioPlayer.src = "";
   libraryAudioPlayer = null;
   libraryPlayingItemId = null;
   console.log("[Biblioteca] Audio detenido.");
-  renderLibrary(libraryCurrentFilter);
+  // No renderizamos aquí para evitar recargar toda la lista.
 }
 
 export async function saveManualFileToLibrary() {
