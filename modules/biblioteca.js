@@ -490,12 +490,14 @@ export async function renderLibrary(filter = "todos") {
 
       // 3. Inyectamos la estructura combinando los botones
       const tieneAudio = item.file_url || item.audioBlob || item.file_path;
+      const esGrabacion = item.type === "grabacion" || item.type === "grabaciones";
       const isPlaying = libraryPlayingItemId === item.id && !libraryAudioPlayer?.paused;
       const controlesAudioHTML = tieneAudio
         ? `
           <button class="play-library-btn" data-id="${item.id}" title="Reproducir">▶</button>
           <button class="pause-library-btn" data-id="${item.id}" title="Pausar" ${isPlaying ? "" : "disabled"}>⏸</button>
           <button class="stop-library-btn" data-id="${item.id}" title="Detener" ${isPlaying ? "" : "disabled"}>⏹</button>
+          ${esGrabacion ? `<button class="download-library-btn" data-id="${item.id}" title="Descargar">⬇</button>` : ""}
         `
         : "";
 
@@ -555,6 +557,15 @@ export async function renderLibrary(filter = "todos") {
             e.stopPropagation();
             console.log(`[Biblioteca] Deteniendo: ${item.name}`);
             stopLibraryAudio();
+          });
+        }
+
+        const btnDownload = div.querySelector(".download-library-btn");
+        if (btnDownload) {
+          btnDownload.addEventListener("click", (e) => {
+            e.stopPropagation();
+            console.log(`[Biblioteca] Descargando: ${item.name}`);
+            downloadLibraryItem(item);
           });
         }
       }
@@ -683,6 +694,30 @@ export function stopLibraryAudio() {
   libraryPlayingItemId = null;
   console.log("[Biblioteca] Audio detenido.");
   refreshAudioButtons();
+}
+
+/**
+ * Descarga el audio de un ítem de la biblioteca (solo grabaciones).
+ * Crea un enlace temporal y simula un clic para iniciar la descarga del navegador.
+ */
+export function downloadLibraryItem(item) {
+  const audioUrl = item.file_url || item.file_path || (typeof item.audioBlob === "string" ? item.audioBlob : null);
+  if (!audioUrl) {
+    toast("Este archivo no tiene audio para descargar.", "warn");
+    return;
+  }
+  try {
+    const a = document.createElement("a");
+    a.href = audioUrl;
+    a.download = item.name || "audio";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    console.log(`[Biblioteca] Descargando: ${item.name}`);
+  } catch (err) {
+    console.error("Error descargando audio:", err);
+    toast("No se pudo descargar el archivo: " + (err?.message || "inténtalo de nuevo."), "error");
+  }
 }
 
 export async function saveManualFileToLibrary() {
