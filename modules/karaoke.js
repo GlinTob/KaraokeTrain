@@ -165,7 +165,7 @@ export function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2) {
     drawRegion(20, canvas.height - 122, karaokePitchP1, pitchHistory, null, null, paleta, currentTime, canvas, 0, "#facc15", now, pentagramTol);
   }
 
-  drawLyricsBar(canvas, ctx, currentTime, "#facc15", "#94a3b8");
+  drawLyricsBar(canvas, ctx, currentTime);
   drawDifficultyBadge(canvas, ctx, pentagramLabel, pentagramTol);
 }
 
@@ -507,7 +507,7 @@ function getActiveSegmentIndex(segments, currentTime) {
   return idx;
 }
 
-function drawLyricsBar(canvas, ctx, currentTime, currentColor = "#facc15", nextColor = "#94a3b8") {
+function drawLyricsBar(canvas, ctx, currentTime) {
   // K3: ya no se exige el flag de grabación. El monitor de letras debe pintar
   // también en modo preview/monitor (antes quedaba en blanco hasta empezar a
   // grabar, lo que engañaba al usuario: "no hay letra").
@@ -521,60 +521,19 @@ function drawLyricsBar(canvas, ctx, currentTime, currentColor = "#facc15", nextC
   ctx.fillStyle = "rgba(0, 0, 0, 0.8)";
   ctx.fillRect(0, canvas.height - 100, canvas.width, 100);
 
-  // Palabras del segmento actual: una por una, la activa más grande e iluminada
-  const words = seg.words || [];
+  // Texto de la línea actual: más grande y en amarillo
+  ctx.textAlign = "center";
+  ctx.fillStyle = "#facc15";
+  ctx.font = "bold 30px Arial";
+  ctx.textBaseline = "alphabetic";
+  ctx.fillText(seg.text || "", canvas.width / 2, canvas.height - 65);
 
-  if (words.length > 0) {
-    // Ancho disponible para las palabras (con márgenes laterales)
-    const availableWidth = canvas.width - 80;
-    const wordGap = availableWidth / (words.length + 1); // espacio entre palabras
-    let x = wordGap; // empezar tras el margen izquierdo
-
-    words.forEach((w, i) => {
-      const wordStart = w.start !== undefined && w.start !== null ? w.start : 0;
-      const wordEnd = w.end !== undefined && w.end !== null ? w.end : (wordStart + 1);
-      const isActive = currentTime >= wordStart && currentTime <= wordEnd;
-
-      // Tamaño: la palabra activa es 12px más grande (36px vs 24px)
-      const fontSize = isActive ? "36px" : "24px";
-      // Color: activa con el color principal, inactiva en gris suave
-      const textColor = isActive ? currentColor : "#a0a0a0";
-
-      ctx.fillStyle = textColor;
-      ctx.font = `bold ${fontSize} Arial`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "alphabetic";
-      // Posición Y centrada verticalmente en el área de 100px
-      const y = canvas.height - 55;
-
-      ctx.fillText(w.word || w.text || "", x, y);
-
-      x += wordGap;
-    });
-
-    // Palabra siguiente (fuera del segmento actual o próxima línea)
-    const next = textSegments[currentIdx + 1];
-    if (next && next.text) {
-      ctx.fillStyle = nextColor;
-      ctx.font = "italic 22px Arial";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "alphabetic";
-      ctx.fillText(next.text || "", canvas.width / 2, canvas.height - 25);
-    }
-  } else {
-    // Fallback: si no hay array de palabras, pintar el texto completo como antes
-    ctx.textAlign = "center";
-    ctx.fillStyle = currentColor;
-    ctx.font = "bold 30px Arial";
-    ctx.textBaseline = "alphabetic";
-    ctx.fillText(seg.text || "", canvas.width / 2, canvas.height - 65);
-
-    const next = textSegments[currentIdx + 1];
-    if (next) {
-      ctx.fillStyle = nextColor;
-      ctx.font = "italic 22px Arial";
-      ctx.fillText(next.text || "", canvas.width / 2, canvas.height - 25);
-    }
+  // Siguiente línea (opcional: un poco de contexto)
+  const next = textSegments[currentIdx + 1];
+  if (next) {
+    ctx.fillStyle = "#94a3b8";
+    ctx.font = "italic 20px Arial";
+    ctx.fillText(next.text || "", canvas.width / 2, canvas.height - 25);
   }
 }
 
