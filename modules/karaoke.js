@@ -672,7 +672,7 @@ async function requestMicStream(micId) {
   }
 }
 
-function rmsOfAudioBuffer(buffer) {
+export function rmsOfAudioBuffer(buffer) {
   if (!buffer || !buffer.length) return 0;
   const data = buffer.getChannelData(0);
   let sum = 0;
@@ -683,7 +683,7 @@ function rmsOfAudioBuffer(buffer) {
 // RMS robusto (percentil 90 por ventanas de 100 ms): las pausas entre frases
 // no diluyen la medida, así el balance y la normalización usan el nivel REAL
 // del canto y no el silencio. Agnóstico al hardware.
-function singingRmsOfBuffer(buffer) {
+export function singingRmsOfBuffer(buffer) {
   if (!buffer || !buffer.length) return 0;
   const data = buffer.getChannelData(0);
   const win = Math.max(1, Math.floor(buffer.sampleRate / 10));
@@ -710,13 +710,13 @@ const VOICE_WORK_RMS = 0.06;
 // constante por toma, así que no puede producir el vaivén de nivel que hacían
 // el AGC del navegador y el escalón del gate. Tope ×16 (+24 dB) para no
 // amplificar el hiss de mics muy flojos.
-function computeVoiceNormGain(buffer) {
+export function computeVoiceNormGain(buffer) {
   const rms = singingRmsOfBuffer(buffer);
   if (!(rms > 0.0008)) return 1; // silencio: no amplificar ruido de fondo
   return Math.max(0.25, Math.min(16, VOICE_WORK_RMS / rms));
 }
 
-function peakOfBuffer(buffer) {
+export function peakOfBuffer(buffer) {
   if (!buffer || !buffer.numberOfChannels) return 0;
   let peak = 0;
   for (let c = 0; c < buffer.numberOfChannels; c++) {
@@ -731,7 +731,7 @@ function peakOfBuffer(buffer) {
 
 // Multiplica el buffer EN SITIO por una ganancia fija: normalización estática
 // del máster tras el render. Al no ser un seguidor de nivel, no bombea.
-function applyStaticGain(buffer, gain) {
+export function applyStaticGain(buffer, gain) {
   if (!buffer || !(gain > 0) || gain === 1) return;
   for (let c = 0; c < buffer.numberOfChannels; c++) {
     const data = buffer.getChannelData(c);
