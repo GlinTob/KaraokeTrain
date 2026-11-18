@@ -536,7 +536,11 @@ function drawLyricsBar(canvas, ctx, currentTime) {
 }
 
 let meterBuf = null;
-function setBarWidth(barId, analyser) {
+let smoothedMic1 = 0;
+let smoothedMic2 = 0;
+
+// Suavizado exponencial: 15% nuevo + 85% anterior = sube/ baja suave, sin parpadeo
+function setBarWidth(barId, analyser, smoothedRef) {
   const bar = document.getElementById(barId);
   if (!bar || !analyser) return;
   if (!meterBuf || meterBuf.length !== analyser.fftSize) meterBuf = new Uint8Array(analyser.fftSize);
@@ -547,13 +551,15 @@ function setBarWidth(barId, analyser) {
     const v = (data[i] - 128) / 128;
     sum += v * v;
   }
-  const rms = Math.sqrt(sum / data.length);
-  bar.style.width = Math.min(100, rms * 220) + "%";
+  const newRms = Math.sqrt(sum / data.length);
+  // Suavizado exponencial (time constant ~4 frames a 60fps)
+  smoothedRef[0] = smoothedRef[0] * 0.85 + newRms * 0.15;
+  bar.style.width = Math.min(100, smoothedRef[0] * 220) + "%";
 }
 
 function updateDuoLevels() {
-  setBarWidth("karaokeDuoMic1Level", karaokePitchDetectionAnalyser);
-  setBarWidth("karaokeDuoMic2Level", karaokeSplitAnalyser2);
+  setBarWidth("karaokeDuoMic1Level", karaokePitchDetectionAnalyser, [smoothedMic1]);
+  setBarWidth("karaokeDuoMic2Level", karaokeSplitAnalyser2, [smoothedMic2]);
 }
 
 // --- PUNTAJE DE AFINACIÓN POR FRASE (usa la tolerancia del pentagrama) ---
@@ -1576,7 +1582,7 @@ async function loop(sesion = karaokeLoopSession) {
       if (!karaokeDuoSplitMode) karaokePitchP2 = -1;
 
       if (karaokeDuoSplitMode) updateDuoLevels();
-      else setBarWidth("karaokeMic1Level", karaokePitchDetectionAnalyser);
+      else setBarWidth("karaokeMic1Level", karaokePitchDetectionAnalyser, [smoothedMic1]);
 
       // Puntaje: solo mientras se graba (no en previsualización).
       if (karaokeRecordingActive) {
