@@ -484,20 +484,37 @@ function drawAvatarBlock(pTop, pBottom, parte, avatarBlockW, ctx) {
   ctx.textBaseline = "alphabetic";
 }
 
+// Índice del segmento de letra que debe mostrarse como "actual",
+// sincronizado exactamente con las barras de notas (sin margen extra).
+function getActiveSegmentIndex(segments, currentTime) {
+  if (!Array.isArray(segments) || !segments.length) return -1;
+
+  // 1. Segmento activo dentro de su ventana [start, end]
+  let idx = segments.findIndex(s => {
+    const st = Number.isFinite(s.start) ? s.start : 0;
+    const en = Number.isFinite(s.end) ? s.end : st;
+    return currentTime >= st && currentTime <= en;
+  });
+
+  // 2. Si ninguno está activo, mostrar el próximo que empiece después
+  if (idx === -1) {
+    idx = segments.findIndex(s => (s.start || 0) > currentTime);
+  }
+
+  // 3. Si ya pasó el último, quedarse en el último para no dejar en blanco
+  if (idx === -1) idx = segments.length - 1;
+
+  return idx;
+}
+
 function drawLyricsBar(canvas, ctx, currentTime) {
   // K3: ya no se exige el flag de grabación. El monitor de letras debe pintar
   // también en modo preview/monitor (antes quedaba en blanco hasta empezar a
   // grabar, lo que engañaba al usuario: "no hay letra").
   if (!Array.isArray(textSegments) || !textSegments.length) return;
 
-  const idx = textSegments.findIndex(s =>
-    currentTime >= (s.start || 0) && currentTime <= ((s.end || 0) + 1.5)
-  );
-  let currentIdx = idx;
-  if (currentIdx === -1) {
-    currentIdx = textSegments.findIndex(s => (s.start || 0) > currentTime);
-    if (currentIdx === -1) currentIdx = textSegments.length - 1;
-  }
+  const currentIdx = getActiveSegmentIndex(textSegments, currentTime);
+  if (currentIdx === -1) return;
 
   const seg = textSegments[currentIdx];
 
