@@ -64,12 +64,6 @@ let karaokeLoopSession = 0;
 // y quede grabando con la pestaña oculta.
 let karaokeStartSession = 0;
 let loopTick = 0;
-// Caché de medidas del teleprompter: evita llamar a ctx.measureText en cada
-// frame (~60fps) para cada palabra. Solo se recalcula cuando cambia la línea
-// activa o cuando cambian las palabras de la línea.
-let lyricCacheLineIdx = -1;
-let lyricCacheWords = []; // { palabra, width }
-let lyricCacheTotalWidth = 0;
 let karaokeSelectedTrackBlob = null;
 let karaokeSelectedTrackName = "";
 let karaokeLoadedItem = null;
@@ -506,70 +500,21 @@ function drawLyricsBar(canvas, ctx, currentTime) {
   }
 
   const seg = textSegments[currentIdx];
-  const words = Array.isArray(seg.words) && seg.words.length
-    ? seg.words.map(w => ({ word: (w.word || w.text || "").trim() || "", start: Number(w.start || 0), end: Number(w.end || 0) }))
-    : [{ word: (seg.text || "").trim() || "", start: Number(seg.start || 0), end: Number(seg.end || 0) }];
 
-  // Fondo negro semitransparente en la franja inferior
-  ctx.fillStyle = "rgba(0, 0, 0, 0.85)";
-  ctx.fillRect(0, canvas.height - 120, canvas.width, 120);
+  ctx.fillStyle = "rgba(0, 0, 0, 0.8)";
+  ctx.fillRect(0, canvas.height - 100, canvas.width, 100);
 
-  // Línea siguiente (más pequeña, gris, centrada)
+  ctx.textAlign = "center";
+  ctx.fillStyle = "white";
+  ctx.font = "bold 30px Arial";
+  ctx.textBaseline = "alphabetic";
+  ctx.fillText(seg.text || "", canvas.width / 2, canvas.height - 65);
+
   const next = textSegments[currentIdx + 1];
   if (next) {
-    const nextWords = Array.isArray(next.words) && next.words.length
-      ? next.words.map(w => (w.word || w.text || "").trim()).filter(Boolean).join(" ")
-      : (next.text || "").trim();
     ctx.fillStyle = "#94a3b8";
-    ctx.font = "italic 24px Arial";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "alphabetic";
-    ctx.fillText(nextWords, canvas.width / 2, canvas.height - 40);
-  }
-
-  // Línea actual: palabras individuales con cambio de color
-  // Colores: pasada = gris opaca, activa = amarillo brillante, futura = blanco
-  ctx.textAlign = "start";
-  ctx.textBaseline = "alphabetic";
-  ctx.font = "bold 42px Arial";
-
-  let wordsToRender = words;
-  if (currentIdx !== lyricCacheLineIdx) {
-    lyricCacheLineIdx = currentIdx;
-    lyricCacheWords = [];
-    lyricCacheTotalWidth = 0;
-    for (const w of words) {
-      const palabra = w.word || "";
-      const wWidth = ctx.measureText(palabra).width;
-      lyricCacheWords.push({ palabra, width: wWidth });
-      lyricCacheTotalWidth += wWidth + 22;
-    }
-    lyricCacheTotalWidth -= 22;
-  } else {
-    wordsToRender = words;
-  }
-
-  const startX = (canvas.width - lyricCacheTotalWidth) / 2;
-  let cursorX = startX;
-  const y = canvas.height - 60;
-
-  for (let i = 0; i < wordsToRender.length; i++) {
-    const palabra = wordsToRender[i]?.palabra || "";
-    const width = wordsToRender[i]?.width || 0;
-    const w = words[i];
-    const ws = w?.start || 0;
-    const we = w?.end || 0;
-
-    let color = "#fff"; // futura: blanco
-    if (currentTime >= ws && currentTime <= we) {
-      color = "#facc15"; // activa: amarillo brillante
-    } else if (currentTime > we) {
-      color = "rgba(255, 255, 255, 0.45)"; // pasada: blanco semitransparente
-    }
-
-    ctx.fillStyle = color;
-    ctx.fillText(palabra, cursorX, y);
-    cursorX += width + 22;
+    ctx.font = "italic 22px Arial";
+    ctx.fillText(next.text || "", canvas.width / 2, canvas.height - 25);
   }
 }
 
@@ -2526,9 +2471,6 @@ function limpiarVariablesMonitor() {
   karaokePitchP1 = -1;
   karaokePitchP2 = -1;
   karaokeLoadedLyrics = [];
-  lyricCacheLineIdx = -1;
-  lyricCacheWords = [];
-  lyricCacheTotalWidth = 0;
 }
 
 window.syncKaraokeMonitor = syncKaraokeMonitor;
