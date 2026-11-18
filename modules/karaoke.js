@@ -1765,93 +1765,89 @@ export async function restartKaraokeRecording() {
 }
 
 let syncKaraokeLastLineIdx = -1;
+let syncKaraokeLastWordIdx = -1;
 let syncKaraokeLastWordEl = null;
 let syncKaraokeLastLineEl = null;
 
 export function syncKaraokeMonitor(currentTime) {
-  const lines = document.querySelectorAll(".karaoke-live-line");
-  if (!lines.length) return;
+  const lineaActualEl = $("karaokeLineaActual");
+  const lineaSiguienteEl = $("karaokeLineaSiguiente");
+  if (!lineaActualEl || !lineaSiguienteEl) return;
 
-  // FIX #23: rastrear solo la línea activa y la palabra activa; los cambios
-  // de clase solo se aplican cuando el nodo activo CAMBIA respecto al frame
-  // anterior. Sin esto, cada timeupdate (~4 Hz) recorría todas las líneas y
-  // palabras aplicando remove/add aunque no hubiera cambio, forzando
-  // recálculos de estilo innecesarios.
-  let activeLineEl = null;
-  let activeWordEl = null;
-
-  lines.forEach(line => {
-    const start = parseFloat(line.dataset.start);
-    const end = parseFloat(line.dataset.end) + 1.5;
-
-    if (currentTime >= start && currentTime <= end) {
-      activeLineEl = line;
-    } else if (currentTime > end) {
-      // línea pasada — solo tocar si cambió su estado
-      if (!line.classList.contains("past")) {
-        line.classList.add("past");
-      }
-      if (line.classList.contains("active")) line.classList.remove("active");
-    } else {
-      // línea futura
-      if (line.classList.contains("active")) line.classList.remove("active");
-      if (line.classList.contains("past")) line.classList.remove("past");
-    }
-
-    // Las palabras se procesan SIEMPRE (también en la línea activa)
-    const words = line.querySelectorAll(".karaoke-live-word");
-    words.forEach(word => {
-      const wordStart = parseFloat(word.dataset.start);
-      const wordEnd = parseFloat(word.dataset.end);
-
-      if (currentTime >= wordStart && currentTime <= wordEnd) {
-        activeWordEl = word;
-      } else if (currentTime > wordEnd) {
-        if (!word.classList.contains("past-word")) word.classList.add("past-word");
-        if (word.classList.contains("active-word")) word.classList.remove("active-word");
-      } else {
-        if (word.classList.contains("active-word")) word.classList.remove("active-word");
-        if (word.classList.contains("past-word")) word.classList.remove("past-word");
-      }
-    });
-  });
-
-  // Aplicar clase "active" en la línea activa solo si cambió respecto al frame anterior
-  if (activeLineEl && syncKaraokeLastLineEl !== activeLineEl) {
-    if (syncKaraokeLastLineEl) {
-      syncKaraokeLastLineEl.classList.remove("active", "past");
-    }
-    activeLineEl.classList.remove("past");
-    activeLineEl.classList.add("active");
-    syncKaraokeLastLineEl = activeLineEl;
-  }
-  if (!activeLineEl && syncKaraokeLastLineEl) {
-    syncKaraokeLastLineEl.classList.remove("active");
-    syncKaraokeLastLineEl = null;
-  }
-
-  // Palabra activa similar
-  if (activeWordEl && syncKaraokeLastWordEl !== activeWordEl) {
-    if (syncKaraokeLastWordEl) syncKaraokeLastWordEl.classList.remove("active-word");
-    activeWordEl.classList.add("active-word");
-    syncKaraokeLastWordEl = activeWordEl;
-  }
-  if (!activeWordEl && syncKaraokeLastWordEl) {
-    syncKaraokeLastWordEl.classList.remove("active-word");
-    syncKaraokeLastWordEl = null;
-  }
-
-  // Índice de la línea activa para la próxima comparación (optimización)
-  if (activeLineEl) {
-    let idx = 0;
-    for (const l of lines) { if (l === activeLineEl) break; idx++; }
-    syncKaraokeLastLineIdx = idx;
-  } else {
+  if (!Array.isArray(textSegments) || !textSegments.length) {
+    lineaActualEl.textContent = "";
+    lineaSiguienteEl.textContent = "";
     syncKaraokeLastLineIdx = -1;
+    syncKaraokeLastWordIdx = -1;
+    return;
   }
 
-  // Sin auto-scroll: el teleprompter solo ilumina la línea/palabra activa,
-  // sin mover la vista (el scroll automático arrastraba toda la página).
+  // Encontrar la línea activa basada en currentTime
+  let activeIdx = -1;
+  for (let i = 0; i < textSegments.length; i++) {
+    const seg = textSegments[i];
+    const start = Number(seg.start || 0);
+    const end = Number(seg.end || 0) + 1.5;
+    if (currentTime >= start && currentTime <= end) {
+      activeIdx = i;
+      break;
+    }
+  }
+
+  // Línea siguiente (la que viene después de la activa, o la primera si no hay activa)
+  const siguienteIdx = activeIdx >= 0 ? activeIdx + 1 : 0;
+  if (siguienteIdx < textSegments.length) {
+    const siguienteTexto = textSegments[siguienteIdx].text || "";
+    lineaSiguienteEl.textContent = siguienteTexto;
+    lineaSiguienteEl.style.display = "block";
+  } else {
+    lineaSiguienteEl.textContent = "";
+    lineaSiguienteEl.style.display = "none";
+  }
+
+  if (activeIdx < 0) {
+    lineaActualEl.textContent = "";
+    syncKaraokeLastLineIdx = -1;
+    syncKaraokeLastWordIdx = -1;
+    return;
+  }
+
+  const seg = textSegments[activeIdx];
+  const words = seg.words || [{ word: seg.text, start: seg.start, end: seg.end }];
+
+  // Índice de la palabra activa
+  let newWordIdx = -1;
+  for (let i = 0; i < words.length; i++) {
+    const ws = Number(words[i].start || 0);
+    const we = Number(words[i].end || 0);
+    if (currentTime >= ws && currentTime <= we) {
+      newWordIdx = i;
+      break;
+    }
+  }
+
+  // Solo reconstruir HTML si cambió la línea o la palabra activa
+  if (syncKaraokeLastLineIdx !== activeIdx || syncKaraokeLastWordIdx !== newWordIdx) {
+    syncKaraokeLastLineIdx = activeIdx;
+    syncKaraokeLastWordIdx = newWordIdx;
+
+    let html = "";
+    words.forEach((w, wi) => {
+      const palabra = w.word || w.text || "";
+      const ws = Number(w.start || 0);
+      const we = Number(w.end || 0);
+      let clase = "";
+      if (currentTime >= ws && currentTime <= we) {
+        clase = "karaoke-palabra-actual";
+      } else if (currentTime > we) {
+        clase = "karaoke-palabra-pasada";
+      }
+      html += `<span class="${clase}" data-start="${ws}" data-end="${we}">${palabra}</span>`;
+      if (wi < words.length - 1) html += " ";
+    });
+
+    lineaActualEl.innerHTML = html;
+  }
 }
 
 
@@ -2161,30 +2157,9 @@ function ensureTextLineTimings(segments, totalDuration) {
   });
 }
 
+// El recuadro de letra completa fue eliminado; ya no se llena el DOM antiguo.
 export function cargarLetrasEnMonitor() {
-  const container = $("karaokeLiveLyrics");
-  if (!container) return;
-  container.innerHTML = "";
-  if (!Array.isArray(textSegments) || !textSegments.length) return;
-
-  textSegments.forEach(seg => {
-    const line = document.createElement("div");
-    line.className = "karaoke-live-line";
-    line.dataset.start = String(seg.start);
-    line.dataset.end = String(seg.end);
-
-    const items = (seg.words && seg.words.length) ? seg.words : [seg];
-    items.forEach((w, i) => {
-      const span = document.createElement("span");
-      span.className = "karaoke-live-word";
-      span.dataset.start = String(w.start);
-      span.dataset.end = String(w.end);
-      span.textContent = (i > 0 ? " " : "") + (w.word || w.text || "");
-      line.appendChild(span);
-    });
-
-    container.appendChild(line);
-  });
+  // No-op: el teleprompter ahora usa #karaokeTeleprompter gestionado por syncKaraokeMonitor.
 }
 window.cargarLetrasEnMonitor = cargarLetrasEnMonitor;
 
