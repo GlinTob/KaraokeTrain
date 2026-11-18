@@ -1777,6 +1777,8 @@ export function syncKaraokeMonitor(currentTime) {
   if (!Array.isArray(textSegments) || !textSegments.length) {
     lineaActualEl.textContent = "";
     lineaSiguienteEl.textContent = "";
+    lineaActualEl.className = "karaoke-live-line";
+    lineaSiguienteEl.className = "karaoke-live-line siguiente";
     syncKaraokeLastLineIdx = -1;
     syncKaraokeLastWordIdx = -1;
     return;
@@ -1794,60 +1796,53 @@ export function syncKaraokeMonitor(currentTime) {
     }
   }
 
-  // Línea siguiente (la que viene después de la activa, o la primera si no hay activa)
+  // Línea siguiente
   const siguienteIdx = activeIdx >= 0 ? activeIdx + 1 : 0;
-  if (siguienteIdx < textSegments.length) {
-    const siguienteTexto = textSegments[siguienteIdx].text || "";
-    lineaSiguienteEl.textContent = siguienteTexto;
-    lineaSiguienteEl.style.display = "block";
-  } else {
-    lineaSiguienteEl.textContent = "";
-    lineaSiguienteEl.style.display = "none";
-  }
 
-  if (activeIdx < 0) {
-    lineaActualEl.textContent = "";
-    syncKaraokeLastLineIdx = -1;
-    syncKaraokeLastWordIdx = -1;
-    return;
-  }
-
-  const seg = textSegments[activeIdx];
-  const words = seg.words || [{ word: seg.text, start: seg.start, end: seg.end }];
-
-  // Índice de la palabra activa
-  let newWordIdx = -1;
-  for (let i = 0; i < words.length; i++) {
-    const ws = Number(words[i].start || 0);
-    const we = Number(words[i].end || 0);
-    if (currentTime >= ws && currentTime <= we) {
-      newWordIdx = i;
-      break;
+  function renderLinea(el, seg, esActiva) {
+    if (!seg) {
+      el.textContent = "";
+      el.className = esActiva ? "karaoke-live-line active" : "karaoke-live-line siguiente";
+      return;
     }
-  }
-
-  // Solo reconstruir HTML si cambió la línea o la palabra activa
-  if (syncKaraokeLastLineIdx !== activeIdx || syncKaraokeLastWordIdx !== newWordIdx) {
-    syncKaraokeLastLineIdx = activeIdx;
-    syncKaraokeLastWordIdx = newWordIdx;
-
+    const words = seg.words || [{ word: seg.text, start: seg.start, end: seg.end }];
     let html = "";
     words.forEach((w, wi) => {
       const palabra = w.word || w.text || "";
       const ws = Number(w.start || 0);
       const we = Number(w.end || 0);
       let clase = "";
-      if (currentTime >= ws && currentTime <= we) {
+      if (esActiva && currentTime >= ws && currentTime <= we) {
         clase = "karaoke-palabra-actual";
-      } else if (currentTime > we) {
+      } else if (esActiva && currentTime > we) {
         clase = "karaoke-palabra-pasada";
       }
       html += `<span class="${clase}" data-start="${ws}" data-end="${we}">${palabra}</span>`;
       if (wi < words.length - 1) html += " ";
     });
-
-    lineaActualEl.innerHTML = html;
+    el.innerHTML = html;
+    el.dataset.start = String(seg.start || 0);
+    el.dataset.end = String(seg.end || 0);
+    el.className = esActiva ? "karaoke-live-line active" : "karaoke-live-line siguiente";
   }
+
+  if (activeIdx >= 0) {
+    renderLinea(lineaActualEl, textSegments[activeIdx], true);
+  } else {
+    lineaActualEl.textContent = "";
+    lineaActualEl.className = "karaoke-live-line";
+  }
+
+  if (siguienteIdx < textSegments.length) {
+    renderLinea(lineaSiguienteEl, textSegments[siguienteIdx], false);
+  } else {
+    lineaSiguienteEl.textContent = "";
+    lineaSiguienteEl.className = "karaoke-live-line siguiente";
+  }
+
+  // Índice de la línea activa para la próxima comparación (optimización)
+  syncKaraokeLastLineIdx = activeIdx;
+  syncKaraokeLastWordIdx = -1; // Se calcula dentro de renderLinea por frame
 }
 
 
@@ -2157,9 +2152,26 @@ function ensureTextLineTimings(segments, totalDuration) {
   });
 }
 
-// El recuadro de letra completa fue eliminado; ya no se llena el DOM antiguo.
+// El teleprompter muestra solo la línea actual y la siguiente (más grandes).
 export function cargarLetrasEnMonitor() {
-  // No-op: el teleprompter ahora usa #karaokeTeleprompter gestionado por syncKaraokeMonitor.
+  const container = $("karaokeLiveLyrics");
+  if (!container) return;
+  container.innerHTML = "";
+
+  const lineaActual = document.createElement("div");
+  lineaActual.className = "karaoke-live-line";
+  lineaActual.id = "karaokeLineaActual";
+  lineaActual.dataset.start = "0";
+  lineaActual.dataset.end = "0";
+
+  const lineaSiguiente = document.createElement("div");
+  lineaSiguiente.className = "karaoke-live-line siguiente";
+  lineaSiguiente.id = "karaokeLineaSiguiente";
+  lineaSiguiente.dataset.start = "0";
+  lineaSiguiente.dataset.end = "0";
+
+  container.appendChild(lineaActual);
+  container.appendChild(lineaSiguiente);
 }
 window.cargarLetrasEnMonitor = cargarLetrasEnMonitor;
 
