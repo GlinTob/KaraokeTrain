@@ -1146,7 +1146,7 @@ export async function startKaraokeRecording() {
     if (sesionInicio !== karaokeStartSession) throw abortKaraokeStartError();
 
     const mic1 = getSelectedMicId(1);
-    const mic2 = karaokeDuoSplitMode ? getSelectedMicId(2) : null;
+    const mic2 = getSelectedMicId(2); // Siempre abrir el mic 2 si hay dispositivo en Config
 
     // En dúo hay que elegir dos micrófonos distintos en Config. Con el mismo
     // hardware (típico con jacks 3.5 compartidos) el segundo getUserMedia
@@ -1172,16 +1172,20 @@ export async function startKaraokeRecording() {
     logStreamInfo("Mic 1 abierto", karaokeStream);
     if (sesionInicio !== karaokeStartSession) throw abortKaraokeStartError();
 
-    if (karaokeDuoSplitMode) {
+    // Abrir el mic 2 si hay dispositivo seleccionado en Config (no solo en dúo).
+    // Así dos usuarios pueden cantar juntos sobre una misma canción sin usar
+    // el modo Dúo Split; sus voces se mezclarán en un solo archivo al grabar.
+    if (mic2) {
       try {
         const mic2Result = await requestMicStream(mic2);
         if (mic2Result.error) throw mic2Result.error;
         karaokeStream2 = mic2Result.stream;
         logStreamInfo("Mic 2 abierto", karaokeStream2);
         if (sesionInicio !== karaokeStartSession) throw abortKaraokeStartError();
-        // El fallback sin deviceId (jack 3.5 compartido) puede devolver EL
-        // MISMO mic dos veces: P1 y P2 grabarían la misma voz duplicada.
-        {
+
+        // En dúo, verificar que no sean el mismo dispositivo (p.ej. jack 3.5
+        // compartido devolvería el mismo mic dos veces).
+        if (karaokeDuoSplitMode) {
           const label1 = karaokeStream.getAudioTracks()[0]?.label || "";
           const label2 = karaokeStream2.getAudioTracks()[0]?.label || "";
           if (label1 && label2 && label1 === label2) {
@@ -1219,6 +1223,18 @@ export async function startKaraokeRecording() {
     }
 
     const source1 = karaokePitchDetectionAudioCtx.createMediaStreamSource(karaokeStream);
+
+    // Si no es dúo pero hay mic 2, mezclar ambos streams en uno para grabar
+    // las dos voces en un solo archivo (cantar dos personas sobre una pista).
+    let streamParaGrabar = karaokeStream;
+    if (!karaokeDuoSplitMode && karaokeStream2) {
+      const mixerDest = karaokePitchDetectionAudioCtx.createMediaStreamDestination();
+      source1.connect(mixerDest);
+      const src2 = karaokePitchDetectionAudioCtx.createMediaStreamSource(karaokeStream2);
+      src2.connect(mixerDest);
+      streamParaGrabar = mixerDest.stream;
+      console.log("🎤🎤 Mic 1 + Mic 2 mezclados en una sola voz (modo no dúo).");
+    }
 
     // El micrófono se usa SOLO para análisis (pitch) y grabación.
     // NUNCA se conecta al altavoz: así no se escucha la voz del usuario mientras canta.
@@ -1269,7 +1285,7 @@ const pitchInputGain2 = karaokePitchDetectionAudioCtx.createGain();
         monitorGain.connect(karaokePitchDetectionAudioCtx.destination);
       };
       wireMonitor(source1);
-      if (karaokeDuoSplitMode && karaokeStream2) {
+      if (karaokeStream2) {
         try {
           wireMonitor(karaokePitchDetectionAudioCtx.createMediaStreamSource(karaokeStream2));
         } catch (e) {
@@ -1292,7 +1308,7 @@ const pitchInputGain2 = karaokePitchDetectionAudioCtx.createGain();
       karaokeDuoP2Active = false;
       karaokeDuoCombined = false;
       const sessionChunks = karaokeChunks;
-      karaokeMediaRecorder = new MediaRecorder(karaokeStream);
+      karaokeMediaRecorder = new MediaRecorder(streamParaGrabar);
       window.karaokeMediaRecorder = karaokeMediaRecorder;
       const recorder = karaokeMediaRecorder;
       karaokeMediaRecorder.ondataavailable = (e) => {
