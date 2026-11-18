@@ -539,8 +539,12 @@ let meterBuf = null;
 let smoothedMic1 = 0;
 let smoothedMic2 = 0;
 
+// Umbral mínimo: si el RMS está por debajo, tratamos como silencio absoluto
+// Ajusta este valor: 0.001 = mic muy silencioso, 0.01 = habitación ruidosa
+const MIC_SILENCE_THRESHOLD = 0.005;
+
 // Suavizado exponencial: 15% nuevo + 85% anterior = sube/ baja suave, sin parpadeo
-function setBarWidth(barId, analyser, smoothedRef) {
+function setBarWidth(barId, analyser, smoothedRef, isDuo = false) {
   const bar = document.getElementById(barId);
   if (!bar || !analyser) return;
   if (!meterBuf || meterBuf.length !== analyser.fftSize) meterBuf = new Uint8Array(analyser.fftSize);
@@ -554,12 +558,15 @@ function setBarWidth(barId, analyser, smoothedRef) {
   const newRms = Math.sqrt(sum / data.length);
   // Suavizado exponencial (time constant ~4 frames a 60fps)
   smoothedRef[0] = smoothedRef[0] * 0.85 + newRms * 0.15;
-  bar.style.width = Math.min(100, smoothedRef[0] * 220) + "%";
+  // Si el nivel suavizado está por debajo del umbral, apagar barra (mínimo en dúo)
+  const floor = isDuo ? 5 : 0;
+  const effectiveRms = smoothedRef[0] < MIC_SILENCE_THRESHOLD ? 0 : smoothedRef[0];
+  bar.style.width = Math.min(100, effectiveRms * 220 + floor) + "%";
 }
 
 function updateDuoLevels() {
-  setBarWidth("karaokeDuoMic1Level", karaokePitchDetectionAnalyser, [smoothedMic1]);
-  setBarWidth("karaokeDuoMic2Level", karaokeSplitAnalyser2, [smoothedMic2]);
+  setBarWidth("karaokeDuoMic1Level", karaokePitchDetectionAnalyser, [smoothedMic1], true);
+  setBarWidth("karaokeDuoMic2Level", karaokeSplitAnalyser2, [smoothedMic2], true);
 }
 
 // --- PUNTAJE DE AFINACIÓN POR FRASE (usa la tolerancia del pentagrama) ---
@@ -1582,7 +1589,7 @@ async function loop(sesion = karaokeLoopSession) {
       if (!karaokeDuoSplitMode) karaokePitchP2 = -1;
 
       if (karaokeDuoSplitMode) updateDuoLevels();
-      else setBarWidth("karaokeMic1Level", karaokePitchDetectionAnalyser, [smoothedMic1]);
+      else setBarWidth("karaokeMic1Level", karaokePitchDetectionAnalyser, [smoothedMic1], false);
 
       // Puntaje: solo mientras se graba (no en previsualización).
       if (karaokeRecordingActive) {
