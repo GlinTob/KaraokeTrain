@@ -165,7 +165,7 @@ export function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2) {
     drawRegion(20, canvas.height - 122, karaokePitchP1, pitchHistory, null, null, paleta, currentTime, canvas, 0, "#facc15", now, pentagramTol);
   }
 
-  drawLyricsBar(canvas, ctx, currentTime);
+  drawLyricsBar(canvas, ctx, currentTime, "#facc15", "#94a3b8");
   drawDifficultyBadge(canvas, ctx, pentagramLabel, pentagramTol);
 }
 
@@ -507,7 +507,7 @@ function getActiveSegmentIndex(segments, currentTime) {
   return idx;
 }
 
-function drawLyricsBar(canvas, ctx, currentTime) {
+function drawLyricsBar(canvas, ctx, currentTime, currentColor = "white", nextColor = "#94a3b8") {
   // K3: ya no se exige el flag de grabación. El monitor de letras debe pintar
   // también en modo preview/monitor (antes quedaba en blanco hasta empezar a
   // grabar, lo que engañaba al usuario: "no hay letra").
@@ -522,14 +522,14 @@ function drawLyricsBar(canvas, ctx, currentTime) {
   ctx.fillRect(0, canvas.height - 100, canvas.width, 100);
 
   ctx.textAlign = "center";
-  ctx.fillStyle = "white";
+  ctx.fillStyle = currentColor;
   ctx.font = "bold 30px Arial";
   ctx.textBaseline = "alphabetic";
   ctx.fillText(seg.text || "", canvas.width / 2, canvas.height - 65);
 
   const next = textSegments[currentIdx + 1];
   if (next) {
-    ctx.fillStyle = "#94a3b8";
+    ctx.fillStyle = nextColor;
     ctx.font = "italic 22px Arial";
     ctx.fillText(next.text || "", canvas.width / 2, canvas.height - 25);
   }
