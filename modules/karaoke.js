@@ -507,7 +507,7 @@ function getActiveSegmentIndex(segments, currentTime) {
   return idx;
 }
 
-function drawLyricsBar(canvas, ctx, currentTime, currentColor = "white", nextColor = "#94a3b8") {
+function drawLyricsBar(canvas, ctx, currentTime, currentColor = "#facc15", nextColor = "#94a3b8") {
   // K3: ya no se exige el flag de grabación. El monitor de letras debe pintar
   // también en modo preview/monitor (antes quedaba en blanco hasta empezar a
   // grabar, lo que engañaba al usuario: "no hay letra").
@@ -521,17 +521,60 @@ function drawLyricsBar(canvas, ctx, currentTime, currentColor = "white", nextCol
   ctx.fillStyle = "rgba(0, 0, 0, 0.8)";
   ctx.fillRect(0, canvas.height - 100, canvas.width, 100);
 
-  ctx.textAlign = "center";
-  ctx.fillStyle = currentColor;
-  ctx.font = "bold 30px Arial";
-  ctx.textBaseline = "alphabetic";
-  ctx.fillText(seg.text || "", canvas.width / 2, canvas.height - 65);
+  // Palabras del segmento actual: una por una, la activa más grande e iluminada
+  const words = seg.words || [];
 
-  const next = textSegments[currentIdx + 1];
-  if (next) {
-    ctx.fillStyle = nextColor;
-    ctx.font = "italic 22px Arial";
-    ctx.fillText(next.text || "", canvas.width / 2, canvas.height - 25);
+  if (words.length > 0) {
+    // Ancho disponible para las palabras (con márgenes laterales)
+    const availableWidth = canvas.width - 80;
+    const wordGap = availableWidth / (words.length + 1); // espacio entre palabras
+    let x = wordGap; // empezar tras el margen izquierdo
+
+    words.forEach((w, i) => {
+      const wordStart = w.start !== undefined && w.start !== null ? w.start : 0;
+      const wordEnd = w.end !== undefined && w.end !== null ? w.end : (wordStart + 1);
+      const isActive = currentTime >= wordStart && currentTime <= wordEnd;
+
+      // Tamaño: la palabra activa es 12px más grande (36px vs 24px)
+      const fontSize = isActive ? "36px" : "24px";
+      // Color: activa con el color principal, inactiva en gris suave
+      const textColor = isActive ? currentColor : "#a0a0a0";
+
+      ctx.fillStyle = textColor;
+      ctx.font = `bold ${fontSize} Arial`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "alphabetic";
+      // Posición Y centrada verticalmente en el área de 100px
+      const y = canvas.height - 55;
+
+      ctx.fillText(w.word || w.text || "", x, y);
+
+      x += wordGap;
+    });
+
+    // Palabra siguiente (fuera del segmento actual o próxima línea)
+    const next = textSegments[currentIdx + 1];
+    if (next && next.text) {
+      ctx.fillStyle = nextColor;
+      ctx.font = "italic 22px Arial";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "alphabetic";
+      ctx.fillText(next.text || "", canvas.width / 2, canvas.height - 25);
+    }
+  } else {
+    // Fallback: si no hay array de palabras, pintar el texto completo como antes
+    ctx.textAlign = "center";
+    ctx.fillStyle = currentColor;
+    ctx.font = "bold 30px Arial";
+    ctx.textBaseline = "alphabetic";
+    ctx.fillText(seg.text || "", canvas.width / 2, canvas.height - 65);
+
+    const next = textSegments[currentIdx + 1];
+    if (next) {
+      ctx.fillStyle = nextColor;
+      ctx.font = "italic 22px Arial";
+      ctx.fillText(next.text || "", canvas.width / 2, canvas.height - 25);
+    }
   }
 }
 
