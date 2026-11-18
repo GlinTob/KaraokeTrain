@@ -1585,40 +1585,46 @@ body[data-theme="otono"] {
 }
 
 /* ==========================================
-   TELEPROMPTER karaoke (lista de letra bajo el canvas)
+   TELEPROMPTER karaoke (solo línea actual y siguiente)
 ========================================== */
 .karaoke-lyrics {
-  max-height: 260px;
-  overflow-y: auto;
+  display: none; /* Recuadro de letra completa eliminado */
+}
+
+.karaoke-teleprompter {
+  margin: 15px 0;
   padding: 12px 16px;
-  background: rgba(0, 0, 0, 0.45);
-  border-top: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
-.karaoke-live-line {
-  padding: 6px 10px;
-  margin: 2px 0;
-  border-radius: 6px;
-  color: var(--text-muted);
-  transition: background 0.2s, color 0.2s;
-}
-
-.karaoke-live-line.active {
-  background: rgba(59, 130, 246, 0.25);
+.karaoke-linea-actual {
+  font-size: 34px;
+  font-weight: 700;
   color: #fff;
+  margin: 2px 0;
+  min-height: 48px;
 }
 
-.karaoke-live-line.past {
-  opacity: 0.45;
+.karaoke-linea-siguiente {
+  font-size: 22px;
+  color: #94a3b8;
+  margin: 2px 0;
+  min-height: 32px;
 }
 
-.karaoke-live-word.active-word {
+/* Palabras de la línea actual cambian de color */
+.karaoke-palabra-actual {
   color: #facc15;
   font-weight: 700;
 }
 
-.karaoke-live-word.past-word {
-  opacity: 0.6;
+.karaoke-palabra-pasada {
+  opacity: 0.5;
 }
 
 /* ==========================================
