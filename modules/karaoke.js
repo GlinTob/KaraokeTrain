@@ -64,6 +64,12 @@ let karaokeLoopSession = 0;
 // y quede grabando con la pestaña oculta.
 let karaokeStartSession = 0;
 let loopTick = 0;
+// Caché de medidas del teleprompter: evita llamar a ctx.measureText en cada
+// frame (~60fps) para cada palabra. Solo se recalcula cuando cambia la línea
+// activa o cuando cambian las palabras de la línea.
+let lyricCacheLineIdx = -1;
+let lyricCacheWords = []; // { palabra, width }
+let lyricCacheTotalWidth = 0;
 let karaokeSelectedTrackBlob = null;
 let karaokeSelectedTrackName = "";
 let karaokeLoadedItem = null;
@@ -527,23 +533,32 @@ function drawLyricsBar(canvas, ctx, currentTime) {
   ctx.textBaseline = "alphabetic";
   ctx.font = "bold 42px Arial";
 
-  // Medir ancho total de todas las palabras + espacios para centrar
-  let totalWidth = 0;
-  const wordMetrics = [];
-  for (const w of words) {
-    const palabra = w.word || "";
-    const wWidth = ctx.measureText(palabra).width;
-    wordMetrics.push({ palabra, width: wWidth });
-    totalWidth += wWidth + 22; // 22px de espacio entre palabras
+  // Solo recalcular anchos cuando cambia la línea activa (evita measureText
+  // en cada frame para cada palabra, que era el cuello de botella del cambio
+  // de línea).
+  let wordsToRender = words;
+  if (currentIdx !== lyricCacheLineIdx) {
+    lyricCacheLineIdx = currentIdx;
+    lyricCacheWords = [];
+    lyricCacheTotalWidth = 0;
+    for (const w of words) {
+      const palabra = w.word || "";
+      const wWidth = ctx.measureText(palabra).width;
+      lyricCacheWords.push({ palabra, width: wWidth });
+      lyricCacheTotalWidth += wWidth + 22;
+    }
+    lyricCacheTotalWidth -= 22;
+  } else {
+    wordsToRender = words; // misma cantidad de palabras
   }
-  totalWidth -= 22; // quitar el último espacio extra
 
-  const startX = (canvas.width - totalWidth) / 2;
+  const startX = (canvas.width - lyricCacheTotalWidth) / 2;
   let cursorX = startX;
   const y = canvas.height - 60;
 
-  for (let i = 0; i < words.length; i++) {
-    const { palabra, width } = wordMetrics[i];
+  for (let i = 0; i < wordsToRender.length; i++) {
+    const palabra = wordsToRender[i].palabra;
+    const width = wordsToRender[i].width;
     const w = words[i];
     const ws = Number(w.start || 0);
     const we = Number(w.end || 0);
