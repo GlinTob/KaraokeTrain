@@ -391,7 +391,11 @@
               <canvas id="karaokeCanvas" width="1800" height="740" style="width: 100%; display: block; border-radius: 12px; min-height: 680px;"></canvas>
             </div>
 
-            <div id="karaokeLiveLyrics" class="karaoke-lyrics"></div>
+            <!-- Teleprompter: solo línea actual y siguiente, más grandes -->
+            <div id="karaokeTeleprompter" class="karaoke-teleprompter">
+              <div id="karaokeLineaActual" class="karaoke-linea-actual"></div>
+              <div id="karaokeLineaSiguiente" class="karaoke-linea-siguiente"></div>
+            </div>
           </div>
           
           <div class="card">
