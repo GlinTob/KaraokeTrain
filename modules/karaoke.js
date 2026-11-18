@@ -496,19 +496,32 @@ function drawLyricsBar(canvas, ctx, currentTime) {
   // grabar, lo que engañaba al usuario: "no hay letra").
   if (!Array.isArray(textSegments) || !textSegments.length) return;
 
+  // Buscar el segmento activo basado en currentTime
   const idx = textSegments.findIndex(s =>
-    currentTime >= (s.start || 0) && currentTime <= ((s.end || 0) + 1.5)
+    currentTime >= (Number(s.start || 0)) && currentTime <= ((Number(s.end || 0)) + 1.5)
   );
   let currentIdx = idx;
   if (currentIdx === -1) {
-    currentIdx = textSegments.findIndex(s => (s.start || 0) > currentTime);
+    currentIdx = textSegments.findIndex(s => (Number(s.start || 0)) > currentTime);
     if (currentIdx === -1) currentIdx = textSegments.length - 1;
   }
+  if (currentIdx < 0 || currentIdx >= textSegments.length) return;
 
   const seg = textSegments[currentIdx];
-  const words = Array.isArray(seg.words) && seg.words.length
-    ? seg.words
-    : [{ word: seg.text || "", start: seg.start || 0, end: seg.end || 0 }];
+  if (!seg) return;
+
+  // Normalizar palabras del segmento activo: asegurar que nunca haya undefined
+  const rawWords = Array.isArray(seg.words) && seg.words.length ? seg.words : [];
+  const words = rawWords.map(w => ({
+    word: String(w.word || w.text || "").trim() || "",
+    start: Number(w.start || 0),
+    end: Number(w.end || 0)
+  }));
+
+  // Si no hay palabras normalizadas, intentar con seg.text
+  if (!words.length && seg.text) {
+    words.push({ word: String(seg.text).trim(), start: Number(seg.start || 0), end: Number(seg.end || 0) });
+  }
 
   // Fondo negro semitransparente en la franja inferior
   ctx.fillStyle = "rgba(0, 0, 0, 0.85)";
@@ -517,14 +530,16 @@ function drawLyricsBar(canvas, ctx, currentTime) {
   // Línea siguiente (más pequeña, gris, centrada)
   const next = textSegments[currentIdx + 1];
   if (next) {
-    const nextWords = Array.isArray(next.words) && next.words.length
-      ? next.words.map(w => w.word).join(" ")
-      : next.text || "";
+    const nextRawWords = Array.isArray(next.words) && next.words.length ? next.words : [];
+    const nextWordsStr = nextRawWords
+      .map(w => String(w.word || w.text || "").trim())
+      .filter(Boolean)
+      .join(" ") || String(next.text || "").trim();
     ctx.fillStyle = "#94a3b8";
     ctx.font = "italic 24px Arial";
     ctx.textAlign = "center";
     ctx.textBaseline = "alphabetic";
-    ctx.fillText(nextWords, canvas.width / 2, canvas.height - 40);
+    ctx.fillText(nextWordsStr, canvas.width / 2, canvas.height - 40);
   }
 
   // Línea actual: palabras individuales con cambio de color
@@ -557,11 +572,11 @@ function drawLyricsBar(canvas, ctx, currentTime) {
   const y = canvas.height - 60;
 
   for (let i = 0; i < wordsToRender.length; i++) {
-    const palabra = wordsToRender[i].palabra;
-    const width = wordsToRender[i].width;
+    const palabra = wordsToRender[i]?.palabra || "";
+    const width = wordsToRender[i]?.width || 0;
     const w = words[i];
-    const ws = Number(w.start || 0);
-    const we = Number(w.end || 0);
+    const ws = w?.start || 0;
+    const we = w?.end || 0;
 
     let color = "#fff"; // futura: blanco
     if (currentTime >= ws && currentTime <= we) {
@@ -2529,6 +2544,10 @@ function limpiarVariablesMonitor() {
   karaokePitchP1 = -1;
   karaokePitchP2 = -1;
   karaokeLoadedLyrics = [];
+  // Resetear caché de letras para el nuevo karaoke
+  lyricCacheLineIdx = -1;
+  lyricCacheWords = [];
+  lyricCacheTotalWidth = 0;
 }
 
 window.syncKaraokeMonitor = syncKaraokeMonitor;
