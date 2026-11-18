@@ -500,25 +500,64 @@ function drawLyricsBar(canvas, ctx, currentTime) {
   }
 
   const seg = textSegments[currentIdx];
-  const parteActual = seg.parte || "P1";
-  const prefijo = karaokeDuoSplitMode
-    ? (parteActual === "DUO" ? "🟪 DÚO · " : parteActual === "P2" ? "🟧 P2 · " : "🟦 P1 · ")
-    : "";
+  const words = Array.isArray(seg.words) && seg.words.length
+    ? seg.words
+    : [{ word: seg.text || "", start: seg.start || 0, end: seg.end || 0 }];
 
-  ctx.fillStyle = "rgba(0, 0, 0, 0.8)";
-  ctx.fillRect(0, canvas.height - 100, canvas.width, 100);
+  // Fondo negro semitransparente en la franja inferior
+  ctx.fillStyle = "rgba(0, 0, 0, 0.85)";
+  ctx.fillRect(0, canvas.height - 120, canvas.width, 120);
 
-  ctx.textAlign = "center";
-  ctx.fillStyle = "white";
-  ctx.font = "bold 30px Arial";
-  ctx.textBaseline = "alphabetic";
-  ctx.fillText(prefijo + (seg.text || ""), canvas.width / 2, canvas.height - 65);
-
+  // Línea siguiente (más pequeña, gris, centrada)
   const next = textSegments[currentIdx + 1];
   if (next) {
+    const nextWords = Array.isArray(next.words) && next.words.length
+      ? next.words.map(w => w.word).join(" ")
+      : next.text || "";
     ctx.fillStyle = "#94a3b8";
-    ctx.font = "italic 22px Arial";
-    ctx.fillText(next.text || "", canvas.width / 2, canvas.height - 25);
+    ctx.font = "italic 24px Arial";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "alphabetic";
+    ctx.fillText(nextWords, canvas.width / 2, canvas.height - 40);
+  }
+
+  // Línea actual: palabras individuales con cambio de color
+  // Colores: pasada = gris opaca, activa = amarillo brillante, futura = blanco
+  ctx.textAlign = "start";
+  ctx.textBaseline = "alphabetic";
+  ctx.font = "bold 42px Arial";
+
+  // Medir ancho total de todas las palabras + espacios para centrar
+  let totalWidth = 0;
+  const wordMetrics = [];
+  for (const w of words) {
+    const palabra = w.word || "";
+    const wWidth = ctx.measureText(palabra).width;
+    wordMetrics.push({ palabra, width: wWidth });
+    totalWidth += wWidth + 22; // 22px de espacio entre palabras
+  }
+  totalWidth -= 22; // quitar el último espacio extra
+
+  const startX = (canvas.width - totalWidth) / 2;
+  let cursorX = startX;
+  const y = canvas.height - 60;
+
+  for (let i = 0; i < words.length; i++) {
+    const { palabra, width } = wordMetrics[i];
+    const w = words[i];
+    const ws = Number(w.start || 0);
+    const we = Number(w.end || 0);
+
+    let color = "#fff"; // futura: blanco
+    if (currentTime >= ws && currentTime <= we) {
+      color = "#facc15"; // activa: amarillo brillante
+    } else if (currentTime > we) {
+      color = "rgba(255, 255, 255, 0.45)"; // pasada: blanco semitransparente
+    }
+
+    ctx.fillStyle = color;
+    ctx.fillText(palabra, cursorX, y);
+    cursorX += width + 22;
   }
 }
 
@@ -1770,79 +1809,9 @@ let syncKaraokeLastWordEl = null;
 let syncKaraokeLastLineEl = null;
 
 export function syncKaraokeMonitor(currentTime) {
-  const lineaActualEl = $("karaokeLineaActual");
-  const lineaSiguienteEl = $("karaokeLineaSiguiente");
-  if (!lineaActualEl || !lineaSiguienteEl) return;
-
-  if (!Array.isArray(textSegments) || !textSegments.length) {
-    lineaActualEl.textContent = "";
-    lineaSiguienteEl.textContent = "";
-    lineaActualEl.className = "karaoke-live-line";
-    lineaSiguienteEl.className = "karaoke-live-line siguiente";
-    syncKaraokeLastLineIdx = -1;
-    syncKaraokeLastWordIdx = -1;
-    return;
-  }
-
-  // Encontrar la línea activa basada en currentTime
-  let activeIdx = -1;
-  for (let i = 0; i < textSegments.length; i++) {
-    const seg = textSegments[i];
-    const start = Number(seg.start || 0);
-    const end = Number(seg.end || 0) + 1.5;
-    if (currentTime >= start && currentTime <= end) {
-      activeIdx = i;
-      break;
-    }
-  }
-
-  // Línea siguiente
-  const siguienteIdx = activeIdx >= 0 ? activeIdx + 1 : 0;
-
-  function renderLinea(el, seg, esActiva) {
-    if (!seg) {
-      el.textContent = "";
-      el.className = esActiva ? "karaoke-live-line active" : "karaoke-live-line siguiente";
-      return;
-    }
-    const words = seg.words || [{ word: seg.text, start: seg.start, end: seg.end }];
-    let html = "";
-    words.forEach((w, wi) => {
-      const palabra = w.word || w.text || "";
-      const ws = Number(w.start || 0);
-      const we = Number(w.end || 0);
-      let clase = "";
-      if (esActiva && currentTime >= ws && currentTime <= we) {
-        clase = "karaoke-palabra-actual";
-      } else if (esActiva && currentTime > we) {
-        clase = "karaoke-palabra-pasada";
-      }
-      html += `<span class="${clase}" data-start="${ws}" data-end="${we}">${palabra}</span>`;
-      if (wi < words.length - 1) html += " ";
-    });
-    el.innerHTML = html;
-    el.dataset.start = String(seg.start || 0);
-    el.dataset.end = String(seg.end || 0);
-    el.className = esActiva ? "karaoke-live-line active" : "karaoke-live-line siguiente";
-  }
-
-  if (activeIdx >= 0) {
-    renderLinea(lineaActualEl, textSegments[activeIdx], true);
-  } else {
-    lineaActualEl.textContent = "";
-    lineaActualEl.className = "karaoke-live-line";
-  }
-
-  if (siguienteIdx < textSegments.length) {
-    renderLinea(lineaSiguienteEl, textSegments[siguienteIdx], false);
-  } else {
-    lineaSiguienteEl.textContent = "";
-    lineaSiguienteEl.className = "karaoke-live-line siguiente";
-  }
-
-  // Índice de la línea activa para la próxima comparación (optimización)
-  syncKaraokeLastLineIdx = activeIdx;
-  syncKaraokeLastWordIdx = -1; // Se calcula dentro de renderLinea por frame
+  // El teleprompter de letra se dibuja directamente en el canvas desde
+  // drawKaraokeMonitor → drawLyricsBar(). Esta función se mantiene como
+  // no-op para no tocar el DOM ni crear elementos innecesarios.
 }
 
 
@@ -2152,26 +2121,10 @@ function ensureTextLineTimings(segments, totalDuration) {
   });
 }
 
-// El teleprompter muestra solo la línea actual y la siguiente (más grandes).
+// El teleprompter de letra se dibuja directamente en el canvas desde
+// drawKaraokeMonitor → drawLyricsBar(). No se crea DOM para las letras.
 export function cargarLetrasEnMonitor() {
-  const container = $("karaokeLiveLyrics");
-  if (!container) return;
-  container.innerHTML = "";
-
-  const lineaActual = document.createElement("div");
-  lineaActual.className = "karaoke-live-line";
-  lineaActual.id = "karaokeLineaActual";
-  lineaActual.dataset.start = "0";
-  lineaActual.dataset.end = "0";
-
-  const lineaSiguiente = document.createElement("div");
-  lineaSiguiente.className = "karaoke-live-line siguiente";
-  lineaSiguiente.id = "karaokeLineaSiguiente";
-  lineaSiguiente.dataset.start = "0";
-  lineaSiguiente.dataset.end = "0";
-
-  container.appendChild(lineaActual);
-  container.appendChild(lineaSiguiente);
+  // No-op: el contenedor #karaokeLiveLyrics está oculto (display: none).
 }
 window.cargarLetrasEnMonitor = cargarLetrasEnMonitor;
 
