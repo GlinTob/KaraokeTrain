@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Orbitron:wght@400;500;600;700;800;900&family=Rajdhani:wght@400;500;600;700&family=Exo+2:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css?v=6">
-  <script type=" module\
+  <script>
     (function() {
       window.VITE_SUPABASE_URL = "https://qfvhwbmgeunvgjwmlxjd.supabase.co";
       window.VITE_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmdmh3Ym1nZXVudmdqd21seGpkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY2MzI5NTksImV4cCI6MjEwMjIwODk1OX0.VHm0pxBrhSg3q5E1KfU8EhBmNKdwBFiRTEmoO4Om3Os";
@@ -135,12 +135,17 @@
                     <option value="B4">Si 4 (B4)</option>
                   </select>
                 </div>
-                
-                <div id="noteInfo" class="note-info" style="display: none; margin: 10px 0; padding: 10px; background: var(--bg-main); border-radius: 8px; color: var(--text-color);">
-                  <p id="noteInfoText" style="margin: 0; font-size: 14px;">Selecciona una nota para escuchar su sonido.</p>
-                  <button id="repeatBtn" style="margin-top: 5px; background: #3b82f6; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;">Repetir sonido</button>
-                  <button id="startBtn" style="margin-left: 10px; background: #10b981; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;">Iniciar</button>
+
+                <div class="difficulty-selector">
+                  <label for="afinadorDifficulty" class="sr-only">Dificultad</label>
+                  <select id="afinadorDifficulty" aria-label="Dificultad del afinador">
+                    <option value="facil">Fácil (±50¢)</option>
+                    <option value="medio" selected>Medio (±30¢)</option>
+                    <option value="dificil">Difícil (±15¢)</option>
+                    <option value="experto">Experto (±5¢)</option>
+                  </select>
                 </div>
+              </header>
 
               <div class="afinador-center">
                 <div id="currentNoteDisplay" class="current-note" aria-live="polite">--</div>
@@ -570,6 +575,30 @@
               </div>
           </div>
 
+          <!-- DIFICULTADES -->
+          <div class="card config-section">
+            <h2>Dificultades</h2>
+            <div class="difficulty-grid">
+              <div class="difficulty-card">
+                <label for="difficultyLevel">Afinador</label>
+                <select id="difficultyLevel" class="config-select">
+                  <option value="facil">Fácil (±50¢)</option>
+                  <option value="medio" selected>Medio (±30¢)</option>
+                  <option value="dificil">Difí­cil (±15¢)</option>
+                  <option value="experto">Experto (±5¢)</option>
+                </select>
+              </div>
+              <div class="difficulty-card">
+                <label for="pentagramDifficulty">Pentagrama</label>
+                <select id="pentagramDifficulty" class="config-select">
+                  <option value="facil">Fácil</option>
+                  <option value="medio" selected>Medio</option>
+                  <option value="dificil">Difí­cil</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
           <!-- THEME SWITCHER -->
           <div class="card config-section">
             <h2>Temas Visuales</h2>
@@ -652,9 +681,10 @@
             <p id="pitchSaveStatus" style="color: var(--text-muted); font-weight: bold; margin-top: 15px;">Estado: sin guardar.</p>
           </div>
         </section>
+
       </main>
     </div>
-    <script type="module">
+    <script>
       window.__PITCH_WORKLET_URL__ = "/modules/pitch-shifter-processor.js?v=11";
     </script>
         <script src="cloudflare-storage.js?v=3" type="module"></script>
@@ -662,22 +692,6 @@
     <script type="module" src="supabase-config.js?v=3"></script>
     <script type="module" src="modules/worklets.js?v=5"></script>
     <script src="script.js?v=17" type="module"></script>
-    <script src="modules/afinador.js?v=1" type="module"></script>
-    
-    <!-- Lógica del afinador: mensaje y botones de sonido -->
-    <script type="module">
-    // Elementos del DOM
-    const targetNoteSelect = document.getElementById('targetNote');
-    const noteInfo = document.getElementById('noteInfo');
-    const noteInfoText = document.getElementById('noteInfoText');
-    const repeatBtn = document.getElementById('repeatBtn');
-    const startBtn = document.getElementById('startBtn');
-    let guideToneTimeout = null;
-    let isNoteSelected = false;
-
-    // El módulo afinador ya está cargado (modules/afinador.js), por lo que
-    // window.playGuideTone está disponible de forma nativa. La lógica del afinador
-    // está integrada en el sistema de módulos, no como script inline.
-    </script>
   </body>
 </html>
+
