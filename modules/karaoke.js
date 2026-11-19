@@ -7,7 +7,7 @@ import { getLibraryItemsByIdFromSupabase, getLibraryItemsByTypeFromSupabase, sav
 // el hilo principal con mezclas largas.
 import { getAudioController } from "./audio-controller.js";
 import { loadVocalGateProcessor, createVocalGateNode } from "./worklets.js?v=5";
-import { getSelectedMicId, getPentagramTolerance, getPentagramDifficultyLabel } from "./config.js?v=9";
+import { getSelectedMicId } from "./config.js?v=9";
 import { midiToNoteName } from "./afinador.js?v=1";
 
 let textSegments = [];
@@ -18,6 +18,9 @@ let pitchHistoryP2 = [];
 let karaokePitchP1 = -1;
 let karaokePitchP2 = -1;
 let karaokeDuoSplitMode = false;
+
+// Tolerancia fija del pentagrama: ±3 semitonos.
+const PENTAGRAM_TOLERANCE_SEMITONES = 3;
 
 let karaokeAudioController = null;
 let karaokeStream = null;
@@ -133,10 +136,7 @@ export function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2) {
 
   const paleta = obtenerPaleta(Math.floor((currentTime || 0) * 50) % 360);
   const AVATAR_BLOCK_W = karaokeDuoSplitMode ? 110 : 0;
-  // K2: la tolerancia y la etiqueta se leían en CADA palabra y en la insignia
-  // (getPentagramTolerance parsea localStorage). Una sola lectura por frame.
-  const pentagramTol = getPentagramTolerance();
-  const pentagramLabel = getPentagramDifficultyLabel();
+  const pentagramTol = PENTAGRAM_TOLERANCE_SEMITONES;
 
   ctx.fillStyle = paleta.fondo;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -166,31 +166,6 @@ export function drawKaraokeMonitor(currentTime, currentFreq, currentFreq2) {
   }
 
   drawLyricsBar(canvas, ctx, currentTime);
-  drawDifficultyBadge(canvas, ctx, pentagramLabel, pentagramTol);
-}
-
-// Insignia de dificultad: el usuario siempre ve el nivel activo y su
-// tolerancia en semitonos, arriba a la derecha del monitor.
-function drawDifficultyBadge(canvas, ctx, label, tol) {
-  try {
-    const txt = `Dificultad: ${label} (±${tol} st)`;
-    ctx.font = "bold 22px Arial";
-    const w = ctx.measureText(txt).width;
-    const pad = 12;
-    const bx = canvas.width - w - pad * 2 - 16;
-    const by = 8;
-    const bh = 36;
-    ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
-    ctx.beginPath();
-    if (ctx.roundRect) ctx.roundRect(bx, by, w + pad * 2, bh, 8);
-    else ctx.rect(bx, by, w + pad * 2, bh);
-    ctx.fill();
-    ctx.fillStyle = "white";
-    ctx.textAlign = "left";
-    ctx.textBaseline = "middle";
-    ctx.fillText(txt, bx + pad, by + bh / 2);
-    ctx.textBaseline = "alphabetic";
-  } catch (e) {}
 }
 
 function drawRegion(pTop, pBottom, pVal, pHist, filtro, etiqueta, paleta, currentTime, canvas, avatarBlockW, trailColor, now, tol) {
@@ -277,9 +252,9 @@ function drawRegion(pTop, pBottom, pVal, pHist, filtro, etiqueta, paleta, curren
         const isActive = !isPast && currentTime >= w.start;
         const targetMidi = w.midi || seg.midi || 60;
 
-        // Banda de tolerancia sobre la palabra activa: su ANCHO visual es la
-        // dificultad (Fácil ±3 ancha, Difícil ±1 angosta). Se pinta detrás de
-        // la barra para que el usuario vea la zona que cuenta como afinada.
+        // Banda de tolerancia sobre la palabra activa: ±3 semitonos. Se pinta
+        // detrás de la barra para que el usuario vea la zona que cuenta como
+        // afinada.
         if (isActive) {
           const yT = midiToY(targetMidi + tol);
           const yB = midiToY(targetMidi - tol);
@@ -617,12 +592,11 @@ function accumulateScore(quien, time, freq) {
   if (!(freq > 0)) return;
   const hit = targetMidiAt(time, quien);
   if (!hit) return;
-  const tol = getPentagramTolerance();
   const userMidi = Math.round(12 * Math.log2(freq / 440) + 69);
   let slot = scoreData[quien][hit.idx];
   if (!slot) slot = scoreData[quien][hit.idx] = { total: 0, ok: 0, text: textSegments[hit.idx]?.text || `Línea ${hit.idx + 1}` };
   slot.total++;
-  if (Math.abs(userMidi - hit.target) <= tol) slot.ok++;
+  if (Math.abs(userMidi - hit.target) <= PENTAGRAM_TOLERANCE_SEMITONES) slot.ok++;
   slot.text = textSegments[hit.idx]?.text || slot.text;
 }
 
