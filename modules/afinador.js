@@ -131,6 +131,94 @@ export async function playCheckSound() {
   }
 }
 
+// Flujo del tono guía: primero se muestra el mensaje y luego suena la nota.
+// Se dispara al elegir una nota o al pulsar "Repetir sonido"; NUNCA al
+// pulsar "Iniciar".
+const GUIDE_TONE_SECONDS = 4.5;
+const GUIDE_INTRO_DELAY_MS = 600;
+const GUIDE_MESSAGE_HOLD_MS = 300;
+let guideStartTimeout = null;
+let guideMessageTimeout = null;
+let guideButtonTimeout = null;
+let guideMessageUntil = 0;
+
+function getTargetNoteLabel() {
+  const el = $('targetNote');
+  if (!el) return 'la nota objetivo';
+  const option = el.options?.[el.selectedIndex];
+  const label = (option?.textContent || el.value || '').trim();
+  return label || 'la nota objetivo';
+}
+
+function setGuideMessage(text) {
+  const guideText = $('guideText');
+  if (!guideText) return;
+  guideText.textContent = text;
+  guideText.className = 'guide-text state-guide';
+}
+
+function cancelGuideFlow() {
+  if (guideStartTimeout) {
+    clearTimeout(guideStartTimeout);
+    guideStartTimeout = null;
+  }
+  if (guideMessageTimeout) {
+    clearTimeout(guideMessageTimeout);
+    guideMessageTimeout = null;
+  }
+  if (guideButtonTimeout) {
+    clearTimeout(guideButtonTimeout);
+    guideButtonTimeout = null;
+  }
+  guideMessageUntil = 0;
+  $('repeatGuideBtn')?.classList.remove('playing');
+}
+
+export function repeatGuideSound() {
+  const targetNoteEl = $('targetNote');
+  const note = targetNoteEl?.value || 'E2';
+
+  // Un nuevo disparo reemplaza al anterior (otra nota o clic repetido).
+  cancelGuideFlow();
+  stopGuideTone();
+
+  // Desbloquear el audio dentro del gesto del usuario; el tono real suena
+  // después del mensaje (600 ms) para que se lea la indicación.
+  try { getSfxCtx(); } catch (e) {}
+
+  setGuideMessage(`Este es el sonido de la nota ${getTargetNoteLabel()}, escucha y repite.`);
+  const totalMs = GUIDE_INTRO_DELAY_MS + GUIDE_TONE_SECONDS * 1000 + GUIDE_MESSAGE_HOLD_MS;
+  guideMessageUntil = Date.now() + totalMs;
+
+  const btn = $('repeatGuideBtn');
+  if (btn) {
+    btn.classList.add('playing');
+    guideButtonTimeout = setTimeout(() => {
+      btn.classList.remove('playing');
+      guideButtonTimeout = null;
+    }, totalMs);
+  }
+
+  guideStartTimeout = setTimeout(() => {
+    guideStartTimeout = null;
+    playGuideTone(noteToFrequency(note), GUIDE_TONE_SECONDS);
+  }, GUIDE_INTRO_DELAY_MS);
+
+  guideMessageTimeout = setTimeout(() => {
+    guideMessageTimeout = null;
+    guideMessageUntil = 0;
+    // Sin micrófono activo, volver al mensaje de reposo. Con micrófono, el
+    // bucle de detección retoma el texto en el siguiente frame.
+    if (!state.isRecording) {
+      const guideText = $('guideText');
+      if (guideText) {
+        guideText.textContent = 'Esperando voz...';
+        guideText.className = 'guide-text';
+      }
+    }
+  }, totalMs);
+}
+
 // ==========================================================
 // UTILIDADES MUSICALES
 // ==========================================================
@@ -728,6 +816,14 @@ export async function toggleRecording() {
       btn.classList.add('recording');
       btn.setAttribute('aria-pressed', 'true');
 
+      // Si el usuario pulsa Iniciar antes de que arranque un tono guía
+      // pendiente, cancelarlo: el sonido solo debe salir al elegir nota o al
+      // pulsar "Repetir sonido", nunca al iniciar el micrófono.
+      if (guideStartTimeout) {
+        cancelGuideFlow();
+        resetAfinadorUI();
+      }
+
       await startAfinador();
     } catch (error) {
       console.error('No se pudo iniciar el afinador:', error);
@@ -800,9 +896,6 @@ async function startAfinador() {
     bindAfinadorSelectors();
 
     afinadorVisual.start();
-
-    // Al pulsar Iniciar también suena la guía: el usuario escucha el objetivo.
-    if (targetNoteEl) playGuideTone(noteToFrequency(targetNoteEl.value));
   }
 
   audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -851,23 +944,24 @@ async function startAfinador() {
   }, 200);
 }
 
-// Handler compartido: actualiza el visual (si existe) y suena la guía.
-// Se usa tanto con el afinador grabando como en reposo, para que elegir la
-// nota objetivo siempre la dé a escuchar.
+// Handler compartido: actualiza el visual (si existe) y lanza el flujo de
+// mensaje + tono guía. Se usa tanto con el afinador grabando como en reposo.
 function onTargetNoteChanged() {
   const targetNoteEl = $('targetNote');
   if (!targetNoteEl) return;
   if (afinadorVisual) afinadorVisual.setTargetNote(targetNoteEl.value);
-  playGuideTone(noteToFrequency(targetNoteEl.value));
+  repeatGuideSound();
 }
 
 function bindAfinadorSelectors() {
   const targetNoteEl = $('targetNote');
   const difficultyEl = $('afinadorDifficulty');
+  const repeatBtn = $('repeatGuideBtn');
   if (targetNoteEl) targetNoteEl.onchange = onTargetNoteChanged;
   if (difficultyEl) {
     difficultyEl.onchange = () => afinadorVisual?.setDifficulty(difficultyEl.value);
   }
+  if (repeatBtn) repeatBtn.onclick = repeatGuideSound;
 }
 
 // Para que el tono guía suene al elegir nota aunque aún no se haya pulsado
@@ -877,7 +971,8 @@ export function initAfinadorUI() {
 }
 
 export function destroyAfinador() {
-  if (!state.isRecording && !afinadorVisual) return;
+  // Sin early-return: aunque no haya micro ni visual, pudo quedar sonando el
+  // tono guía (p. ej. tras pulsar "Repetir sonido") y hay que detenerlo.
   console.log("🧹 Saliendo del afinador: deteniendo mic y guía.");
   state.isRecording = false;
   recordingSession++;
@@ -898,6 +993,9 @@ export function destroyAfinador() {
 
 function stopAfinador() {
   resetSustain();
+  // Cancelar también un flujo guía pendiente (mensaje mostrado pero tono aún
+  // no iniciado) y el estado visual del botón "Repetir sonido".
+  cancelGuideFlow();
   stopGuideTone();
   // Suspender (no cerrar) el contexto de efectos para que la guía no siga
   // sonando en otra pestaña y quede reusable al volver.
@@ -1025,7 +1123,9 @@ async function runPitchDetectionLoop(pitchBuffer) {
         centsDisplay.className = tuned ? 'cents-display visible cents-on' : `cents-display visible cents-${dir}`;
       }
 
-      if (guideText) {
+      // Mientras se muestra la indicación del tono guía, no pisar el mensaje
+      // con la guía de afinación; el resto de la UI sigue actualizándose.
+      if (guideText && Date.now() >= guideMessageUntil) {
         if (tuned) {
           guideText.textContent = '✅ Afinado';
           guideText.className = 'guide-text state-on';
@@ -1052,7 +1152,7 @@ async function runPitchDetectionLoop(pitchBuffer) {
         centsDisplay.className = 'cents-display';
       }
 
-      if (guideText) {
+      if (guideText && Date.now() >= guideMessageUntil) {
         guideText.textContent = 'Esperando voz...';
         guideText.className = 'guide-text';
       }
