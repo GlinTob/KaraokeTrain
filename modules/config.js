@@ -702,6 +702,30 @@ export function getPentagramDifficultyLabel() {
   }
 }
 
+// Dificultad del afinador: tolerancia en centavos (100 centavos = 1 semitono).
+// Siempre Medio ±30¢.
+export function getDifficultyLevel() {
+  try {
+    const level = safeGetItem("karaokeTrain_difficulty") || "medio";
+    if (level === "medio") return 1;
+    safeSetItem("karaokeTrain_difficulty", "medio");
+    return 1;
+  } catch (e) {
+    return 1;
+  }
+}
+
+export function getDifficultyLevelLabel() {
+  try {
+    const level = safeGetItem("karaokeTrain_difficulty") || "medio";
+    if (level === "medio") return "Medio (±30¢)";
+    safeSetItem("karaokeTrain_difficulty", "medio");
+    return "Medio (±30¢)";
+  } catch (e) {
+    return "Medio (±30¢)";
+  }
+}
+
 export function saveMicSelection(micNumber) {
   const selectId = micNumber === 1 ? "mic1Select" : "mic2Select";
   const storageKey = micNumber === 1 ? "karaokeTrain_mic1" : "karaokeTrain_mic2";
