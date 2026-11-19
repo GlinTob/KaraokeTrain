@@ -663,22 +663,21 @@
     <script type="module" src="modules/worklets.js?v=5"></script>
     <script src="script.js?v=17" type="module"></script>
     <script src="modules/afinador.js?v=1" type="module"></script>
+    
+    <!-- Lógica del afinador: mensaje y botones de sonido -->
+    <script type="module">
+    // Elementos del DOM
+    const targetNoteSelect = document.getElementById('targetNote');
+    const noteInfo = document.getElementById('noteInfo');
+    const noteInfoText = document.getElementById('noteInfoText');
+    const repeatBtn = document.getElementById('repeatBtn');
+    const startBtn = document.getElementById('startBtn');
+    let guideToneTimeout = null;
+    let isNoteSelected = false;
 
-<!-- Lógica del afinador: mensaje y botones de sonido -->
-<script type="module">
-  // Elementos del DOM
-  const targetNoteSelect = document.getElementById('targetNote');
-  const noteInfo = document.getElementById('noteInfo');
-  const noteInfoText = document.getElementById('noteInfoText');
-  const repeatBtn = document.getElementById('repeatBtn');
-  const startBtn = document.getElementById('startBtn');
-  let guideToneTimeout = null;
-  let isNoteSelected = false;
-
-  // El módulo afinador ya está cargado (modules/afinador.js), por lo que
-  // window.playGuideTone está disponible de forma nativa. La lógica del afinador
-  // está integrada en el sistema de módulos, no como script inline.
-
-</script>
+    // El módulo afinador ya está cargado (modules/afinador.js), por lo que
+    // window.playGuideTone está disponible de forma nativa. La lógica del afinador
+    // está integrada en el sistema de módulos, no como script inline.
+    </script>
   </body>
 </html>
