@@ -663,7 +663,9 @@
     <script type="module" src="modules/worklets.js?v=5"></script>
     <script src="script.js?v=17" type="module"></script>
     <script src="modules/afinador.js?v=1" type="module"></script>
+    <!-- Lógica del afinador: mensaje y botones de sonido -->
     <script type="module">
+      
       // Elementos del DOM
       const targetNoteSelect = document.getElementById('targetNote');
       const noteInfo = document.getElementById('noteInfo');
@@ -673,7 +675,7 @@
       let guideToneTimeout = null;
       let isNoteSelected = false;
       let afinando = false;
-      
+
       // Cuando el usuario selecciona una nota
       if (targetNoteSelect) {
         targetNoteSelect.addEventListener('change', function() {
@@ -693,17 +695,15 @@
           }
         });
       }
-      
+
       // Botón Repetir sonido
       if (repeatBtn) {
         repeatBtn.addEventListener('click', function() {
           const frecuencia = window.noteToFrequency ? window.noteToFrequency(targetNoteSelect.value) : 82.41;
-          
           // Reproducir tono otra vez
           if (window.playGuideTone) {
             window.playGuideTone(frecuencia, 4.5);
           }
-          
           // Mantener el mensaje visible mientras se practica
           noteInfo.style.display = 'block';
           if (targetNoteSelect) {
@@ -711,7 +711,7 @@
           }
         });
       }
-      
+
       // Botón Iniciar/Detener práctica de afinación
       if (startBtn) {
         startBtn.addEventListener('click', function() {
