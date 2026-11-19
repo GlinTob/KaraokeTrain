@@ -679,27 +679,26 @@ export function getSelectedMicId(micNumber) {
 }
 
 // Dificultad del pentagrama (karaoke): tolerancia en semitonos para que la
-// nota cuente como afinada. Fácil ±3, Medio ±2, Difícil ±1.
+// nota cuente como afinada. Siempre Fácil ±3 semitonos.
 export function getPentagramTolerance() {
   try {
-    const level = safeGetItem("karaokeTrain_pentagram") || "medio";
+    const level = safeGetItem("karaokeTrain_pentagram") || "facil";
     if (level === "facil") return 3;
-    if (level === "dificil") return 1;
-    if (level !== "medio") safeSetItem("karaokeTrain_pentagram", "medio");
-    return 2;
+    safeSetItem("karaokeTrain_pentagram", "facil");
+    return 3;
   } catch (e) {
-    return 2;
+    return 3;
   }
 }
 
 export function getPentagramDifficultyLabel() {
   try {
-    const level = safeGetItem("karaokeTrain_pentagram") || "medio";
+    const level = safeGetItem("karaokeTrain_pentagram") || "facil";
     if (level === "facil") return "Fácil";
-    if (level === "dificil") return "Difícil";
-    return "Medio";
+    safeSetItem("karaokeTrain_pentagram", "facil");
+    return "Fácil";
   } catch (e) {
-    return "Medio";
+    return "Fácil";
   }
 }
 
