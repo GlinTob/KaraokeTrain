@@ -319,10 +319,7 @@ export async function initSettings() {
   // C2: `micSensitivity` no existe en el HTML; se eliminó el bloque muerto.
 
   const settings = {
-    micCount: "karaokeTrain_micCount",
-    difficultyLevel: "karaokeTrain_difficulty",
-    karaokeDifficultyLevel: "karaokeTrain_karaoke_difficulty",
-    pentagramDifficulty: "karaokeTrain_pentagram"
+    micCount: "karaokeTrain_micCount"
   };
 
   Object.entries(settings).forEach(([id, storageKey]) => {
@@ -678,54 +675,6 @@ export function getSelectedMicId(micNumber) {
   return select ? select.value : null;
 }
 
-// Dificultad del pentagrama (karaoke): tolerancia en semitonos para que la
-// nota cuente como afinada. Siempre Fácil ±3 semitonos.
-export function getPentagramTolerance() {
-  try {
-    const level = safeGetItem("karaokeTrain_pentagram") || "facil";
-    if (level === "facil") return 3;
-    safeSetItem("karaokeTrain_pentagram", "facil");
-    return 3;
-  } catch (e) {
-    return 3;
-  }
-}
-
-export function getPentagramDifficultyLabel() {
-  try {
-    const level = safeGetItem("karaokeTrain_pentagram") || "facil";
-    if (level === "facil") return "Fácil";
-    safeSetItem("karaokeTrain_pentagram", "facil");
-    return "Fácil";
-  } catch (e) {
-    return "Fácil";
-  }
-}
-
-// Dificultad del afinador: tolerancia en centavos (100 centavos = 1 semitono).
-// Siempre Medio ±30¢.
-export function getDifficultyLevel() {
-  try {
-    const level = safeGetItem("karaokeTrain_difficulty") || "medio";
-    if (level === "medio") return 1;
-    safeSetItem("karaokeTrain_difficulty", "medio");
-    return 1;
-  } catch (e) {
-    return 1;
-  }
-}
-
-export function getDifficultyLevelLabel() {
-  try {
-    const level = safeGetItem("karaokeTrain_difficulty") || "medio";
-    if (level === "medio") return "Medio (±30¢)";
-    safeSetItem("karaokeTrain_difficulty", "medio");
-    return "Medio (±30¢)";
-  } catch (e) {
-    return "Medio (±30¢)";
-  }
-}
-
 export function saveMicSelection(micNumber) {
   const selectId = micNumber === 1 ? "mic1Select" : "mic2Select";
   const storageKey = micNumber === 1 ? "karaokeTrain_mic1" : "karaokeTrain_mic2";
@@ -853,9 +802,9 @@ export function stopMicTest(micNumber) {
 export function destroyConfig() {
   stopMicTest(); // Sin argumento = stop all
   // C1: NO resetear `settingsInitialized`. Al volver a Config, initSettings()
-  // registraba otra vez todos los listeners (micCount, dificultad, mics,
-  // botones de prueba...) y se acumulaban en cada visita. Los grids son
-  // estáticos; su estado activo se sincroniza con syncAppThemeCard().
+  // registraba otra vez todos los listeners (micCount, mics, botones de
+  // prueba...) y se acumulaban en cada visita. Los grids son estáticos; su
+  // estado activo se sincroniza con syncAppThemeCard().
 }
 
 export function initConfig() {
