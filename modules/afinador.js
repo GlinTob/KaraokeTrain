@@ -32,6 +32,9 @@ const PITCH_SUSTAIN = {
   tolerance: 0.06   // ±6 % (~1 semitono) vs. el ancla del run
 };
 
+// Tolerancia fija de afinación: ±30 centavos.
+const TUNING_TOLERANCE_CENTS = 30;
+
 let sustain = { anchor: -1, hits: 0, misses: 0, confirmedFreq: -1 };
 
 function resetSustain() {
@@ -277,7 +280,7 @@ export class AfinadorVisual {
     this.currentNote = '--';
     this.targetFreq = 82.41;
     this.cents = 0;
-    this.maxCents = 30;
+    this.maxCents = TUNING_TOLERANCE_CENTS;
 
     this.markerOffset = 0;
     this.targetMarkerOffset = 0;
@@ -355,22 +358,6 @@ export class AfinadorVisual {
 
   setTargetNote(noteName) {
     this.targetFreq = noteToFrequency(noteName);
-  }
-
-  setDifficulty(level) {
-    const tolerances = {
-      facil: 50,
-      medio: 30,
-      dificil: 15,
-      experto: 5
-    };
-    this.maxCents = tolerances[level] || 30;
-    // FIX #14: resetear el marcador y el contador de estabilidad al cambiar
-    // de dificultad, para que el siguiente setPitch() calcule el offset con
-    // el nuevo maxCents sin arrastrar valores de la escala anterior.
-    this.targetMarkerOffset = 0;
-    this.markerOffset = 0;
-    this.stableCounter = 0;
   }
 
   setPitch(freq) {
@@ -787,14 +774,11 @@ export class AfinadorVisual {
       this._themeObserver.disconnect();
       this._themeObserver = null;
     }
-    // FIX #15: limpiar los handlers onchange que el constructor asignó a
-    // los selectores de target note / difficulty, para que el siguiente
-    // AfinadorVisual no termine con handlers apilados apuntando a
+    // FIX #15: limpiar el handler onchange del selector de nota, para que el
+    // siguiente AfinadorVisual no termine con handlers apilados apuntando a
     // instancias ya destruidas.
     const targetNoteEl = document.getElementById('targetNote');
     if (targetNoteEl) targetNoteEl.onchange = null;
-    const difficultyEl = document.getElementById('afinadorDifficulty');
-    if (difficultyEl) difficultyEl.onchange = null;
     this.ctx.clearRect(0, 0, this.width, this.height);
   }
 }
@@ -888,10 +872,8 @@ async function startAfinador() {
     afinadorVisual = new AfinadorVisual(canvas);
 
     const targetNoteEl = $('targetNote');
-    const difficultyEl = $('afinadorDifficulty');
 
     if (targetNoteEl) afinadorVisual.setTargetNote(targetNoteEl.value);
-    if (difficultyEl) afinadorVisual.setDifficulty(difficultyEl.value);
 
     bindAfinadorSelectors();
 
@@ -955,12 +937,8 @@ function onTargetNoteChanged() {
 
 function bindAfinadorSelectors() {
   const targetNoteEl = $('targetNote');
-  const difficultyEl = $('afinadorDifficulty');
   const repeatBtn = $('repeatGuideBtn');
   if (targetNoteEl) targetNoteEl.onchange = onTargetNoteChanged;
-  if (difficultyEl) {
-    difficultyEl.onchange = () => afinadorVisual?.setDifficulty(difficultyEl.value);
-  }
   if (repeatBtn) repeatBtn.onclick = repeatGuideSound;
 }
 
@@ -1102,13 +1080,9 @@ async function runPitchDetectionLoop(pitchBuffer) {
       const targetFreq = noteToFrequency(targetNoteName);
       const cents = frequencyToCentsOff(displayFreq, targetFreq);
 
-      const difficultyEl = $('afinadorDifficulty');
-      const level = difficultyEl?.value || 'medio';
-      const tolerances = { facil: 50, medio: 30, dificil: 15, experto: 5 };
-      const tolerance = tolerances[level] || 30;
       // Clases alineadas con style.css: state-on (afinado), state-flat
       // (grave: subir la voz), state-sharp (agudo: bajar la voz).
-      const tuned = Math.abs(cents) <= tolerance * 0.35;
+      const tuned = Math.abs(cents) <= TUNING_TOLERANCE_CENTS * 0.35;
       const dir = cents < 0 ? 'flat' : 'sharp';
 
       if (noteDisplay) {
