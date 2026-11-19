@@ -664,69 +664,70 @@
     <script src="script.js?v=17" type="module"></script>
     <script src="modules/afinador.js?v=1" type="module"></script>
     <script type="module">
+      // Elementos del DOM
+      const targetNoteSelect = document.getElementById('targetNote');
+      const noteInfo = document.getElementById('noteInfo');
+      const noteInfoText = document.getElementById('noteInfoText');
+      const repeatBtn = document.getElementById('repeatBtn');
+      const startBtn = document.getElementById('startBtn');
+      let guideToneTimeout = null;
+      let isNoteSelected = false;
+      let afinando = false;
       
-  // Elementos del DOM
-  const targetNoteSelect = document.getElementById('targetNote');
-  const noteInfo = document.getElementById('noteInfo');
-  const noteInfoText = document.getElementById('noteInfoText');
-  const repeatBtn = document.getElementById('repeatBtn');
-  const startBtn = document.getElementById('startBtn');
-  let guideToneTimeout = null;
-  let isNoteSelected = false;
-  let afinando = false;
-
-  // Cuando el usuario selecciona una nota
-  if (targetNoteSelect) {
-    targetNoteSelect.addEventListener('change', function() {
-      const frecuencia = window.noteToFrequency ? window.noteToFrequency(targetNoteSelect.value) : 82.41;
-      // Siempre sonar la nota al seleccionar
-      if (window.playGuideTone) {
-        window.playGuideTone(frecuencia, 4.5);
-      }
-      // Mostrar el mensaje y el área de práctica
-      noteInfo.style.display = 'block';
-      isNoteSelected = true;
-      noteInfoText.textContent = `Práctica de afinación con ${targetNoteSelect.value}`;
-      // Resetear timeout para que el mensaje se mantenga mientras se practica
-      if (guideToneTimeout) {
-        clearTimeout(guideToneTimeout);
-        guideToneTimeout = null;
-      }
-    });
-  }
-
-  // Botón Repetir sonido
-  if (repeatBtn) {
-    repeatBtn.addEventListener('click', function() {
-      const frecuencia = window.noteToFrequency ? window.noteToFrequency(targetNoteSelect.value) : 82.41;
-      // Reproducir tono otra vez
-      if (window.playGuideTone) {
-        window.playGuideTone(frecuencia, 4.5);
-      }
-      // Mantener el mensaje visible mientras se practica
-      noteInfo.style.display = 'block';
+      // Cuando el usuario selecciona una nota
       if (targetNoteSelect) {
-        noteInfoText.textContent = `Repitiendo sonido de ${targetNoteSelect.value}`;
+        targetNoteSelect.addEventListener('change', function() {
+          const frecuencia = window.noteToFrequency ? window.noteToFrequency(targetNoteSelect.value) : 82.41;
+          // Siempre sonar la nota al seleccionar
+          if (window.playGuideTone) {
+            window.playGuideTone(frecuencia, 4.5);
+          }
+          // Mostrar el mensaje y el área de práctica
+          noteInfo.style.display = 'block';
+          isNoteSelected = true;
+          noteInfoText.textContent = `Práctica de afinación con ${targetNoteSelect.value}`;
+          // Resetear timeout para que el mensaje se mantenga mientras se practica
+          if (guideToneTimeout) {
+            clearTimeout(guideToneTimeout);
+            guideToneTimeout = null;
+          }
+        });
       }
-    });
-  }
-
-  // Botón Iniciar/Detener práctica de afinación
-  if (startBtn) {
-    startBtn.addEventListener('click', function() {
-      if (afinando) {
-        // Detener afinación
-        afinando = false;
-        startBtn.textContent = 'Iniciar';
-        noteInfoText.textContent = 'Afinación detenida';
-      } else {
-        // Iniciar práctica de afinación
-        afinando = true;
-        startBtn.textContent = 'Detener';
-        noteInfoText.textContent = `Práctica de afinación con ${targetNoteSelect ? targetNoteSelect.value : 'nota'}`;
+      
+      // Botón Repetir sonido
+      if (repeatBtn) {
+        repeatBtn.addEventListener('click', function() {
+          const frecuencia = window.noteToFrequency ? window.noteToFrequency(targetNoteSelect.value) : 82.41;
+          
+          // Reproducir tono otra vez
+          if (window.playGuideTone) {
+            window.playGuideTone(frecuencia, 4.5);
+          }
+          
+          // Mantener el mensaje visible mientras se practica
+          noteInfo.style.display = 'block';
+          if (targetNoteSelect) {
+            noteInfoText.textContent = `Repitiendo sonido de ${targetNoteSelect.value}`;
+          }
+        });
       }
-    });
-  }
+      
+      // Botón Iniciar/Detener práctica de afinación
+      if (startBtn) {
+        startBtn.addEventListener('click', function() {
+          if (afinando) {
+            // Detener afinación
+            afinando = false;
+            startBtn.textContent = 'Iniciar';
+            noteInfoText.textContent = 'Afinación detenida';
+          } else {
+            // Iniciar práctica de afinación
+            afinando = true;
+            startBtn.textContent = 'Detener';
+            noteInfoText.textContent = `Práctica de afinación con ${targetNoteSelect ? targetNoteSelect.value : 'nota'}`;
+          }
+        });
+      }
     </script>
   </body>
 </html>
