@@ -464,23 +464,58 @@ export async function loadSelectedTextFromLibrary() {
 
         selectedTextId = item.id;
 
+    const savedText = item.textoPlano || item.metadata?.textoPlano || "";
+
     if (Array.isArray(item.lyrics) && item.lyrics.length > 0) {
       textSegments = item.lyrics;
       renderKaraokeLyrics(textSegments);
 
-      let textoFormateadoParaPantalla = "";
-      textSegments.forEach((word, index) => {
-        textoFormateadoParaPantalla += word.text;
-        const nextWord = textSegments[index + 1];
-        if (nextWord) {
-          textoFormateadoParaPantalla += nextWord.renglon !== word.renglon ? "\n" : " ";
-        }
-      });
+      if (savedText.trim()) {
+        // Preferir el texto original: conserva exactamente los saltos de línea
+        // con los que el usuario hará los taps. Reconstruir desde item.lyrics
+        // perdía las líneas en blanco y, si faltaba `renglon`, unía toda la
+        // letra en un solo renglón.
+        textInput.value = savedText;
+      } else {
+        // Compatibilidad con letras antiguas: aceptar tanto lista plana de
+        // palabras como lista de segmentos con .words[].
+        const flatWords = [];
+        textSegments.forEach((seg, segIndex) => {
+          if (Array.isArray(seg.words) && seg.words.length) {
+            seg.words.forEach((w) => {
+              flatWords.push({
+                ...w,
+                text: w.text || w.word || "",
+                renglon: w.renglon ?? seg.renglon ?? (segIndex + 1)
+              });
+            });
+          } else {
+            flatWords.push({
+              ...seg,
+              text: seg.text || seg.word || "",
+              renglon: seg.renglon ?? (segIndex + 1)
+            });
+          }
+        });
 
-      textInput.value = textoFormateadoParaPantalla;
+        let textoFormateadoParaPantalla = "";
+        let prevRenglon = null;
+        flatWords.forEach((word, index) => {
+          const wordText = word.text || word.word || "";
+          const renglon = word.renglon ?? prevRenglon ?? 1;
+          if (index > 0) {
+            textoFormateadoParaPantalla += renglon !== prevRenglon ? "\n" : " ";
+          }
+          textoFormateadoParaPantalla += wordText;
+          prevRenglon = renglon;
+        });
+
+        textInput.value = textoFormateadoParaPantalla;
+      }
+
       status.innerHTML = `📄 <strong>Estado:</strong> Letra cargada respetando tus líneas de estrofa original ⚡`;
-    } else if (item.textoPlano || item.metadata?.textoPlano) {
-      textInput.value = item.textoPlano || item.metadata?.textoPlano || "";
+    } else if (savedText) {
+      textInput.value = savedText;
       // Actualizar textSegments para que el monitor refleje el texto plano.
       const flatSegments = segmentarTextoPlano(textInput.value);
       textSegments = flatSegments;
@@ -572,21 +607,31 @@ export async function applyCorrectedLyrics() {
 export function segmentarTextoPlano(texto) {
   if (!texto || texto.trim() === "") return [];
 
-  const textoLimpio = texto.replace(/[ \t]+/g, ' ').trim();
-  const lineas = textoLimpio.split('\n');
+  // Normalizar SOLO los espacios horizontales (incluye NBSP y tabulaciones),
+  // sin tocar los saltos de línea. Antes se usaba split(" "), así que una
+  // palabra separada por NBSP quedaba pegada a la anterior (dos palabras en
+  // una sola barra).
+  const textoLimpio = texto.replace(/[^\S\r\n]+/g, ' ').trim();
+  const lineas = textoLimpio.split(/\r\n|\r|\n/);
   let palabraGlobalIndex = 1;
+  let renglonActual = 0;
   let todasLasPalabras = [];
 
-  lineas.forEach((lineaTexto, renglonIndex) => {
+  lineas.forEach((lineaTexto) => {
     const lineaLimpia = lineaTexto.trim();
     if (!lineaLimpia) return;
 
-    const palabrasDeLaLinea = lineaLimpia.split(' ');
+    // Numerar SOLO los renglones con contenido. Antes se usaba el índice del
+    // split: una línea en blanco desplazaba todos los renglones y, en modo
+    // línea, un tap podía caer sobre las palabras de otra línea (o duplicar
+    // la primera línea y dejar la última sin palabras).
+    renglonActual++;
+    const palabrasDeLaLinea = lineaLimpia.split(/\s+/);
     palabrasDeLaLinea.forEach((palabra) => {
       todasLasPalabras.push({
         id: palabraGlobalIndex++,
         text: palabra,
-        renglon: renglonIndex + 1,
+        renglon: renglonActual,
         time: 0 // Usaremos una única marca de tiempo limpia para la sincronización nativa
       });
     });
@@ -699,12 +744,33 @@ function fillMissingMidis(words, fallbackMidi = 60) {
   const existing = words.map(w => isFiniteMidi(w.midi) ? w.midi : null);
   const median = getMedianMidi(existing) || fallbackMidi;
 
+  // Nota de referencia por renglón. Antes, si una palabra no se podía analizar,
+  // se copiaba la nota válida más cercana aunque estuviera en la línea
+  // anterior: una nota equivocada se propagaba a la línea siguiente. Ahora se
+  // busca dentro del mismo renglón y, si no hay ninguna, se usa la mediana de
+  // ese renglón o la global.
+  const lineMedians = new Map();
+  const wordsByLine = new Map();
+
+  words.forEach((w) => {
+    const key = w.renglon ?? 1;
+    if (!wordsByLine.has(key)) wordsByLine.set(key, []);
+    wordsByLine.get(key).push(w);
+  });
+
+  wordsByLine.forEach((lineWords, key) => {
+    const lineMedian = getMedianMidi(lineWords.map(w => w.midi));
+    if (isFiniteMidi(lineMedian)) lineMedians.set(key, lineMedian);
+  });
+
   for (let i = 0; i < words.length; i++) {
     if (isFiniteMidi(words[i].midi)) continue;
 
+    const key = words[i].renglon ?? 1;
     let replacement = null;
 
     for (let left = i - 1; left >= 0; left--) {
+      if ((words[left].renglon ?? 1) !== key) continue;
       if (isFiniteMidi(words[left].midi)) {
         replacement = words[left].midi;
         break;
@@ -713,6 +779,7 @@ function fillMissingMidis(words, fallbackMidi = 60) {
 
     if (!isFiniteMidi(replacement)) {
       for (let right = i + 1; right < words.length; right++) {
+        if ((words[right].renglon ?? 1) !== key) continue;
         if (isFiniteMidi(words[right].midi)) {
           replacement = words[right].midi;
           break;
@@ -720,13 +787,280 @@ function fillMissingMidis(words, fallbackMidi = 60) {
       }
     }
 
+    if (!isFiniteMidi(replacement)) replacement = lineMedians.get(key);
     words[i].midi = isFiniteMidi(replacement) ? replacement : median;
   }
 
   return words;
 }
 
-async function analyzePitchForTimedWords(audioSource, timedWords) {
+// El worker de pitch analiza como máximo los primeros 2048 samples del buffer
+// que recibe (es el tamaño de frame que usa el afinador en tiempo real). Antes
+// le pasábamos la ventana completa de la palabra (p. ej. 1.5 s), así que solo
+// miraba los primeros ~43 ms: muchas veces el ataque consonántico, la cola de
+// la palabra anterior o silencio. Esa era la causa de que algunas barras
+// aparecieran con una nota que no correspondía a la palabra.
+// Ahora partimos la ventana en frames de 2048, elegimos los de mayor energía
+// (las vocales) y combinamos sus notas con la mediana.
+const WORD_PITCH_FRAME_SIZE = 2048;
+const WORD_PITCH_MAX_CANDIDATES = 10;
+const WORD_PITCH_MAX_ATTEMPTS = 3;
+const WORD_PITCH_MAX_VALID = 3;
+
+function frameRms(frame) {
+  let sum = 0;
+  let count = 0;
+  for (let i = 0; i < frame.length; i++) {
+    const v = frame[i];
+    if (!Number.isFinite(v)) continue;
+    sum += v * v;
+    count++;
+  }
+  return count ? Math.sqrt(sum / count) : 0;
+}
+
+function framePeak(frame) {
+  let peak = 0;
+  for (let i = 0; i < frame.length; i++) {
+    const v = frame[i];
+    if (!Number.isFinite(v)) continue;
+    const abs = v < 0 ? -v : v;
+    if (abs > peak) peak = abs;
+  }
+  return peak;
+}
+
+function boostQuietFrame(frame) {
+  // detectPitch descarta frames con RMS < 0.006. Una toma de voz grabada
+  // suave puede quedar por debajo y perder la nota (y luego heredar la de la
+  // palabra vecina). Si hay señal suficiente, la subimos sin cambiar su forma.
+  const peak = framePeak(frame);
+  if (peak < 0.002) return frame;
+  const rms = frameRms(frame);
+  if (rms >= 0.006 || rms <= 0) return frame;
+  const gain = Math.min(8, 0.05 / rms);
+  const out = new Float32Array(frame.length);
+  for (let i = 0; i < frame.length; i++) {
+    out[i] = Number.isFinite(frame[i]) ? frame[i] * gain : 0;
+  }
+  return out;
+}
+
+function pickWordPitchFrames(slice) {
+  const len = slice.length;
+  if (len <= WORD_PITCH_FRAME_SIZE) return [boostQuietFrame(slice)];
+
+  // Evitar los bordes: ahí suele estar la cola de la palabra anterior o el
+  // silencio antes de la siguiente. Se analiza el 80% central.
+  const margin = Math.floor(len * 0.1);
+  const start = margin;
+  const end = len - margin;
+  const available = end - start;
+
+  if (available <= WORD_PITCH_FRAME_SIZE) {
+    const center = Math.max(0, Math.floor((len - WORD_PITCH_FRAME_SIZE) / 2));
+    return [boostQuietFrame(slice.slice(center, center + WORD_PITCH_FRAME_SIZE))];
+  }
+
+  const span = available - WORD_PITCH_FRAME_SIZE;
+  const steps = Math.min(
+    WORD_PITCH_MAX_CANDIDATES - 1,
+    Math.max(1, Math.floor(span / 512))
+  );
+  const hop = Math.floor(span / steps);
+  const candidates = [];
+
+  for (let k = 0; k <= steps; k++) {
+    const offset = start + k * hop;
+    const frame = slice.slice(offset, offset + WORD_PITCH_FRAME_SIZE);
+    candidates.push({ frame, rms: frameRms(frame) });
+  }
+
+  candidates.sort((a, b) => b.rms - a.rms);
+  return candidates
+    .slice(0, WORD_PITCH_MAX_ATTEMPTS)
+    .map(c => boostQuietFrame(c.frame));
+}
+
+function combineWordMidis(midis) {
+  if (!midis.length) return null;
+  if (midis.length === 1) return midis[0];
+  if (midis.length === 2) {
+    // Dos frames que coinciden (±1 semitono) se promedian. Si están a una
+    // octava o más, el primero es el de mayor energía y se usa como referencia;
+    // la mediana de dos valores muy separados daría una nota inventada.
+    return Math.abs(midis[0] - midis[1]) <= 1
+      ? getMedianMidi(midis)
+      : midis[0];
+  }
+  return getMedianMidi(midis);
+}
+
+async function detectWordMidi(audioController, slice, sampleRate) {
+  const frames = pickWordPitchFrames(slice);
+  const midis = [];
+  const FREQ_MIN = 50;
+  const FREQ_MAX = 2000;
+
+  for (const frame of frames) {
+    try {
+      const freq = await audioController.detectPitch(frame, sampleRate);
+      if (typeof freq === "number" && freq > 0 && freq >= FREQ_MIN && freq <= FREQ_MAX) {
+        const midi = frequencyToMidi(freq);
+        if (isFiniteMidi(midi)) midis.push(midi);
+        // Dos frames que coinciden ya son suficientes; si no, se pide un
+        // tercero y decide la mediana.
+        if (midis.length >= 2 && Math.abs(midis[0] - midis[1]) <= 1) break;
+        if (midis.length >= WORD_PITCH_MAX_VALID) break;
+      }
+    } catch (err) {
+      console.warn("⚠️ Error detectando pitch para frame de palabra:", err);
+    }
+  }
+
+  return combineWordMidis(midis);
+}
+
+/**
+ * Busca el tramo realmente cantado de una línea dentro de [lineStart, lineEnd].
+ * En modo línea el usuario solo marca el inicio de cada línea: el hueco hasta
+ * el siguiente tap (silencio, instrumental, outro) se repartía entre las
+ * palabras y el análisis de pitch acababa mirando la palabra vecina o el vacío.
+ */
+function findLineVoicedSpan(monoData, sampleRate, lineStart, lineEnd) {
+  const startSample = Math.max(0, Math.floor(lineStart * sampleRate));
+  const endSample = Math.min(monoData.length, Math.floor(lineEnd * sampleRate));
+  const frameSize = 2048;
+  const hop = 1024;
+
+  if (endSample - startSample < frameSize) return null;
+
+  const frames = [];
+  let maxRms = 0;
+
+  for (let offset = startSample; offset + frameSize <= endSample; offset += hop) {
+    let sum = 0;
+    for (let i = 0; i < frameSize; i++) {
+      const v = monoData[offset + i];
+      if (Number.isFinite(v)) sum += v * v;
+    }
+    const rms = Math.sqrt(sum / frameSize);
+    frames.push({ offset, rms });
+    if (rms > maxRms) maxRms = rms;
+  }
+
+  if (!frames.length || maxRms <= 0) return null;
+
+  // Referencia robusta: percentil 90 en vez del pico absoluto, para que un
+  // golpe de consonante (p/t/k) no eleve el umbral y borre las vocales.
+  const sortedRms = frames.map(f => f.rms).sort((a, b) => a - b);
+  const referenceRms = sortedRms[Math.floor(sortedRms.length * 0.9)] || maxRms;
+
+  // Umbral relativo a la referencia (-30 dB aprox.), con un piso absoluto para
+  // no confundir el ruido de fondo con voz.
+  const threshold = Math.max(0.004, referenceRms * 0.03);
+  let first = null;
+  let last = null;
+
+  for (const frame of frames) {
+    if (frame.rms < threshold) continue;
+    if (!first) first = frame;
+    last = frame;
+  }
+
+  if (!first || !last) return null;
+
+  return {
+    start: Math.max(lineStart, first.offset / sampleRate - 0.08),
+    end: Math.min(lineEnd, (last.offset + frameSize) / sampleRate + 0.12)
+  };
+}
+
+function retimeWordsToSpan(words, spanStart, spanEnd) {
+  if (!Array.isArray(words) || !words.length) return;
+
+  const span = spanEnd - spanStart;
+  if (!(span > 0)) return;
+
+  // Pesos por longitud de texto (no por la duración anterior: la última
+  // palabra absorbía todo el hueco hasta el siguiente tap y quedaba inflada).
+  const weights = words.map((w) => {
+    const txt = (w.text || w.word || "").trim();
+    return Math.max(1, txt.length);
+  });
+  const totalWeight = weights.reduce((sum, weight) => sum + weight, 0) || words.length;
+
+  // Reservar un mínimo por palabra ANTES de repartir el resto: si el tramo
+  // cantado es muy corto y hay muchas palabras, el reparto proporcional podía
+  // dejar a la última con start > end (duración negativa).
+  const minDuration = Math.min(0.05, span / words.length);
+  const distributable = Math.max(0, span - minDuration * words.length);
+
+  let cursor = spanStart;
+
+  words.forEach((w, index) => {
+    const isLast = index === words.length - 1;
+    const share = minDuration + distributable * (weights[index] / totalWeight);
+    const duration = isLast
+      ? Math.max(minDuration, spanEnd - cursor)
+      : share;
+
+    const start = cursor;
+    const end = Math.min(spanEnd, cursor + duration);
+
+    w.start = start;
+    w.startTime = start;
+    w.end = end;
+    cursor = end;
+  });
+}
+
+function retimeLinesToVoicedSpan(timedWords, monoData, sampleRate) {
+  if (!Array.isArray(timedWords) || !timedWords.length) return;
+
+  // Se agrupa por renglón Y parte: en un dúo, P1 y P2 pueden cantar tramos
+  // distintos de la misma línea; mezclarlos haría que el recorte al tramo con
+  // voz y el reparto por longitud se comieran la alternancia entre ambos.
+  const lines = new Map();
+  timedWords.forEach((w) => {
+    const key = `${w.renglon ?? 1}|${w.parte ?? "P1"}`;
+    if (!lines.has(key)) lines.set(key, []);
+    lines.get(key).push(w);
+  });
+
+  for (const words of lines.values()) {
+    if (!words.length) continue;
+
+    words.sort((a, b) => {
+      const sa = Number(a.start ?? a.startTime ?? 0);
+      const sb = Number(b.start ?? b.startTime ?? 0);
+      return sa - sb;
+    });
+
+    const lineStart = Math.min(...words.map(w => Number(w.start ?? w.startTime ?? 0)));
+    const lineEnd = Math.max(...words.map(w => Number(w.end ?? (w.start ?? w.startTime ?? 0))));
+    if (!(lineEnd > lineStart)) continue;
+
+    const span = findLineVoicedSpan(monoData, sampleRate, lineStart, lineEnd);
+    if (!span) continue;
+
+    const originalSpan = lineEnd - lineStart;
+    const voicedSpan = span.end - span.start;
+
+    // Si el recorte es mínimo, no tocar nada. Si es enorme (posible fallo del
+    // detector de voz), tampoco: comprimir todas las palabras en un suspiro
+    // sería peor que dejarlas repartidas. El umbral es bajo (5 %) porque en
+    // modo línea es normal que el hueco hasta el siguiente tap incluya un
+    // interludio largo.
+    if (voicedSpan < 0.3) continue;
+    if (voicedSpan < originalSpan * 0.05) continue;
+    if (Math.abs(voicedSpan - originalSpan) < 0.15) continue;
+
+    retimeWordsToSpan(words, span.start, span.end);
+  }
+}
+
+async function analyzePitchForTimedWords(audioSource, timedWords, options = {}) {
   if (!audioSource) {
     console.warn("⚠️ No hay audio fuente para analizar pitch.");
     return fillMissingMidis(
@@ -736,6 +1070,11 @@ async function analyzePitchForTimedWords(audioSource, timedWords) {
   }
 
   const { monoData, sampleRate } = await decodeAudioBlobToMono(audioSource);
+
+  if (options.trimLineSilence) {
+    retimeLinesToVoicedSpan(timedWords, monoData, sampleRate);
+  }
+
   const audioController = getAudioController();
 
   const analyzedWords = [];
@@ -751,20 +1090,7 @@ async function analyzePitchForTimedWords(audioSource, timedWords) {
 
     if (endSample - startSample >= 256) {
       const slice = monoData.slice(startSample, endSample);
-      try {
-        const freq = await audioController.detectPitch(slice, sampleRate);
-        // FIX (tema "palabra fuera de lugar"): descartar frecuencias imposibles
-        // antes de convertir a MIDI. Una ventana corta puede dar un pico
-        // espurio (ruido/harmónico) que terminaba en una nota muy por encima de
-        // la que cantaba el cantante y aparecía "fuera de lugar" en el pentagrama.
-        const FREQ_MIN = 50;
-        const FREQ_MAX = 2000;
-        if (typeof freq === "number" && freq > 0 && freq >= FREQ_MIN && freq <= FREQ_MAX) {
-          midi = frequencyToMidi(freq);
-        }
-      } catch (err) {
-        console.warn("⚠️ Error detectando pitch para palabra:", w.word || w.text, err);
-      }
+      midi = await detectWordMidi(audioController, slice, sampleRate);
     }
 
     analyzedWords.push({
@@ -793,6 +1119,23 @@ function groupWordsToKaraokeSegments(words) {
 
   const segments = [];
 
+  const makeSegment = (normalizedWords) => {
+    if (!normalizedWords.length) return null;
+
+    return {
+      start: normalizedWords[0]?.start || 0,
+      end: normalizedWords[normalizedWords.length - 1]?.end || 0,
+      text: normalizedWords.map(w => w.word).join(" "),
+      parte: normalizedWords[0]?.parte || "P1",
+      // Conservar el renglón permite que un futuro reproceso (o la vista de
+      // letra) siga agrupando las palabras de la misma línea aunque un
+      // renglón se haya partido en varios segmentos P1/P2.
+      renglon: normalizedWords[0]?.renglon ?? null,
+      midi: normalizedWords[0]?.midi || 60,
+      words: normalizedWords
+    };
+  };
+
   for (const [, rowWords] of grouped.entries()) {
     const ordered = [...rowWords].sort((a, b) => {
       const sa = Number(a.start ?? a.startTime ?? 0);
@@ -814,23 +1157,580 @@ function groupWordsToKaraokeSegments(words) {
         start,
         end,
         midi: isFiniteMidi(w.midi) ? w.midi : 60,
-        parte: w.parte || "P1"
+        parte: w.parte || "P1",
+        renglon: w.renglon ?? null
       };
     });
 
-    const parteDominante = ordered[0]?.parte || "P1";
+    // Un segmento no puede mezclar P1 y P2: drawRegion filtra por seg.parte,
+    // así que las palabras de la otra parte se dibujarían con el color y el
+    // estado equivocados. Se corta el renglón en tramos de una misma parte.
+    let run = [];
+    for (const word of normalizedWords) {
+      if (run.length && word.parte !== run[0].parte) {
+        const seg = makeSegment(run);
+        if (seg) segments.push(seg);
+        run = [];
+      }
+      run.push(word);
+    }
 
-    segments.push({
-      start: normalizedWords[0]?.start || 0,
-      end: normalizedWords[normalizedWords.length - 1]?.end || 0,
-      text: normalizedWords.map(w => w.word).join(" "),
-      parte: parteDominante,
-      midi: normalizedWords[0]?.midi || 60,
-      words: normalizedWords
-    });
+    const lastSeg = makeSegment(run);
+    if (lastSeg) segments.push(lastSeg);
   }
 
   return segments.sort((a, b) => (a.start || 0) - (b.start || 0));
+}
+
+// ==========================================
+// 🎼 REPROCESO DE KARAOKES YA GUARDADOS
+// ==========================================
+// Los karaokes antiguos conservan los tiempos y las notas que se calcularon
+// con el analizador anterior (solo miraba los primeros 43 ms de cada palabra).
+// En vez de pedir al usuario que repita los taps de todas las canciones, esta
+// herramienta reutiliza los tiempos ya guardados, recorta cada línea al tramo
+// realmente cantado y vuelve a detectar las notas con el analizador nuevo.
+// La fuente de audio preferida es la voz de la biblioteca emparejada por
+// nombre; si no hay voz, se puede intentar con el audio del propio karaoke.
+
+const REPROCESS_MATCH_MIN_SCORE = 60;
+let reprocesandoKaraokes = false;
+
+function normalizarNombreCancion(nombre) {
+  return String(nombre ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\.[a-z0-9]{2,5}$/i, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+const STEM_SUFFIXES = [
+  "voz principal",
+  "lead vocals",
+  "main vocals",
+  "backing track",
+  "lead vocal",
+  "main vocal",
+  "voz 1",
+  "voz 2",
+  "vocals",
+  "vocal",
+  "acapella",
+  "a capella",
+  "pista",
+  "instrumental",
+  "inst",
+  "karaoke",
+  "backing",
+  "coros",
+  "coro",
+  "stems",
+  "stem",
+  "voz"
+];
+
+function quitarSufijoStem(nombre) {
+  let base = normalizarNombreCancion(nombre);
+  let changed = true;
+
+  while (changed) {
+    changed = false;
+    for (const suffix of STEM_SUFFIXES) {
+      const re = new RegExp(`(?:^|\\s)${suffix.replace(/ /g, "\\s+")}$`, "i");
+      if (!re.test(base)) continue;
+
+      const next = base.replace(re, "").trim();
+      // No dejar bases de 1-2 letras: "La Voz" → "la" no debe emparejar con
+      // cualquier canción que empiece por "la".
+      if (next.length >= 3) {
+        base = next;
+        changed = true;
+        break;
+      }
+    }
+  }
+
+  return base;
+}
+
+function puntuarVozParaKaraoke(karaokeName, vozName) {
+  const kFull = normalizarNombreCancion(karaokeName);
+  const vFull = normalizarNombreCancion(vozName);
+  if (!kFull || !vFull) return 0;
+  if (kFull === vFull) return 100;
+
+  const kBase = quitarSufijoStem(karaokeName);
+  const vBase = quitarSufijoStem(vozName);
+
+  if (kBase.length >= 3 && kBase === vBase) return 90;
+
+  if (kBase.length >= 5 && vBase.length >= 5) {
+    if (kBase.includes(vBase) || vBase.includes(kBase)) {
+      const ratio = Math.min(kBase.length, vBase.length) / Math.max(kBase.length, vBase.length);
+      if (ratio >= 0.4) return Math.round(50 + ratio * 30);
+    }
+  }
+
+  const kTokens = new Set(kBase.split(" ").filter(t => t.length > 1 || /^\d+$/.test(t)));
+  const vTokens = new Set(vBase.split(" ").filter(t => t.length > 1 || /^\d+$/.test(t)));
+  if (!kTokens.size || !vTokens.size) return 0;
+
+  let common = 0;
+  kTokens.forEach((token) => {
+    if (vTokens.has(token)) common++;
+  });
+  const union = kTokens.size + vTokens.size - common;
+  const jaccard = union > 0 ? common / union : 0;
+  return jaccard >= 0.6 ? Math.round(jaccard * 60) : 0;
+}
+
+function encontrarVozParaKaraoke(karaoke, voces) {
+  let mejor = null;
+  let mejorPuntaje = 0;
+
+  for (const voz of voces) {
+    const puntaje = puntuarVozParaKaraoke(karaoke?.name, voz?.name);
+    if (puntaje > mejorPuntaje) {
+      mejorPuntaje = puntaje;
+      mejor = voz;
+    }
+  }
+
+  return mejorPuntaje >= REPROCESS_MATCH_MIN_SCORE ? mejor : null;
+}
+
+function lyricsComoArray(value) {
+  if (Array.isArray(value)) return value;
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (_) {
+      return [];
+    }
+  }
+  return [];
+}
+
+function flattenKaraokeWords(lyrics) {
+  const items = lyricsComoArray(lyrics);
+  if (!items.length) return [];
+
+  // Algunos karaokes antiguos guardaron una lista PLANA de palabras en vez de
+  // segmentos con .words[]. Hay que reconstruir los renglones por cercanía
+  // temporal (igual que hace karaoke.js al mostrarlos); si no, cada palabra
+  // acabaría siendo una "línea" y el reproceso empeoraría el teleprompter.
+  const esListaPlana = items.every((it) =>
+    it && typeof it === "object" && (it.word || it.text) && !Array.isArray(it.words)
+  );
+
+  if (esListaPlana) {
+    const words = items
+      .map((w) => {
+        const text = String(w.word || w.text || "").trim();
+        if (!text) return null;
+
+        const rawStart = Number(w.start ?? w.startTime ?? 0);
+        const start = Number.isFinite(rawStart) ? Math.max(0, rawStart) : 0;
+        const rawEnd = Number(w.end ?? (start + 0.3));
+        const end = Number.isFinite(rawEnd) ? Math.max(start + 0.05, rawEnd) : start + 0.3;
+        const tieneRenglon = w.renglon !== undefined && w.renglon !== null && String(w.renglon).trim() !== "";
+        const renglonNum = tieneRenglon ? Number(w.renglon) : NaN;
+
+        return {
+          text,
+          word: text,
+          renglon: Number.isFinite(renglonNum) ? renglonNum : null,
+          parte: w.parte || "P1",
+          start,
+          startTime: start,
+          end,
+          midi: isFiniteMidi(w.midi) ? w.midi : null
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.start - b.start);
+
+    const todasConRenglon = words.every((w) => w.renglon !== null);
+
+    if (!todasConRenglon) {
+      let linea = 0;
+      let prevEnd = null;
+      let prevParte = null;
+
+      words.forEach((w) => {
+        const cambiaParte = prevParte !== null && w.parte !== prevParte;
+        if (prevEnd === null || cambiaParte || w.start - prevEnd > 1.5) linea++;
+        w.renglon = linea;
+        prevEnd = w.end;
+        prevParte = w.parte;
+      });
+    }
+
+    words.forEach((w, index) => { w.id = index + 1; });
+    return words;
+  }
+
+  const out = [];
+  let id = 0;
+
+  items.forEach((seg, segIndex) => {
+    if (!seg) return;
+
+    const parte = seg.parte || "P1";
+    const tieneRenglon = seg.renglon !== undefined && seg.renglon !== null && String(seg.renglon).trim() !== "";
+    const renglonSeg = tieneRenglon ? Number(seg.renglon) : NaN;
+    const renglon = Number.isFinite(renglonSeg) ? renglonSeg : (segIndex + 1);
+    const rawWords = Array.isArray(seg.words) && seg.words.length ? seg.words : [seg];
+
+    rawWords.forEach((w) => {
+      if (!w) return;
+      const text = String(w.word || w.text || "").trim();
+      if (!text) return;
+
+      const rawStart = Number(w.start ?? w.startTime ?? seg.start ?? 0);
+      const start = Number.isFinite(rawStart) ? Math.max(0, rawStart) : 0;
+      const rawEnd = Number(w.end ?? seg.end ?? (start + 0.3));
+      const end = Number.isFinite(rawEnd) ? Math.max(start + 0.05, rawEnd) : start + 0.3;
+
+      out.push({
+        id: ++id,
+        text,
+        word: text,
+        renglon,
+        parte: w.parte || parte,
+        start,
+        startTime: start,
+        end,
+        midi: isFiniteMidi(w.midi) ? w.midi : null
+      });
+    });
+  });
+
+  return out;
+}
+
+function descargarBackupKaraokes(karaokes) {
+  try {
+    const payload = {
+      fecha: new Date().toISOString(),
+      total: karaokes.length,
+      karaokes: karaokes.map((k) => ({
+        id: k.id,
+        name: k.name,
+        lyrics: k.lyrics,
+        transcription: k.transcription,
+        isSincronizada: k.isSincronizada,
+        isReadyKaraoke: k.isReadyKaraoke,
+        tapModeStyle: k.tapModeStyle
+      }))
+    };
+
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+    a.href = url;
+    a.download = `karaokes_backup_${stamp}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  } catch (err) {
+    console.warn("⚠️ No se pudo descargar la copia de seguridad de karaokes:", err);
+  }
+}
+
+// Descarga manual: se llama desde un clic directo, así el navegador no bloquea
+// la descarga por haber perdido el gesto del usuario tras varios awaits.
+export async function descargarBackupKaraokesExistentes() {
+  try {
+    const todos = await getAllLibraryItemsFromSupabase();
+    const karaokes = (todos || []).filter((it) =>
+      it && it.type === "karaoke" && lyricsComoArray(it.lyrics).length > 0
+    );
+
+    if (!karaokes.length) {
+      toast("ℹ️ No hay karaokes guardados para respaldar.", "info");
+      return;
+    }
+
+    descargarBackupKaraokes(karaokes);
+    toast(`✅ Copia de seguridad descargada (${karaokes.length} karaokes)`, "ok", 5000);
+  } catch (err) {
+    console.error("❌ Error descargando la copia de seguridad:", err);
+    toast(`❌ No se pudo descargar la copia: ${err.message}`, "error", 6000);
+  }
+}
+
+function setReprocessStatus(text) {
+  const el = $("reprocessKaraokesStatus");
+  if (el) el.textContent = text;
+}
+
+export async function reprocesarKaraokesExistentes() {
+  if (reprocesandoKaraokes) {
+    toast("⏳ Ya hay un reproceso de karaokes en curso.", "warn");
+    return;
+  }
+
+  reprocesandoKaraokes = true;
+  const btn = $("reprocessKaraokesBtn");
+  const textoOriginal = btn?.textContent || "Reprocesar karaokes existentes";
+
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Reprocesando…";
+  }
+
+  try {
+    setReprocessStatus("🔎 Buscando karaokes y voces en la biblioteca…");
+    const todos = await getAllLibraryItemsFromSupabase();
+    const karaokes = (todos || []).filter((it) =>
+      it && it.type === "karaoke" && lyricsComoArray(it.lyrics).length > 0
+    );
+    const voces = (todos || []).filter((it) =>
+      it && it.type === "voz" && (it.file_url || it.audioBlob)
+    );
+
+    if (!karaokes.length) {
+      setReprocessStatus("No hay karaokes guardados para reprocesar.");
+      toast("ℹ️ No hay karaokes guardados en la biblioteca.", "info");
+      return;
+    }
+
+    const plan = karaokes.map((karaoke) => ({
+      karaoke,
+      voz: encontrarVozParaKaraoke(karaoke, voces)
+    }));
+
+    const conVoz = plan.filter((p) => !!p.voz).length;
+    const sinVoz = plan.length - conVoz;
+
+    console.table(plan.map((p) => ({
+      Karaoke: p.karaoke.name,
+      Voz: p.voz?.name || "—"
+    })));
+
+    let continuar = true;
+
+    if (conVoz > 0) {
+      continuar = await confirmDialog(
+        `Se encontraron ${plan.length} karaokes guardados.\n\n` +
+        `✅ ${conVoz} tienen una voz emparejada por nombre.\n` +
+        `⚠️ ${sinVoz} no tienen voz emparejada.\n\n` +
+        `Se reanalizarán las notas y se recortarán los silencios usando los tiempos ya guardados (no hay que repetir los taps).\n\n` +
+        `Revisa la consola del navegador (F12) para ver qué voz se asignó a cada karaoke.\n\n` +
+        `El proceso puede tardar varios minutos si hay muchas canciones. Mantén esta pestaña abierta hasta que termine.\n\n` +
+        `Antes de modificar se descargará una copia de seguridad.\n\n` +
+        `¿Reprocesar los ${conVoz} karaokes con voz?`,
+        { okText: "Sí, reprocesar", cancelText: "Cancelar" }
+      );
+
+      if (!continuar) {
+        setReprocessStatus("Reproceso cancelado.");
+        return;
+      }
+    }
+
+    let usarAudioKaraoke = false;
+
+    if (sinVoz > 0) {
+      usarAudioKaraoke = await confirmDialog(
+        `${conVoz > 0 ? `Además, hay ${sinVoz} karaokes sin una voz emparejada.\n\n` : `No hay voces emparejadas para ${sinVoz} karaokes.\n\n`}` +
+        `¿Quieres intentar también con el audio del propio karaoke?\n\n` +
+        `Solo funciona si ese audio conserva la voz original. Si es una pista instrumental, las notas pueden quedar mal y es mejor omitirlos.`,
+        { okText: "Sí, intentar también", cancelText: "No, omitirlos" }
+      );
+    }
+
+    const aProcesar = plan.filter(({ karaoke, voz }) => {
+      if (voz && (voz.file_url || voz.audioBlob)) return true;
+      if (!usarAudioKaraoke) return false;
+      return !!(karaoke.file_url || karaoke.audioBlob);
+    });
+
+    if (!aProcesar.length) {
+      setReprocessStatus("No hay karaokes procesables: falta una voz o un audio.");
+      toast("⚠️ No se pudo reprocesar ninguno: no hay fuente de audio.", "warn");
+      return;
+    }
+
+    descargarBackupKaraokes(aProcesar.map((p) => p.karaoke));
+
+    const idsAProcesar = new Set(aProcesar.map((p) => p.karaoke.id));
+    let actualizados = 0;
+    let omitidos = plan.length - aProcesar.length;
+    let fallidos = 0;
+    const detalles = plan
+      .filter((p) => !idsAProcesar.has(p.karaoke.id))
+      .map((p) => `${p.karaoke.name}: sin fuente de audio`);
+
+    for (let i = 0; i < aProcesar.length; i++) {
+      const { karaoke, voz } = aProcesar[i];
+      const source = voz?.file_url || voz?.audioBlob || karaoke.file_url || karaoke.audioBlob;
+      const fuenteNombre = voz?.name ? ` · voz: ${voz.name}` : " · audio del karaoke";
+
+      setReprocessStatus(`🎼 ${i + 1}/${aProcesar.length}: ${karaoke.name}${fuenteNombre}…`);
+
+      try {
+        const words = flattenKaraokeWords(karaoke.lyrics);
+        if (!words.length) {
+          omitidos++;
+          detalles.push(`${karaoke.name}: sin palabras`);
+          continue;
+        }
+
+        // Karaokes antiguos con el bug de start=0 no se pueden reparar con los
+        // tiempos guardados: hay que volver a sincronizarlos.
+        const sinTiempo = words.filter((w) => w.start === 0).length;
+        if (sinTiempo > words.length * 0.5) {
+          omitidos++;
+          detalles.push(`${karaoke.name}: tiempos inválidos (start=0), requiere re-sincronizar`);
+          continue;
+        }
+
+        // En modo palabra los tiempos guardados son exactos (cada tap marcó
+        // una palabra): no se deben repartir por longitud. Solo se reanaliza
+        // la nota. En modo línea (o si no hay dato) sí se recorta el silencio
+        // y se redistribuyen las palabras dentro del tramo cantado.
+        const esModoPalabra = String(karaoke.tapModeStyle || "").toLowerCase() === "palabra";
+        const analyzed = await analyzePitchForTimedWords(source, words, {
+          trimLineSilence: !esModoPalabra
+        });
+        const segments = groupWordsToKaraokeSegments(analyzed);
+
+        if (!segments.length) {
+          omitidos++;
+          detalles.push(`${karaoke.name}: no se generaron segmentos`);
+          continue;
+        }
+
+        await updateLibraryItemsFromSupabase(karaoke.id, {
+          lyrics: segments,
+          transcription: segments,
+          isSincronizada: true,
+          isReadyKaraoke: true
+        });
+
+        actualizados++;
+      } catch (err) {
+        fallidos++;
+        detalles.push(`${karaoke.name}: ${err.message}`);
+        console.warn(`⚠️ No se pudo reprocesar "${karaoke.name}":`, err);
+      }
+    }
+
+    const resumen =
+      `Reproceso terminado.\n\n` +
+      `✅ Actualizados: ${actualizados}\n` +
+      `⚠️ Omitidos: ${omitidos}\n` +
+      `❌ Fallidos: ${fallidos}` +
+      (detalles.length
+        ? `\n\nDetalles:\n${detalles.slice(0, 8).join("\n")}${detalles.length > 8 ? `\n… y ${detalles.length - 8} más (ver consola)` : ""}`
+        : "");
+
+    console.log("🎼 Reproceso de karaokes:", { actualizados, omitidos, fallidos, detalles });
+    setReprocessStatus(`✅ ${actualizados} actualizados · ⚠️ ${omitidos} omitidos · ❌ ${fallidos} fallidos`);
+
+    await confirmDialog(resumen, { okText: "Entendido", cancelText: "Cerrar" });
+    toast(
+      actualizados ? `✅ ${actualizados} karaokes reprocesados` : "⚠️ No se actualizó ningún karaoke",
+      actualizados ? "ok" : "warn",
+      6000
+    );
+
+    try {
+      await renderLibrary("karaoke");
+    } catch (err) {
+      console.warn("No se pudo refrescar la biblioteca tras el reproceso:", err);
+    }
+  } catch (err) {
+    console.error("❌ Error en el reproceso de karaokes:", err);
+    setReprocessStatus(`❌ Error: ${err.message}`);
+    toast(`❌ No se pudo reprocesar: ${err.message}`, "error", 6000);
+  } finally {
+    reprocesandoKaraokes = false;
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = textoOriginal;
+    }
+  }
+}
+
+// Restaura un JSON descargado por "Reprocesar karaokes existentes". Sirve para
+// deshacer el lote completo si alguna coincidencia de voz fue incorrecta.
+export async function restaurarBackupKaraokes(file) {
+  if (!file) return;
+
+  if (reprocesandoKaraokes) {
+    toast("⏳ Espera a que termine el reproceso antes de restaurar una copia.", "warn");
+    return;
+  }
+
+  try {
+    const texto = await file.text();
+    const data = JSON.parse(texto);
+    const karaokes = Array.isArray(data?.karaokes) ? data.karaokes : [];
+
+    if (!karaokes.length) {
+      toast("⚠️ El archivo no contiene karaokes para restaurar.", "warn");
+      return;
+    }
+
+    const ok = await confirmDialog(
+      `Se restaurarán ${karaokes.length} karaokes desde la copia de seguridad.\n\n` +
+      `Esto sobrescribe las notas y tiempos actuales de esos karaokes.\n\n` +
+      `¿Continuar?`,
+      { okText: "Sí, restaurar", cancelText: "Cancelar", danger: true }
+    );
+
+    if (!ok) return;
+
+    let restaurados = 0;
+    let fallidos = 0;
+
+    for (const k of karaokes) {
+      if (!k?.id) {
+        fallidos++;
+        continue;
+      }
+
+      try {
+        const cambios = {
+          lyrics: lyricsComoArray(k.lyrics),
+          transcription: lyricsComoArray(k.transcription || k.lyrics)
+        };
+
+        if (typeof k.isSincronizada === "boolean") cambios.isSincronizada = k.isSincronizada;
+        if (typeof k.isReadyKaraoke === "boolean") cambios.isReadyKaraoke = k.isReadyKaraoke;
+        if (k.tapModeStyle) cambios.tapModeStyle = k.tapModeStyle;
+
+        await updateLibraryItemsFromSupabase(k.id, cambios);
+        restaurados++;
+      } catch (err) {
+        fallidos++;
+        console.warn(`⚠️ No se pudo restaurar el karaoke "${k.name || k.id}":`, err);
+      }
+    }
+
+    toast(
+      `✅ ${restaurados} karaokes restaurados${fallidos ? ` · ❌ ${fallidos} fallidos` : ""}`,
+      restaurados ? "ok" : "warn",
+      6000
+    );
+
+    try {
+      await renderLibrary("karaoke");
+    } catch (err) {
+      console.warn("No se pudo refrescar la biblioteca tras restaurar:", err);
+    }
+  } catch (err) {
+    console.error("❌ Error restaurando la copia de seguridad:", err);
+    toast(`❌ No se pudo restaurar: ${err.message}`, "error", 6000);
+  }
 }
 
 // ==========================================
@@ -909,7 +1809,8 @@ export async function startTapSync() {
   if ($("tapSyncResult")) $("tapSyncResult").style.display = "none";
 
   if (modoSeleccionado === "linea") {
-    tapSyncLines = textoActivo.split(/\r?\n/).map(line => line.trim()).filter(line => line.length > 0);
+    // Mismo criterio de saltos de línea que segmentarTextoPlano: \r\n, \r y \n.
+    tapSyncLines = textoActivo.split(/\r\n|\r|\n/).map(line => line.trim()).filter(line => line.length > 0);
   } else {
     tapSyncLines = textoActivo.split(/\s+/).map(palabra => palabra.trim()).filter(palabra => palabra.length > 0);
   }
@@ -1256,18 +2157,30 @@ export async function finishTapSync() {
     if (!item) throw new Error("No se pudo obtener el elemento de la biblioteca remota");
 
     const isWordMode = (tapSyncModeType === "palabra");
-    // En modo palabra los taps van 1:1 con las palabras del editor: la base
-    // SIEMPRE sale del textarea. Usar item.lyrics (ya agrupado en segmentos
-    // tras un sync previo) desalineaba taps y palabras (timestamps en 0).
-    const baseWords = (!isWordMode && Array.isArray(item.lyrics) && item.lyrics.length)
-      ? item.lyrics.map((w, idx) => ({
-          id: w.id || (idx + 1),
-          text: w.text || w.word || "",
-          word: w.word || w.text || "",
-          renglon: w.renglon || 1,
-          parte: w.parte || "P1"
-        }))
-      : segmentarTextoPlano(($("lyricsText")?.value || "").trim());
+    let wordIdCounter = 0;
+
+    // En modo línea la base son EXACTAMENTE las líneas que se tapsearon
+    // (tapSyncLines): así los taps y las palabras no pueden desalinearse aunque
+    // el usuario edite el textarea a mitad de sesión. Antes se prefería
+    // item.lyrics (la copia guardada en Supabase) o se re-parseaba el textarea:
+    // si había líneas en blanco o cambios sin "Aplicar", los renglones no
+    // coincidían con tapSyncLines y las palabras caían en la línea equivocada.
+    // En modo palabra la base es el editor, palabra por palabra.
+    const baseWords = isWordMode
+      ? segmentarTextoPlano(
+          (($("lyricsText")?.value || "").trim()
+            ? $("lyricsText").value
+            : ($("text")?.value || "")).trim()
+        )
+      : tapSyncLines.flatMap((lineText, lineIndex) =>
+          lineText.split(/\s+/).filter(Boolean).map((txt) => ({
+            id: ++wordIdCounter,
+            text: txt,
+            word: txt,
+            renglon: lineIndex + 1,
+            parte: tapSyncParts[lineIndex] || "P1"
+          }))
+        );
 
     if (!baseWords.length) {
       throw new Error("No hay palabras base para sincronizar.");
@@ -1298,7 +2211,17 @@ export async function finishTapSync() {
 
       tapSyncLines.forEach((lineText, lineIndex) => {
         const startTimeLine = tapSyncTimestamps[lineIndex] || 0;
-        const endTimeLine = tapSyncTimestamps[lineIndex + 1] || (startTimeLine + avgInterval);
+        const nextTap = tapSyncTimestamps[lineIndex + 1];
+        const isLastLine = lineIndex >= tapSyncLines.length - 1;
+        // La última línea no tiene siguiente tap. Antes se comprimía al
+        // intervalo medio, así que sus últimas palabras podían quedar antes de
+        // donde realmente se cantaban. Usar la duración real del audio; el
+        // recorte por voz (retimeLinesToVoicedSpan) quita luego el outro.
+        const endTimeLine = Number.isFinite(nextTap)
+          ? nextTap
+          : (isLastLine && Number.isFinite(audioDuration) && audioDuration > startTimeLine
+              ? audioDuration
+              : startTimeLine + avgInterval);
         const parteLinea = tapSyncParts[lineIndex] || "P1";
 
         const wordsInRow = baseWords.filter(w => (w.renglon || 1) === (lineIndex + 1));
@@ -1350,7 +2273,12 @@ export async function finishTapSync() {
       audioSourceForPitch = item.file_url || item.audioBlob || null;
     }
 
-    const analyzedWords = await analyzePitchForTimedWords(audioSourceForPitch, timedWords);
+    const analyzedWords = await analyzePitchForTimedWords(audioSourceForPitch, timedWords, {
+      // En modo línea los tiempos de palabra son estimados; recortarlos al
+      // tramo con voz real mejora tanto las barras como la nota detectada.
+      // En modo palabra cada tap ya marca el inicio exacto: no se toca.
+      trimLineSilence: !isWordMode
+    });
 
     const finalWords = analyzedWords.map((w, index) => ({
       id: w.id || (index + 1),
