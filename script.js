@@ -434,6 +434,24 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (typeof cancelTapSync === "function") cancelTapSync();
     if (typeof startTapSync === "function") startTapSync();
   });
+  safeAdd("reprocessKaraokesBtn", "click", async () => {
+    const { reprocesarKaraokesExistentes } = await import("./modules/estudio.js");
+    if (typeof reprocesarKaraokesExistentes === "function") reprocesarKaraokesExistentes();
+  });
+  safeAdd("backupKaraokesBtn", "click", async () => {
+    const { descargarBackupKaraokesExistentes } = await import("./modules/estudio.js");
+    if (typeof descargarBackupKaraokesExistentes === "function") descargarBackupKaraokesExistentes();
+  });
+  safeAdd("restoreKaraokesBtn", "click", () => {
+    document.getElementById("restoreKaraokesBackupInput")?.click();
+  });
+  safeAdd("restoreKaraokesBackupInput", "change", async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    const { restaurarBackupKaraokes } = await import("./modules/estudio.js");
+    if (typeof restaurarBackupKaraokes === "function") restaurarBackupKaraokes(file);
+  });
   safeAdd("tapPartP1Btn", "click", async () => {
     const { setCurrentTapPart } = await import("./modules/estudio.js");
     if (typeof setCurrentTapPart === "function") setCurrentTapPart("P1");
