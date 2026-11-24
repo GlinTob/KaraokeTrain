@@ -291,6 +291,31 @@
                 </div>
               </div>
             </div>
+
+            <!-- REPROCESO MASIVO DE KARAOKES ANTIGUOS -->
+            <div id="reprocessKaraokesSection" style="margin-top: 20px; padding: 15px; background: linear-gradient(135deg, #3b1e5f, #1e293b); border-radius: 8px; border: 2px solid #8b5cf6;">
+              <h4 style="margin: 0 0 8px 0; color: #a78bfa;">Reparar karaokes ya creados 🎼</h4>
+              <p style="font-size: 13px; color: var(--text-muted); margin: 0 0 12px 0;">
+                Vuelve a analizar las notas y recorta los silencios de todos los karaokes guardados,
+                sin repetir los taps. Usa la voz de la biblioteca que coincida por nombre con cada canción.
+                Antes de modificar descarga una copia de seguridad en JSON.
+              </p>
+              <div class="studio-controls">
+                <button id="reprocessKaraokesBtn" type="button" style="background: #8b5cf6; color: white;">
+                  Reprocesar karaokes existentes
+                </button>
+                <button id="backupKaraokesBtn" type="button" style="background: #0ea5e9; color: white;">
+                  Descargar copia de seguridad
+                </button>
+                <button id="restoreKaraokesBtn" type="button" style="background: #6b7280; color: white;">
+                  Restaurar copia de seguridad
+                </button>
+              </div>
+              <input id="restoreKaraokesBackupInput" type="file" accept="application/json,.json" style="display: none;">
+              <p id="reprocessKaraokesStatus" style="font-size: 13px; color: #a78bfa; font-weight: bold; margin: 12px 0 0 0;">
+                Listo para reprocesar.
+              </p>
+            </div>
           </div>
         </section>
         
