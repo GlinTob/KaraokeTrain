@@ -1612,7 +1612,14 @@ export async function reprocesarKaraokesExistentes() {
           lyrics: segments,
           transcription: segments,
           isSincronizada: true,
-          isReadyKaraoke: true
+          isReadyKaraoke: true,
+          name: (() => {
+            let n = karaoke.name;
+            n = n.replace(/\s+karaoke$/i, '');
+            n = n.replace(/\[?\s*KARAOKE\]?$/i, '');
+            n = n.replace(/\s+[^\w\s]\s*$/, '');
+            return n.trim();
+          })()
         });
 
         actualizados++;
