@@ -1615,9 +1615,15 @@ export async function reprocesarKaraokesExistentes() {
           isReadyKaraoke: true,
           name: (() => {
             let n = karaoke.name;
-            n = n.replace(/\s+karaoke$/i, '');
-            n = n.replace(/\[?\s*KARAOKE\]?$/i, '');
-            n = n.replace(/\s+[^\w\s]\s*$/, '');
+            // Quitar "karaoke" al inicio (case insensitive)
+            n = n.replace(/^karaoke\s+/i, "");
+            // Si después de quitar el inicio solo queda vacío, nombre completo
+            if (!n.trim()) return karaoke.name.trim();
+            // Quitar "karaoke" al final (palabra suelta o entre corchetes)
+            n = n.replace(/\s+karaoke$/i, "");
+            n = n.replace(/\[?\s*KARAOKE\]?\$/i, "");
+            // Limpiar posibles separadores sobrantes al final
+            n = n.replace(/\s+[^\w\s]\s*$/, "");
             return n.trim();
           })()
         });
