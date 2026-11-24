@@ -1287,6 +1287,16 @@ function puntuarVozParaKaraoke(karaokeName, vozName) {
 }
 
 function encontrarVozParaKaraoke(karaoke, voces) {
+  // 1) Match directo por voiceRef guardado al crear el karaoke
+  if (karaoke.voiceRef) {
+    const vozDirecta = voces.find((v) => v && v.id === karaoke.voiceRef);
+    if (vozDirecta) {
+      return vozDirecta; // match seguro, score 100
+    }
+    // Si el voiceRef no encontró coincidencia en la actual lista,
+    // seguimos con la heurística de abajo (por si se subieron voces nuevas).
+  }
+
   let mejor = null;
   let mejorPuntaje = 0;
 
@@ -2348,7 +2358,11 @@ export async function finishTapSync() {
       isReadyKaraoke: true,
       tapModeStyle: tapSyncModeType,
       file_url: fileUrlFinal,
-      file_path: filePathFinal
+      file_path: filePathFinal,
+      // Guardar referencia a la voz usada para taps. Esto permite que el
+      // reproceso futuro "reprocesar karaokes existentes" empareje la voz
+      // por esta referencia directa en lugar de heurística de nombre.
+      voiceRef: selectedVoiceId || null
     };
 
     if (karaokeExistente) {
