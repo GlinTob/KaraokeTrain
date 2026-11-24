@@ -1627,6 +1627,8 @@ export async function reprocesarKaraokesExistentes() {
             let n = karaoke.name;
             // Quitar "karaoke" al inicio (case insensitive)
             n = n.replace(/^karaoke\s+/i, "");
+            // Quitar guion inicial y espacio (formato: "-Canción -Artista")
+            n = n.replace(/^-+\s*/, "");
             // Si después de quitar el inicio solo queda vacío, nombre completo
             if (!n.trim()) return karaoke.name.trim();
             // Quitar "karaoke" al final (palabra suelta o entre corchetes)
